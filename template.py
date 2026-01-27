@@ -38,11 +38,11 @@ list_of_files = [
     f"src/{project_name}/pipeline/__init__.py",
     f"src/{project_name}/pipeline/stage_01_data_ingestion.py",
 
-    # Configs (uv does NOT create these)
+    # Configs and params files
     "configs/config.yaml",
     "configs/params.yaml",
 
-    # Artifacts root (run folders will be created at runtime)
+    # Artifacts root folder
     "artifacts/runs/.gitkeep",
 
     # Data placeholders
