@@ -52,6 +52,9 @@ list_of_files = [
     # Scripts / tests
     "scripts/run_stage_01.sh",
     "tests/test_smoke.py",
+
+    # Notebooks
+    "notebooks/00_research.ipynb",
 ]
 
 for filepath in list_of_files:
