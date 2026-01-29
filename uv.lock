@@ -543,6 +543,7 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "pandas" },
+    { name = "praatio" },
     { name = "pyannote-audio" },
     { name = "pyarrow" },
     { name = "pydantic" },
@@ -568,6 +569,7 @@ requires-dist = [
     { name = "huggingface-hub", specifier = "<0.21" },
     { name = "matplotlib", specifier = ">=3.7,<3.9" },
     { name = "pandas", specifier = ">=2.0,<2.3" },
+    { name = "praatio", specifier = ">=6.2.2" },
     { name = "pyannote-audio", specifier = ">=3.4.0" },
     { name = "pyarrow", specifier = ">=14,<24" },
     { name = "pydantic", specifier = ">=2.5,<3" },
@@ -1237,6 +1239,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "praatio"
+version = "6.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/fa/be0bab2b2da04427204f84cd5e54bd3364937456adf03d98f0f2cfb8f402/praatio-6.2.2.tar.gz", hash = "sha256:ed8fdee6121bdae142817879ed9a50cc8334e72c03c110162e21ed8160180d2a", size = 2176936, upload-time = "2026-01-16T09:21:52.888Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/12/59f3928dc6583d652798758b513ab6062e4dddbbf624623d0ec02e7bbb23/praatio-6.2.2-py3-none-any.whl", hash = "sha256:d097b0e6991715559d68537c6af1baba86a0e0f9ad077e6d078e3d21c510743f", size = 82261, upload-time = "2026-01-16T09:21:50.124Z" },
 ]
 
 [[package]]

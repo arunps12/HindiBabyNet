@@ -8,6 +8,7 @@ dependencies = [
     "huggingface-hub<0.21",
     "matplotlib>=3.7,<3.9",
     "pandas>=2.0,<2.3",
+    "praatio>=6.2.2",
     "pyannote-audio>=3.4.0",
     "pyarrow>=14,<24",
     "pydantic>=2.5,<3",
