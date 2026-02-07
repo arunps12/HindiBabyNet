@@ -55,6 +55,9 @@ list_of_files = [
 
     # Notebooks
     "notebooks/00_research.ipynb",
+
+    #models
+    "models/.gitkeep"
 ]
 
 for filepath in list_of_files:
