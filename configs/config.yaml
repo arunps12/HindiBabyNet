@@ -1,0 +1,7 @@
+artifacts_root: artifacts/runs
+logs_root: logs
+
+data_ingestion:
+  raw_audio_root: /scratch/users/arunps/hindibabynet/audio_raw
+  allowed_ext: [".wav", ".WAV"]
+  recordings_filename: recordings.parquet
