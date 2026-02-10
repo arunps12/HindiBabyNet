@@ -5,10 +5,15 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import soundfile as sf
+import webrtcvad
 from scipy.signal import resample_poly
 
 from src.hindibabynet.utils.io_utils import ensure_dir
 
+
+# ============================================================================
+# Low-level primitives
+# ============================================================================
 
 def _dbfs_to_linear(dbfs: float) -> float:
     return float(10 ** (dbfs / 20.0))
@@ -21,7 +26,6 @@ def _stream_peak(path: Path, block_frames: int = 262144) -> float:
             x = f.read(frames=block_frames, dtype="float32", always_2d=True)
             if x.size == 0:
                 break
-            # peak over all channels
             p = float(np.max(np.abs(x))) if x.size else 0.0
             if p > peak:
                 peak = p
@@ -34,14 +38,158 @@ def _resample_block(x: np.ndarray, sr_in: int, sr_out: int) -> np.ndarray:
     g = np.gcd(sr_in, sr_out)
     up = sr_out // g
     down = sr_in // g
-    # resample_poly expects (n,) or (n, ch)
     if x.ndim == 1:
         y = resample_poly(x, up, down).astype(np.float32, copy=False)
     else:
-        # process each channel
         ys = [resample_poly(x[:, c], up, down) for c in range(x.shape[1])]
         y = np.stack(ys, axis=1).astype(np.float32, copy=False)
     return y
+
+
+# ============================================================================
+# In-memory audio helpers
+# ============================================================================
+
+def load_audio_mono(path: str | Path) -> Tuple[np.ndarray, int]:
+    """Load an audio file to mono float32 array + sample rate."""
+    x, sr = sf.read(str(path), always_2d=False)
+    if x.ndim == 2:
+        x = x.mean(axis=1)
+    return x.astype(np.float32, copy=False), sr
+
+
+def resample_audio(x: np.ndarray, sr: int, target_sr: int) -> np.ndarray:
+    """Polyphase resample a 1-D float32 array."""
+    if sr == target_sr:
+        return x
+    gcd = int(np.gcd(sr, target_sr))
+    up = target_sr // gcd
+    down = sr // gcd
+    return resample_poly(x, up, down).astype(np.float32, copy=False)
+
+
+def crop_or_pad(x: np.ndarray, target_len: int) -> np.ndarray:
+    """Crop or zero-pad a 1-D array to exactly *target_len* samples."""
+    n = len(x)
+    if n == target_len:
+        return x
+    if n > target_len:
+        return x[:target_len]
+    out = np.zeros(target_len, dtype=np.float32)
+    out[:n] = x
+    return out
+
+
+def slice_audio(
+    x: np.ndarray, sr: int, start_sec: float, end_sec: float
+) -> np.ndarray:
+    """Return samples between *start_sec* and *end_sec*."""
+    s = max(0, int(round(start_sec * sr)))
+    e = min(len(x), int(round(end_sec * sr)))
+    return x[s:e]
+
+
+# ============================================================================
+# VAD — WebRTC
+# ============================================================================
+
+def webrtc_vad_regions(
+    path: Path,
+    aggressiveness: int = 2,
+    frame_ms: int = 30,
+    min_region_ms: int = 300,
+) -> List[Tuple[float, float]]:
+    """Return speech intervals ``(start_sec, end_sec)`` via WebRTC VAD."""
+    vad = webrtcvad.Vad(aggressiveness)
+    info = sf.info(str(path))
+    sr = int(info.samplerate)
+
+    if sr not in (8000, 16000, 32000, 48000):
+        raise ValueError(f"webrtcvad needs sr in (8k,16k,32k,48k), got {sr}")
+
+    frame_len = int(sr * frame_ms / 1000)
+
+    speech_flags: List[bool] = []
+    with sf.SoundFile(str(path), mode="r") as f:
+        while True:
+            frame = f.read(frames=frame_len, dtype="int16", always_2d=True)
+            if frame.size == 0 or len(frame) < frame_len:
+                break
+            mono = frame[:, 0]
+            speech_flags.append(vad.is_speech(mono.tobytes(), sr))
+
+    # merge consecutive True flags into regions
+    regions: List[Tuple[int, int]] = []
+    in_speech = False
+    start_i = 0
+    for i, is_speech in enumerate(speech_flags):
+        if is_speech and not in_speech:
+            in_speech = True
+            start_i = i
+        elif (not is_speech) and in_speech:
+            in_speech = False
+            regions.append((start_i, i))
+    if in_speech:
+        regions.append((start_i, len(speech_flags)))
+
+    out: List[Tuple[float, float]] = []
+    for s_i, e_i in regions:
+        s = (s_i * frame_len) / sr
+        e = (e_i * frame_len) / sr
+        if (e - s) * 1000 >= min_region_ms:
+            out.append((float(s), float(e)))
+    return out
+
+
+# ============================================================================
+# File-level WAV helpers
+# ============================================================================
+
+def write_wav_chunk(
+    wav_path: Path,
+    chunk_path: Path,
+    start_sec: float,
+    end_sec: float,
+    logger=None,
+) -> Path | None:
+    """Write a time-slice of a WAV to disk. Returns ``None`` on failure."""
+    try:
+        info = sf.info(str(wav_path))
+        sr = info.samplerate
+        start_frame = max(0, int(start_sec * sr))
+        end_frame = min(info.frames, int(end_sec * sr))
+        n_frames = end_frame - start_frame
+        if n_frames <= 0:
+            return None
+        audio, _ = sf.read(
+            str(wav_path), start=start_frame, frames=n_frames, dtype="float32"
+        )
+        if audio is None or audio.size == 0:
+            return None
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+        sf.write(str(chunk_path), audio, sr, format="WAV", subtype="PCM_16")
+        return chunk_path
+    except Exception as e:
+        if logger is not None:
+            logger.warning(f"write_wav_chunk failed ({chunk_path.name}): {e}")
+        return None
+
+
+def write_stream_wav(
+    stream_audio: np.ndarray,
+    sr: int,
+    out_wav_path: Path,
+) -> Path:
+    """Write a concatenated class-stream audio array to WAV."""
+    ensure_dir(out_wav_path.parent)
+    if len(stream_audio) > 0:
+        sf.write(str(out_wav_path), stream_audio, sr, format="WAV", subtype="PCM_16")
+    return out_wav_path
+
+
+# ============================================================================
+# Streaming file-to-file operations (used by Stage 02)
+# ============================================================================
 
 
 def ensure_mono_16k_wav_streaming(

@@ -40,12 +40,13 @@ Raw WAV recordings
 │  Stage 03 — Speaker Classification                      │
 │  VAD → diarization → eGeMAPS features → XGBoost         │
 │  → separate class streams → secondary diarization       │
-│  → export main_female.wav, main_male.wav, TextGrid      │
+│  → export main_female, main_male, child, background WAV │
+│  → export TextGrid                                      │
 └─────────────────────────────────────────────────────────┘
         │
         ▼
-   main_female.wav    main_male.wav    <participant>.TextGrid
-   segments.parquet   summary.json
+   <pid>_main_female.wav  <pid>_main_male.wav  <pid>_child.wav
+   <pid>_background.wav   <pid>.TextGrid       <pid>_summary.json
 ```
 
 **Four output classes:**
@@ -122,12 +123,14 @@ If you have **one WAV file** and want to classify speakers in it:
 uv run bash scripts/run_stage_02_single_wav.sh /path/to/your/recording.wav
 
 # Step 2: Find the prepared analysis WAV (printed by Step 1), then classify
-uv run bash scripts/run_stage_03.sh --wav /path/to/scratch/audio_processed/recording/recording_analysis.wav
+uv run bash scripts/run_stage_03.sh --wav /path/to/scratch/audio_processed/recording/recording.wav
 ```
 
 **What you get:**
-- `main_female.wav` — isolated main female speaker
-- `main_male.wav` — isolated main male speaker
+- `recording_main_female.wav` — isolated main female speaker
+- `recording_main_male.wav` — isolated main male speaker
+- `recording_child.wav` — child vocalisations
+- `recording_background.wav` — background / non-speech
 - `recording.TextGrid` — Praat-compatible annotation with FEM / MAL / CHILD / BACKGROUND tiers
 - `recording_segments.parquet` — every classified segment with timestamps and probabilities
 - `recording_summary.json` — per-class duration statistics
@@ -189,7 +192,7 @@ uv run bash scripts/run_stage_02_single_wav.sh /path/to/input.wav
 uv run bash scripts/run_stage_02_single_wav.sh /path/to/input.wav my_custom_id
 
 # ─── Stage 03: Classify speakers (single prepared WAV) ───
-uv run bash scripts/run_stage_03.sh --wav /path/to/<pid>_analysis.wav
+uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/<pid>/<pid>.wav
 
 # ─── Stage 03: Classify all prepared WAVs in a directory ───
 uv run bash scripts/run_stage_03.sh \
@@ -219,7 +222,7 @@ Stage 03 internally executes the following sub-steps per participant:
 | **5** | Speech-type classification | eGeMAPSv02 (88-dim) + XGBoost → 4 classes |
 | **6** | Stream aggregation | Concatenate all `adult_female` segments → female stream, etc. |
 | **7** | Secondary diarization | Diarize each gender stream to find the *dominant* speaker |
-| **8** | Main caregiver export | Write `main_female.wav` and `main_male.wav` (dominant speaker only) |
+| **8** | Main caregiver export | Write `<pid>_main_female.wav`, `<pid>_main_male.wav`, `<pid>_child.wav`, `<pid>_background.wav` |
 | **9** | TextGrid generation | One `.TextGrid` per participant with FEM / MAL / CHILD / BACKGROUND tiers |
 
 ### Classification Model
@@ -247,8 +250,10 @@ For each participant, the pipeline produces:
 
 ```
 <output_audio_root>/<participant_id>/
-  ├── main_female.wav          # Main female caregiver audio (16 kHz mono)
-  └── main_male.wav            # Main male caregiver audio (16 kHz mono)
+  ├── <participant_id>_main_female.wav   # Main female caregiver audio (16 kHz mono)
+  ├── <participant_id>_main_male.wav     # Main male caregiver audio (16 kHz mono)
+  ├── <participant_id>_child.wav         # Child vocalisations (16 kHz mono)
+  └── <participant_id>_background.wav    # Background / non-speech (16 kHz mono)
 
 artifacts/runs/<run_id>/speaker_classification/
   ├── <participant_id>_segments.parquet   # All classified segments
@@ -400,7 +405,7 @@ HindiBabyNet/
 |---------|----------|
 | `HF_TOKEN not loaded` | Create a `.env` file in the project root: `echo "HF_TOKEN=hf_..." > .env` |
 | `webrtcvad needs sr in (8k,16k,32k,48k)` | Your input WAV has an unusual sample rate. Run Stage 02 first to resample to 16 kHz. |
-| `No *_analysis.wav files found` | Stage 02 hasn't been run yet, or the `processed_audio_root` path in config.yaml is wrong. |
+| `No <pid>/<pid>.wav files found` | Stage 02 hasn't been run yet, or the `processed_audio_root` path in config.yaml is wrong. |
 | Out of GPU memory | Reduce `chunk_sec` in config.yaml (e.g., from 900 to 300). Smaller chunks use less VRAM. |
 | Very slow (no GPU) | The pipeline works on CPU but diarization is 10-50× slower. Use a CUDA-capable GPU. |
 | `Model not found: models/xgb_egemaps.pkl` | Ensure the pre-trained model file is present in the `models/` directory. |

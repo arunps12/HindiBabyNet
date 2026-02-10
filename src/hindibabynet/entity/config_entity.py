@@ -60,3 +60,5 @@ class SpeakerClassificationConfig:
     textgrid_path: Path                  # <participant_id>.TextGrid
     main_female_wav_path: Path
     main_male_wav_path: Path
+    child_wav_path: Path
+    background_wav_path: Path

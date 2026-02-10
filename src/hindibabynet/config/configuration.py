@@ -64,7 +64,7 @@ class ConfigurationManager:
             combine_gap_sec=float(ap.get("combine_gap_sec", 0.0)),
             manifest_parquet_path=artifacts_dir
             / f"{recording_id}_audio_manifest.parquet",
-            analysis_wav_path=processed_dir / f"{recording_id}_analysis.wav",
+            analysis_wav_path=processed_dir / f"{recording_id}.wav",
             analysis_meta_json_path=artifacts_dir
             / f"{recording_id}_analysis_meta.json",
         )
@@ -109,6 +109,8 @@ class ConfigurationManager:
             / f"{participant_id}_segments.parquet",
             summary_json_path=artifacts_dir / f"{participant_id}_summary.json",
             textgrid_path=artifacts_dir / f"{participant_id}.TextGrid",
-            main_female_wav_path=output_dir / "main_female.wav",
-            main_male_wav_path=output_dir / "main_male.wav",
+            main_female_wav_path=output_dir / f"{participant_id}_main_female.wav",
+            main_male_wav_path=output_dir / f"{participant_id}_main_male.wav",
+            child_wav_path=output_dir / f"{participant_id}_child.wav",
+            background_wav_path=output_dir / f"{participant_id}_background.wav",
         )

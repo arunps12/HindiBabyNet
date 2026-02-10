@@ -6,9 +6,9 @@ set -euo pipefail
 #
 # Usage:
 #   # Single analysis WAV:
-#   uv run bash scripts/run_stage_03.sh --wav /path/to/<pid>_analysis.wav
+#   uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/<pid>/<pid>.wav
 #
-#   # All analysis WAVs under a directory (auto-discovers *_analysis.wav):
+#   # All analysis WAVs under a directory (auto-discovers <pid>/<pid>.wav):
 #   uv run bash scripts/run_stage_03.sh --analysis_dir /scratch/users/arunps/hindibabynet/audio_processed
 #
 #   # From recordings parquet (needs Stage 02 outputs to exist):

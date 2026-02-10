@@ -3,7 +3,7 @@ Stage 03 — Speaker Classification
 
 CLI modes:
   --wav <path>                         Process a single analysis-ready WAV
-  --analysis_dir <path>                Process all *_analysis.wav files in a directory
+  --analysis_dir <path>                Process all <pid>/<pid>.wav files in a directory
   --recordings_parquet <path>          Process all participants from a recordings parquet
                                        (expects Stage 02 outputs to already exist)
 """
@@ -34,7 +34,7 @@ def main():
     ap = argparse.ArgumentParser(description="Stage 03: Speaker Classification")
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--wav", type=str, help="Single analysis-ready WAV path")
-    group.add_argument("--analysis_dir", type=str, help="Directory containing *_analysis.wav files")
+    group.add_argument("--analysis_dir", type=str, help="Directory containing <pid>/<pid>.wav analysis files")
     group.add_argument(
         "--recordings_parquet",
         type=str,
@@ -58,7 +58,7 @@ def main():
         if not wav_path.exists():
             raise FileNotFoundError(f"WAV not found: {wav_path}")
 
-        pid = args.participant_id or wav_path.stem.replace("_analysis", "")
+        pid = args.participant_id or wav_path.stem
         logger.info(f"Stage 03 (single) | wav={wav_path} participant_id={pid} run_id={run_id}")
         artifact = _run_single(cfg, run_id, wav_path, pid)
         logger.info(f"Stage 03 done: {artifact}")
@@ -71,10 +71,19 @@ def main():
         if not analysis_dir.is_dir():
             raise NotADirectoryError(f"Not a directory: {analysis_dir}")
 
-        # Find all *_analysis.wav under this directory tree
-        wav_files = sorted(analysis_dir.rglob("*_analysis.wav"))
+        # Find analysis WAVs: each participant dir contains <pid>.wav
+        wav_files = sorted(
+            p for p in analysis_dir.rglob("*.wav")
+            if p.parent != analysis_dir or True  # include all levels
+        )
+        # Filter: keep only WAVs whose stem matches their parent dir name
+        # (i.e. ABAN141223/ABAN141223.wav, not tmp files)
+        wav_files = [
+            p for p in wav_files
+            if p.stem == p.parent.name and not p.parent.name.startswith("_")
+        ]
         if not wav_files:
-            raise FileNotFoundError(f"No *_analysis.wav files found under {analysis_dir}")
+            raise FileNotFoundError(f"No <pid>/<pid>.wav files found under {analysis_dir}")
 
         if args.limit:
             wav_files = wav_files[: args.limit]
@@ -83,7 +92,7 @@ def main():
         n_ok, n_fail = 0, 0
 
         for wav_path in wav_files:
-            pid = wav_path.stem.replace("_analysis", "")
+            pid = wav_path.stem
             try:
                 logger.info(f"[{pid}] Processing {wav_path}")
                 _run_single(cfg, run_id, wav_path, pid)
@@ -123,7 +132,7 @@ def main():
 
         n_ok, n_fail, n_skip = 0, 0, 0
         for pid in participants:
-            analysis_wav = processed_root / pid / f"{pid}_analysis.wav"
+            analysis_wav = processed_root / pid / f"{pid}.wav"
             if not analysis_wav.exists():
                 logger.warning(f"[{pid}] analysis wav not found: {analysis_wav}, skipping")
                 n_skip += 1

@@ -27,16 +27,23 @@ import opensmile
 import pandas as pd
 import soundfile as sf
 import torch
-import webrtcvad
-from praatio import textgrid as tgio
-from scipy.signal import resample_poly
 from tqdm.auto import tqdm
 
 from src.hindibabynet.entity.artifact_entity import SpeakerClassificationArtifact
 from src.hindibabynet.entity.config_entity import SpeakerClassificationConfig
 from src.hindibabynet.exception.exception import wrap_exception
 from src.hindibabynet.logging.logger import get_logger
+from src.hindibabynet.utils.audio_utils import (
+    crop_or_pad,
+    load_audio_mono,
+    resample_audio,
+    slice_audio,
+    webrtc_vad_regions,
+    write_stream_wav,
+    write_wav_chunk,
+)
 from src.hindibabynet.utils.io_utils import ensure_dir, write_json, write_parquet
+from src.hindibabynet.utils.textgrid_utils import intervals_to_df, write_textgrid
 
 logger = get_logger(__name__)
 
@@ -61,90 +68,9 @@ TIER_MAP: Dict[str, str] = {
 
 
 # ============================================================================
-# Audio helpers  (from notebook cells)
-# ============================================================================
-def load_audio_mono(path: str | Path) -> Tuple[np.ndarray, int]:
-    x, sr = sf.read(str(path), always_2d=False)
-    if x.ndim == 2:
-        x = x.mean(axis=1)
-    return x.astype(np.float32, copy=False), sr
-
-
-def resample_audio(x: np.ndarray, sr: int, target_sr: int) -> np.ndarray:
-    if sr == target_sr:
-        return x
-    gcd = int(np.gcd(sr, target_sr))
-    up = target_sr // gcd
-    down = sr // gcd
-    return resample_poly(x, up, down).astype(np.float32, copy=False)
-
-
-def crop_or_pad(x: np.ndarray, target_len: int) -> np.ndarray:
-    n = len(x)
-    if n == target_len:
-        return x
-    if n > target_len:
-        return x[:target_len]
-    out = np.zeros(target_len, dtype=np.float32)
-    out[:n] = x
-    return out
-
-
-def slice_audio(x: np.ndarray, sr: int, start_sec: float, end_sec: float) -> np.ndarray:
-    s = max(0, int(round(start_sec * sr)))
-    e = min(len(x), int(round(end_sec * sr)))
-    return x[s:e]
-
-
-# ============================================================================
 # Step 2 — VAD  (exact notebook: webrtc_vad_regions_streaming)
 # ============================================================================
-def webrtc_vad_regions(
-    path: Path,
-    aggressiveness: int = 2,
-    frame_ms: int = 30,
-    min_region_ms: int = 300,
-) -> List[Tuple[float, float]]:
-    """Return speech intervals (start_sec, end_sec) via WebRTC VAD."""
-    vad = webrtcvad.Vad(aggressiveness)
-    info = sf.info(str(path))
-    sr = int(info.samplerate)
-
-    if sr not in (8000, 16000, 32000, 48000):
-        raise ValueError(f"webrtcvad needs sr in (8k,16k,32k,48k), got {sr}")
-
-    frame_len = int(sr * frame_ms / 1000)
-
-    speech_flags: List[bool] = []
-    with sf.SoundFile(str(path), mode="r") as f:
-        while True:
-            frame = f.read(frames=frame_len, dtype="int16", always_2d=True)
-            if frame.size == 0 or len(frame) < frame_len:
-                break
-            mono = frame[:, 0]
-            speech_flags.append(vad.is_speech(mono.tobytes(), sr))
-
-    # merge consecutive True flags into regions
-    regions: List[Tuple[int, int]] = []
-    in_speech = False
-    start_i = 0
-    for i, is_speech in enumerate(speech_flags):
-        if is_speech and not in_speech:
-            in_speech = True
-            start_i = i
-        elif (not is_speech) and in_speech:
-            in_speech = False
-            regions.append((start_i, i))
-    if in_speech:
-        regions.append((start_i, len(speech_flags)))
-
-    out: List[Tuple[float, float]] = []
-    for s_i, e_i in regions:
-        s = (s_i * frame_len) / sr
-        e = (e_i * frame_len) / sr
-        if (e - s) * 1000 >= min_region_ms:
-            out.append((float(s), float(e)))
-    return out
+# webrtc_vad_regions is now in src.hindibabynet.utils.audio_utils
 
 
 # ============================================================================
@@ -170,29 +96,6 @@ def _make_chunks(
     return chunks
 
 
-def _write_wav_chunk(
-    wav_path: Path, chunk_path: Path, start_sec: float, end_sec: float
-) -> Optional[Path]:
-    """Write a time-slice of a WAV to disk. Returns None on failure."""
-    try:
-        info = sf.info(str(wav_path))
-        sr = info.samplerate
-        start_frame = max(0, int(start_sec * sr))
-        end_frame = min(info.frames, int(end_sec * sr))
-        n_frames = end_frame - start_frame
-        if n_frames <= 0:
-            return None
-        audio, _ = sf.read(str(wav_path), start=start_frame, frames=n_frames, dtype="float32")
-        if audio is None or audio.size == 0:
-            return None
-        chunk_path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(str(chunk_path), audio, sr, format="WAV", subtype="PCM_16")
-        return chunk_path
-    except Exception as e:
-        logger.warning(f"write_wav_chunk failed ({chunk_path.name}): {e}")
-        return None
-
-
 def diarize_wav(
     wav_path: Path,
     diar_pipeline,
@@ -210,7 +113,7 @@ def diarize_wav(
     all_rows: List[Dict[str, Any]] = []
     for chunk_id, chunk_start, chunk_end in chunks:
         chunk_wav = tmp_dir / f"{wav_path.stem}_chunk{chunk_id:04d}.wav"
-        out = _write_wav_chunk(wav_path, chunk_wav, chunk_start, chunk_end)
+        out = write_wav_chunk(wav_path, chunk_wav, chunk_start, chunk_end, logger=logger)
         if out is None:
             continue
         try:
@@ -493,101 +396,82 @@ def build_class_stream(
     sr: int,
     target_class: str,
     gap_sec: float = 0.15,
-) -> Tuple[np.ndarray, pd.DataFrame]:
+) -> Tuple[np.ndarray, pd.DataFrame, List[Tuple[float, float, float, float]]]:
     """
     Concatenate all segments of *target_class* into a single audio array.
-    Returns (audio_array, used_rows_df).
+
+    Returns
+    -------
+    audio : np.ndarray          – concatenated stream
+    used_df : pd.DataFrame      – rows that were included
+    offset_table : list[(stream_start, stream_end, orig_start, orig_end)]
+        Maps every original segment to its position inside the stream so
+        secondary-diarization results can be mapped back.
     """
     sel = df[df["predicted_class"] == target_class].copy()
     sel = sel.sort_values("start_sec").reset_index(drop=True)
 
     if sel.empty:
-        return np.array([], dtype=np.float32), sel
+        return np.array([], dtype=np.float32), sel, []
 
-    gap = np.zeros(int(sr * gap_sec), dtype=np.float32) if gap_sec > 0 else None
+    gap_samples = int(sr * gap_sec) if gap_sec > 0 else 0
+    gap = np.zeros(gap_samples, dtype=np.float32) if gap_samples > 0 else None
     pieces: List[np.ndarray] = []
+    offset_table: List[Tuple[float, float, float, float]] = []
+    cursor = 0.0  # current position in stream (seconds)
 
     for _, r in sel.iterrows():
         seg = slice_audio(audio_16k, sr, float(r.start_sec), float(r.end_sec))
         if len(seg) == 0:
             continue
+        seg_dur = len(seg) / sr
+        offset_table.append((cursor, cursor + seg_dur, float(r.start_sec), float(r.end_sec)))
         pieces.append(seg)
+        cursor += seg_dur
         if gap is not None:
             pieces.append(gap)
+            cursor += gap_samples / sr
 
     if not pieces:
-        return np.array([], dtype=np.float32), sel
+        return np.array([], dtype=np.float32), sel, []
 
     y = np.concatenate(pieces).astype(np.float32, copy=False)
-    return y, sel
+    return y, sel, offset_table
 
 
 # ============================================================================
 # Step 7 — Secondary diarization → find main speaker
 # ============================================================================
-def find_main_speaker_segments(
-    stream_audio: np.ndarray,
-    sr: int,
-    diar_pipeline,
-    tmp_wav_path: Path,
-    min_speakers: int = 1,
-    max_speakers: int = 3,
-) -> Optional[str]:
-    """
-    Diarize a class stream and return the speaker label with the most total time.
-    Returns None if no speakers found.
-    """
-    if len(stream_audio) < sr:  # < 1 sec
-        return None
-
-    ensure_dir(tmp_wav_path.parent)
-    sf.write(str(tmp_wav_path), stream_audio, sr, format="WAV", subtype="PCM_16")
-
-    try:
-        diar = diar_pipeline(
-            {"audio": str(tmp_wav_path)},
-            min_speakers=min_speakers,
-            max_speakers=max_speakers,
-        )
-    except Exception as e:
-        logger.warning(f"Secondary diarization failed: {e}")
-        return None
-    finally:
-        try:
-            tmp_wav_path.unlink(missing_ok=True)
-        except Exception:
-            pass
-
-    durations: Dict[str, float] = {}
-    for seg, _, spk in diar.itertracks(yield_label=True):
-        durations[spk] = durations.get(spk, 0.0) + float(seg.end - seg.start)
-
-    if not durations:
-        return None
-    return max(durations, key=lambda k: durations[k])
-
-
 def extract_main_speaker_audio(
     stream_audio: np.ndarray,
     sr: int,
     diar_pipeline,
     tmp_wav_path: Path,
     out_wav_path: Path,
+    offset_table: List[Tuple[float, float, float, float]],
     min_speakers: int = 1,
     max_speakers: int = 3,
     gap_sec: float = 0.15,
-) -> Path:
+) -> Tuple[Path, List[Tuple[float, float]]]:
     """
     Diarize the stream, keep only the dominant speaker's segments,
     and write to out_wav_path. Falls back to full stream if diarization
     finds nothing or only 1 speaker.
+
+    Returns
+    -------
+    out_wav_path : Path
+    dominant_orig_intervals : list[(orig_start, orig_end)]
+        Original-recording-time intervals that belong to the dominant speaker.
+        If fallback (no filtering), returns ALL original intervals from offset_table.
     """
+    all_orig = [(os, oe) for (_, _, os, oe) in offset_table]
     ensure_dir(out_wav_path.parent)
 
     # If stream too short, just write it directly
     if len(stream_audio) < sr:
         sf.write(str(out_wav_path), stream_audio, sr, format="WAV", subtype="PCM_16")
-        return out_wav_path
+        return out_wav_path, all_orig
 
     # Write temp wav for diarization
     ensure_dir(tmp_wav_path.parent)
@@ -602,7 +486,7 @@ def extract_main_speaker_audio(
     except Exception as e:
         logger.warning(f"Secondary diarization failed, using full stream: {e}")
         sf.write(str(out_wav_path), stream_audio, sr, format="WAV", subtype="PCM_16")
-        return out_wav_path
+        return out_wav_path, all_orig
     finally:
         try:
             tmp_wav_path.unlink(missing_ok=True)
@@ -619,11 +503,12 @@ def extract_main_speaker_audio(
 
     if not durations:
         sf.write(str(out_wav_path), stream_audio, sr, format="WAV", subtype="PCM_16")
-        return out_wav_path
+        return out_wav_path, all_orig
 
     main_spk = max(durations, key=lambda k: durations[k])
     main_segs = sorted(segments_by_spk[main_spk])
 
+    # ── Write dominant-speaker audio ──
     gap = np.zeros(int(sr * gap_sec), dtype=np.float32) if gap_sec > 0 else None
     pieces: List[np.ndarray] = []
     for seg_s, seg_e in main_segs:
@@ -635,73 +520,32 @@ def extract_main_speaker_audio(
 
     if not pieces:
         sf.write(str(out_wav_path), stream_audio, sr, format="WAV", subtype="PCM_16")
+        return out_wav_path, all_orig
     else:
         y = np.concatenate(pieces).astype(np.float32, copy=False)
         sf.write(str(out_wav_path), y, sr, format="WAV", subtype="PCM_16")
 
-    return out_wav_path
+    # ── Map dominant speaker segments back to original recording time ──
+    # For each original segment in the offset table, check whether the
+    # dominant speaker covers the majority of its stream-time range.
+    dominant_orig: List[Tuple[float, float]] = []
+    for stream_s, stream_e, orig_s, orig_e in offset_table:
+        seg_dur = stream_e - stream_s
+        overlap = 0.0
+        for ms, me in main_segs:
+            o_s = max(stream_s, ms)
+            o_e = min(stream_e, me)
+            if o_e > o_s:
+                overlap += o_e - o_s
+        # Keep if dominant speaker covers ≥ 50% of the segment
+        if overlap >= seg_dur * 0.5:
+            dominant_orig.append((orig_s, orig_e))
 
+    # If nothing survived, fall back to all
+    if not dominant_orig:
+        dominant_orig = all_orig
 
-# ============================================================================
-# Step 9 — TextGrid generation  (exact notebook: df_to_textgrid_by_speaker)
-# ============================================================================
-def _make_interval_tier(name: str, entries, xmin: float, xmax: float):
-    """Create IntervalTier across praatio versions."""
-    try:
-        return tgio.IntervalTier(str(name), entries, xmin, xmax)
-    except TypeError:
-        pass
-    try:
-        return tgio.IntervalTier(name=str(name), entries=entries, minT=xmin, maxT=xmax)
-    except TypeError:
-        pass
-    return tgio.IntervalTier(name=str(name), entryList=entries, minT=xmin, maxT=xmax)
-
-
-def write_textgrid(
-    df: pd.DataFrame,
-    duration_sec: float,
-    out_path: Path,
-    tier_map: Dict[str, str],
-) -> Path:
-    """
-    Write a TextGrid with one tier per predicted class.
-    tier_map maps predicted_class → tier name.
-    """
-    ensure_dir(out_path.parent)
-    xmin, xmax = 0.0, duration_sec
-
-    tg = tgio.Textgrid()
-    tg.minTimestamp = xmin
-    tg.maxTimestamp = xmax
-
-    for pred_class, tier_name in tier_map.items():
-        sel = df[df["predicted_class"] == pred_class].copy()
-        sel = sel.sort_values("start_sec")
-
-        entries: List[Tuple[float, float, str]] = []
-        for r in sel.itertuples(index=False):
-            s = max(xmin, min(float(r.start_sec), xmax))
-            e = max(xmin, min(float(r.end_sec), xmax))
-            if e > s:
-                entries.append((s, e, tier_name))
-
-        # resolve overlaps within tier
-        entries.sort(key=lambda x: (x[0], x[1]))
-        cleaned: List[Tuple[float, float, str]] = []
-        last_end = -1.0
-        for s, e, lab in entries:
-            if s < last_end:
-                s = last_end
-            if e > s:
-                cleaned.append((s, e, lab))
-                last_end = e
-
-        tier = _make_interval_tier(tier_name, cleaned, xmin, xmax)
-        tg.addTier(tier)
-
-    tg.save(str(out_path), format="short_textgrid", includeBlankSpaces=True)
-    return out_path
+    return out_wav_path, dominant_orig
 
 
 # ============================================================================
@@ -757,7 +601,7 @@ class SpeakerClassification:
         )
         warnings.filterwarnings(
             "ignore",
-            message=".*std\(\): degrees of freedom is <= 0.*",
+            message=r".*std\(\): degrees of freedom is <= 0.*",
             category=UserWarning,
         )
 
@@ -897,38 +741,85 @@ class SpeakerClassification:
             tmp_secondary = self.config.output_audio_root / "_tmp_secondary" / participant_id
             ensure_dir(tmp_secondary)
 
-            # Female stream → main_female.wav
-            fem_audio, _ = build_class_stream(classified_df, audio_16k, sr_16k, "adult_female")
+            # Female stream → main_female.wav (dominant speaker only)
+            fem_audio, _, fem_offsets = build_class_stream(
+                classified_df, audio_16k, sr_16k, "adult_female"
+            )
+            fem_dominant_intervals: List[Tuple[float, float]] = []
             if len(fem_audio) > 0:
-                extract_main_speaker_audio(
+                _, fem_dominant_intervals = extract_main_speaker_audio(
                     stream_audio=fem_audio,
                     sr=sr_16k,
                     diar_pipeline=diar_pipeline,
                     tmp_wav_path=tmp_secondary / "fem_stream_tmp.wav",
                     out_wav_path=self.config.main_female_wav_path,
+                    offset_table=fem_offsets,
                 )
-                logger.info(f"[{participant_id}] main_female.wav: {self.config.main_female_wav_path}")
+                logger.info(
+                    f"[{participant_id}] main_female.wav: {self.config.main_female_wav_path} "
+                    f"({len(fem_dominant_intervals)} dominant segments)"
+                )
             else:
                 logger.warning(f"[{participant_id}] No adult_female segments, skipping main_female.wav")
 
-            # Male stream → main_male.wav
-            mal_audio, _ = build_class_stream(classified_df, audio_16k, sr_16k, "adult_male")
+            # Male stream → main_male.wav (dominant speaker only)
+            mal_audio, _, mal_offsets = build_class_stream(
+                classified_df, audio_16k, sr_16k, "adult_male"
+            )
+            mal_dominant_intervals: List[Tuple[float, float]] = []
             if len(mal_audio) > 0:
-                extract_main_speaker_audio(
+                _, mal_dominant_intervals = extract_main_speaker_audio(
                     stream_audio=mal_audio,
                     sr=sr_16k,
                     diar_pipeline=diar_pipeline,
                     tmp_wav_path=tmp_secondary / "mal_stream_tmp.wav",
                     out_wav_path=self.config.main_male_wav_path,
+                    offset_table=mal_offsets,
                 )
-                logger.info(f"[{participant_id}] main_male.wav: {self.config.main_male_wav_path}")
+                logger.info(
+                    f"[{participant_id}] main_male.wav: {self.config.main_male_wav_path} "
+                    f"({len(mal_dominant_intervals)} dominant segments)"
+                )
             else:
                 logger.warning(f"[{participant_id}] No adult_male segments, skipping main_male.wav")
 
-            # --- Step 9: TextGrid ---
-            logger.info(f"[{participant_id}] Step 9: TextGrid")
+            # Child stream → child.wav (all child segments, no secondary diar)
+            child_audio, _, _ = build_class_stream(
+                classified_df, audio_16k, sr_16k, "child"
+            )
+            if len(child_audio) > 0:
+                write_stream_wav(child_audio, sr_16k, self.config.child_wav_path)
+                logger.info(f"[{participant_id}] child.wav: {self.config.child_wav_path}")
+            else:
+                logger.warning(f"[{participant_id}] No child segments, skipping child.wav")
+
+            # Background stream → background.wav (all background segments, no secondary diar)
+            bg_audio, _, _ = build_class_stream(
+                classified_df, audio_16k, sr_16k, "background"
+            )
+            if len(bg_audio) > 0:
+                write_stream_wav(bg_audio, sr_16k, self.config.background_wav_path)
+                logger.info(f"[{participant_id}] background.wav: {self.config.background_wav_path}")
+            else:
+                logger.warning(f"[{participant_id}] No background segments, skipping background.wav")
+
+            # --- Step 9: TextGrid (dominant speaker only for FEM/MAL) ---
+            logger.info(f"[{participant_id}] Step 9: TextGrid (dominant speakers)")
+
+            # Build a combined DataFrame with only dominant-speaker FEM/MAL
+            # plus all CHILD and BACKGROUND segments
+            child_df = classified_df[classified_df["predicted_class"] == "child"]
+            bg_df = classified_df[classified_df["predicted_class"] == "background"]
+            fem_dom_df = intervals_to_df(fem_dominant_intervals, "adult_female")
+            mal_dom_df = intervals_to_df(mal_dominant_intervals, "adult_male")
+
+            textgrid_df = pd.concat(
+                [fem_dom_df, mal_dom_df, child_df, bg_df],
+                ignore_index=True,
+            )
+
             write_textgrid(
-                df=classified_df,
+                df=textgrid_df,
                 duration_sec=full_duration,
                 out_path=self.config.textgrid_path,
                 tier_map=TIER_MAP,
@@ -951,8 +842,12 @@ class SpeakerClassification:
                 "n_classified_segments": len(classified_df),
                 "total_speech_sec": total_speech,
                 "class_durations": class_durations,
+                "n_dominant_female_segments": len(fem_dominant_intervals),
+                "n_dominant_male_segments": len(mal_dominant_intervals),
                 "main_female_wav": str(self.config.main_female_wav_path),
                 "main_male_wav": str(self.config.main_male_wav_path),
+                "child_wav": str(self.config.child_wav_path),
+                "background_wav": str(self.config.background_wav_path),
                 "textgrid": str(self.config.textgrid_path),
             }
             write_json(summary, self.config.summary_json_path)
@@ -973,6 +868,8 @@ class SpeakerClassification:
                 textgrid_path=self.config.textgrid_path,
                 main_female_wav_path=self.config.main_female_wav_path,
                 main_male_wav_path=self.config.main_male_wav_path,
+                child_wav_path=self.config.child_wav_path,
+                background_wav_path=self.config.background_wav_path,
                 n_segments=len(classified_df),
                 total_speech_sec=total_speech,
                 class_durations=class_durations,

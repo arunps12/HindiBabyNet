@@ -27,6 +27,8 @@ class SpeakerClassificationArtifact:
     textgrid_path: Path
     main_female_wav_path: Path
     main_male_wav_path: Path
+    child_wav_path: Path
+    background_wav_path: Path
     n_segments: int
     total_speech_sec: float
     class_durations: dict          # {"adult_male": 123.4, ...}
