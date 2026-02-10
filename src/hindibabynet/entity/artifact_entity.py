@@ -18,3 +18,15 @@ class AudioPreparationArtifact:
     duration_sec: float
     sample_rate: int
     channels: int
+
+
+@dataclass(frozen=True)
+class SpeakerClassificationArtifact:
+    segments_parquet_path: Path
+    summary_json_path: Path
+    textgrid_path: Path
+    main_female_wav_path: Path
+    main_male_wav_path: Path
+    n_segments: int
+    total_speech_sec: float
+    class_durations: dict          # {"adult_male": 123.4, ...}

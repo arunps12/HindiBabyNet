@@ -14,4 +14,28 @@ audio_preparation:
   target_sr: 16000
   to_mono: true
   target_peak_dbfs: -1.0
-  combine_gap_sec: 0.0   
+  combine_gap_sec: 0.0
+
+speaker_classification:
+  model_path: models/xgb_egemaps.pkl
+  class_names: ["adult_male", "adult_female", "child", "background"]
+  egemaps_dim: 88
+  output_audio_root: /scratch/users/arunps/hindibabynet/audio_classified
+
+  # VAD (webrtcvad)
+  vad_aggressiveness: 2
+  vad_frame_ms: 30
+  vad_min_region_ms: 300
+
+  # Diarization (pyannote)
+  diarization_model: "pyannote/speaker-diarization-3.1"
+  chunk_sec: 900.0
+  overlap_sec: 10.0
+  min_speakers: 2
+  max_speakers: 4
+
+  # Merge & classify
+  merge_gap_sec: 0.7
+  min_segment_sec: 0.2
+  classify_win_sec: 1.0
+  classify_hop_sec: 0.5
