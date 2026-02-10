@@ -5,3 +5,13 @@ data_ingestion:
   raw_audio_root: /scratch/users/arunps/hindibabynet/audio_raw
   allowed_ext: [".wav", ".WAV"]
   recordings_filename: recordings.parquet
+
+artifacts_root: artifacts/runs
+logs_root: logs
+
+audio_preparation:
+  processed_audio_root: /scratch/users/arunps/hindibabynet/audio_processed
+  target_sr: 16000
+  to_mono: true
+  target_peak_dbfs: -1.0
+  combine_gap_sec: 0.0   
