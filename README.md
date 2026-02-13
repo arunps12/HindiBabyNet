@@ -76,7 +76,7 @@ Raw WAV recordings
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url>
+git clone https://github.com/arunps12/HindiBabyNet.git
 cd HindiBabyNet
 
 # 2. Install all dependencies (creates a virtual environment automatically)
@@ -162,6 +162,8 @@ uv run bash scripts/run_all.sh
 # Process only the first N participants (useful for testing)
 uv run bash scripts/run_all.sh 3
 ```
+
+If a run stops midway, you can run the same command again. Stage 02 and Stage 03 will automatically skip participants whose outputs are already complete, so finished files are not recreated.
 
 This runs all three stages sequentially:
 1. **Stage 01** scans `raw_audio_root` (from config.yaml) and catalogues every WAV file

@@ -13,6 +13,11 @@ from src.hindibabynet.logging.logger import get_logger, add_file_handler
 logger = get_logger(__name__)
 
 
+def _is_stage_02_complete(ap_cfg) -> bool:
+    """Check the analysis WAV under processed_audio_root (fixed path, survives new run_ids)."""
+    return ap_cfg.analysis_wav_path.exists()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--recordings_parquet", required=True, type=str)
@@ -45,6 +50,7 @@ def main():
     )
 
     n_ok = 0
+    n_skip = 0
     n_fail = 0
 
     for pid in participants:
@@ -59,6 +65,11 @@ def main():
 
             recording_id = str(pid)  # output name = participant_id
             ap_cfg = cfg.get_audio_preparation_config(run_id=run_id, recording_id=recording_id)
+
+            if _is_stage_02_complete(ap_cfg):
+                logger.info(f"[{pid}] SKIP | Stage 02 outputs already exist at {ap_cfg.analysis_wav_path.parent}")
+                n_skip += 1
+                continue
 
             logger.info(f"[{pid}] files={len(df_pid)} -> {ap_cfg.analysis_wav_path}")
 
@@ -78,8 +89,8 @@ def main():
             logger.error(f"[{pid}] FAILED: {e}")
             logger.error(format_traceback(e))
 
-    logger.info(f"Stage 02 batch finished | ok={n_ok} fail={n_fail} run_id={run_id}")
-    print(f"Stage 02 batch finished | ok={n_ok} fail={n_fail} run_id={run_id}")
+    logger.info(f"Stage 02 batch finished | ok={n_ok} skip={n_skip} fail={n_fail} run_id={run_id}")
+    print(f"Stage 02 batch finished | ok={n_ok} skip={n_skip} fail={n_fail} run_id={run_id}")
 
 
 if __name__ == "__main__":

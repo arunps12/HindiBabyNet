@@ -36,18 +36,18 @@ speaker_classification:
 
   # Merge & classify
   # merge_gap_sec: merge same-speaker segments separated by gaps ≤ this value.
-  #   0.5  → very fragmented; accurate boundaries but slow on day-long audio
-  #   1.0  → good balance for parent–infant day-long recordings (recommended)
-  #   1.5  → fewer, longer segments; faster processing; may bridge short pauses
-  #   2.0+ → risk merging across actual conversational turn-taking gaps
-  merge_gap_sec: 1.0
+  #   0.3  → phrase-level; captures within-phrase breathing pauses only (recommended)
+  #   0.5  → slightly coarser; still separates distinct utterances well
+  #   0.7  → may bridge short between-phrase pauses
+  #   1.0+ → risk merging separate phrases/utterances together
+  merge_gap_sec: 0.3
 
-  # min_segment_sec: discard segments shorter than this value.
-  #   0.2  → keeps noisy micro-segments; more false positives
-  #   0.3  → drops most artefacts; retains short infant vocalisations (recommended)
+  # min_segment_sec: discard segments shorter than this value (after merging).
+  #   0.2  → keeps very short segments; noise transients may slip through (recommended)
+  #   0.3  → drops most artefacts; retains short infant vocalisations
   #   0.5  → more reliable features; may lose the shortest babbles/coos
   #   1.0  → only substantial utterances; loses many genuine child sounds
-  min_segment_sec: 0.3
+  min_segment_sec: 0.2
 
   classify_win_sec: 1.0
   classify_hop_sec: 0.5

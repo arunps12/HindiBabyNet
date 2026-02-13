@@ -22,6 +22,18 @@ from src.hindibabynet.logging.logger import get_logger, add_file_handler
 logger = get_logger(__name__)
 
 
+def _is_stage_03_complete(cfg: ConfigurationManager, run_id: str, participant_id: str) -> bool:
+    """Check all 4 output WAVs under output_audio_root (fixed paths, survive new run_ids)."""
+    sc_cfg = cfg.get_speaker_classification_config(run_id=run_id, participant_id=participant_id)
+    out_dir = sc_cfg.output_audio_root / participant_id
+    return (
+        (out_dir / f"{participant_id}_main_female.wav").exists()
+        and (out_dir / f"{participant_id}_main_male.wav").exists()
+        and (out_dir / f"{participant_id}_child.wav").exists()
+        and (out_dir / f"{participant_id}_background.wav").exists()
+    )
+
+
 def _run_single(cfg: ConfigurationManager, run_id: str, wav_path: Path, participant_id: str):
     """Process one analysis WAV end-to-end."""
     sc_cfg = cfg.get_speaker_classification_config(run_id=run_id, participant_id=participant_id)
@@ -89,10 +101,14 @@ def main():
             wav_files = wav_files[: args.limit]
 
         logger.info(f"Stage 03 batch (analysis_dir) | n_files={len(wav_files)} run_id={run_id}")
-        n_ok, n_fail = 0, 0
+        n_ok, n_fail, n_skip = 0, 0, 0
 
         for wav_path in wav_files:
             pid = wav_path.stem
+            if _is_stage_03_complete(cfg, run_id, pid):
+                logger.info(f"[{pid}] SKIP | Stage 03 outputs already exist")
+                n_skip += 1
+                continue
             try:
                 logger.info(f"[{pid}] Processing {wav_path}")
                 _run_single(cfg, run_id, wav_path, pid)
@@ -102,8 +118,8 @@ def main():
                 logger.error(f"[{pid}] FAILED: {e}")
                 logger.error(format_traceback(e))
 
-        logger.info(f"Stage 03 batch done | ok={n_ok} fail={n_fail}")
-        print(f"Stage 03 batch done | ok={n_ok} fail={n_fail}")
+        logger.info(f"Stage 03 batch done | ok={n_ok} skip={n_skip} fail={n_fail}")
+        print(f"Stage 03 batch done | ok={n_ok} skip={n_skip} fail={n_fail}")
         return
 
     # ======= Mode 3: From recordings parquet =======
@@ -135,6 +151,10 @@ def main():
             analysis_wav = processed_root / pid / f"{pid}.wav"
             if not analysis_wav.exists():
                 logger.warning(f"[{pid}] analysis wav not found: {analysis_wav}, skipping")
+                n_skip += 1
+                continue
+            if _is_stage_03_complete(cfg, run_id, pid):
+                logger.info(f"[{pid}] SKIP | Stage 03 outputs already exist")
                 n_skip += 1
                 continue
             try:
