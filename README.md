@@ -16,11 +16,12 @@ Given **raw WAV recordings** (one file or an entire directory tree), this pipeli
    - [Process a Single Raw WAV](#option-a--process-a-single-raw-wav-file)
    - [Process a Directory of Raw WAVs (All Participants)](#option-b--process-a-directory-of-raw-wavs-all-participants)
    - [Run Individual Stages Manually](#running-individual-stages-manually)
-6. [Pipeline Details](#pipeline-details-9-steps)
-7. [Output Files](#output-files)
-8. [Configuration Reference](#configuration-reference)
-9. [Project Structure](#project-structure)
-10. [Troubleshooting](#troubleshooting)
+6. [ADS / IDS Annotation](#ads--ids-annotation)
+7. [Pipeline Details](#pipeline-details-9-steps)
+8. [Output Files](#output-files)
+9. [Configuration Reference](#configuration-reference)
+10. [Project Structure](#project-structure)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -42,11 +43,18 @@ Raw WAV recordings
 │  → separate class streams → secondary diarization       │
 │  → export main_female, main_male, child, background WAV │
 │  → export TextGrid                                      │
+├─────────────────────────────────────────────────────────┤
+│  Manual Annotation (notebook or terminal script)        │
+│  Listen to each segment in main_female / main_male      │
+│  → label as ADS, IDS, or Other                          │
+│  → export separate ADS & IDS WAVs per speaker           │
 └─────────────────────────────────────────────────────────┘
         │
         ▼
    <pid>_main_female.wav  <pid>_main_male.wav  <pid>_child.wav
    <pid>_background.wav   <pid>.TextGrid       <pid>_summary.json
+   <pid>_female_ADS.wav   <pid>_female_IDS.wav
+   <pid>_male_ADS.wav     <pid>_male_IDS.wav
 ```
 
 **Four output classes:**
@@ -211,6 +219,89 @@ uv run bash scripts/run_stage_03.sh \
 
 ---
 
+## ADS / IDS Annotation
+
+After Stage 03 produces `main_female.wav` and `main_male.wav` for each participant, you can manually annotate each speech segment as **ADS** (Adult-Directed Speech), **IDS** (Infant-Directed Speech), or **Other**.
+
+### How Segmentation Works
+
+The annotation tool runs **fresh energy-based silence detection** on the exported WAV files (rather than reusing the pipeline's intermediate segments). This is more robust because:
+
+- The concatenated WAVs have definite ~0.15 s silence gaps between speech chunks
+- Energy-based detection reliably recovers those boundaries
+- No dependency on intermediate parquet files or pipeline state
+- Very long segments are automatically split at natural pauses for comfortable listening
+
+### Method 1: Jupyter Notebook (Recommended for Remote Servers)
+
+Open **`notebooks/02_annotation_player.ipynb`** — everything happens in one notebook:
+
+1. **Cell 2** — Set `PARTICIPANT_ID` and `SPEAKER` (`"female"` or `"male"`)
+2. **Cell 3** — Loads the WAV and detects segments (run once)
+3. **Cell 4** — Annotation loop: each segment **auto-plays in the browser**, type `0`/`1`/`2` in the input box and press Enter
+4. **Cell 5** — Export labeled ADS / IDS / Other WAV files
+
+Press `q` to save & stop at any time — re-run Cell 4 to resume exactly where you left off.
+
+### Method 2: Terminal Script (For Machines with Audio Output)
+
+```bash
+# Install playback dependency (one time)
+uv pip install sounddevice
+
+# Check annotation status for all participants
+python scripts/annotate_ads_ids.py --status
+
+# Annotate one participant (both speakers)
+python scripts/annotate_ads_ids.py -p ABAN141223
+
+# Only female speaker
+python scripts/annotate_ads_ids.py -p ABAN141223 -s female
+
+# Export WAVs from existing annotations without re-annotating
+python scripts/annotate_ads_ids.py -p ABAN141223 --export-only
+```
+
+### Controls During Annotation
+
+| Input | Action |
+|-------|--------|
+| `0` | Label as **Other** |
+| `1` | Label as **ADS** (Adult-Directed Speech) |
+| `2` | Label as **IDS** (Infant-Directed Speech) |
+| `r` | Replay current segment |
+| `b` | Go back one segment |
+| `q` | Save progress & quit (auto-resumes next time) |
+
+### Annotation Output
+
+```
+/scratch/users/<user>/hindibabynet/annotations/<participant_id>/
+  ├── <pid>_female_annotations.csv     # Segment-level labels
+  ├── <pid>_male_annotations.csv
+  ├── <pid>_female_ADS.wav             # All female ADS segments concatenated
+  ├── <pid>_female_IDS.wav             # All female IDS segments concatenated
+  ├── <pid>_female_Other.wav
+  ├── <pid>_male_ADS.wav
+  ├── <pid>_male_IDS.wav
+  └── <pid>_male_Other.wav
+```
+
+The CSV contains per-segment timestamps and labels:
+
+| Column | Description |
+|--------|-------------|
+| `segment_index` | Segment number (0-based) |
+| `start_sec` | Start time within the source WAV |
+| `end_sec` | End time within the source WAV |
+| `duration_sec` | Segment duration |
+| `label` | Numeric label (0, 1, or 2) |
+| `label_name` | Human-readable label (Other, ADS, IDS) |
+
+> **Note:** The annotation tools (`scripts/annotate_ads_ids.py` and `notebooks/02_annotation_player.ipynb`) are standalone utilities and are **not** part of the `hindibabynet` package.
+
+---
+
 ## Pipeline Details (9 Steps)
 
 Stage 03 internally executes the following sub-steps per participant:
@@ -364,7 +455,8 @@ HindiBabyNet/
 │   ├── run_stage_01.sh                # Stage 01 only
 │   ├── run_stage_02_from_parquet.sh   # Stage 02 batch
 │   ├── run_stage_02_single_wav.sh     # Stage 02 single WAV
-│   └── run_stage_03.sh               # Stage 03 (single / batch / parquet)
+│   ├── run_stage_03.sh               # Stage 03 (single / batch / parquet)
+│   └── annotate_ads_ids.py            # ⭐ ADS/IDS annotation tool (standalone)
 ├── src/hindibabynet/
 │   ├── components/
 │   │   ├── data_ingestion.py          # Stage 01: scan & catalogue WAVs
@@ -390,7 +482,8 @@ HindiBabyNet/
 ├── tests/
 │   └── test_smoke.py                  # Import smoke tests
 ├── notebooks/
-│   └── 00_research.ipynb              # Research notebook (source of truth for ML logic)
+│   ├── 00_research.ipynb              # Research notebook (source of truth for ML logic)
+│   └── 02_annotation_player.ipynb     # ⭐ ADS/IDS annotation notebook (listen + label)
 ├── docs/
 │   └── pipeline_specification.md      # Formal pipeline specification
 ├── artifacts/                         # Auto-created: run artifacts & metadata
