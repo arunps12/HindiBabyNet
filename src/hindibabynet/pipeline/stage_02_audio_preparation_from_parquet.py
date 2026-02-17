@@ -22,6 +22,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--recordings_parquet", required=True, type=str)
     ap.add_argument("--limit", default=None, type=int, help="Optional: process only first N participants")
+    ap.add_argument("--run_id", default=None, type=str, help="Shared run id for all stages")
     args = ap.parse_args()
 
     rec_path = Path(args.recordings_parquet)
@@ -40,7 +41,7 @@ def main():
         participants = participants[: int(args.limit)]
 
     cfg = ConfigurationManager()
-    run_id = cfg.make_run_id()
+    run_id = args.run_id or cfg.make_run_id()
 
     # One log file for the whole batch
     add_file_handler(logger, cfg.get_logs_root() / run_id / "stage_02_audio_preparation_batch.log")

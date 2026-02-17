@@ -21,8 +21,36 @@ class AudioPreparationArtifact:
 
 
 @dataclass(frozen=True)
+class VADArtifact:
+    vad_parquet_path: Path
+    summary_json_path: Path
+    n_regions: int
+    total_speech_sec: float
+
+
+@dataclass(frozen=True)
+class DiarizationArtifact:
+    diarization_parquet_path: Path
+    summary_json_path: Path
+    n_turns: int
+    n_speakers: int
+
+
+@dataclass(frozen=True)
+class IntersectionArtifact:
+    speech_segments_parquet_path: Path
+    summary_json_path: Path
+    n_segments: int
+    total_speech_sec: float
+
+
+@dataclass(frozen=True)
 class SpeakerClassificationArtifact:
-    segments_parquet_path: Path
+    classified_segments_parquet_path: Path
+    main_female_parquet_path: Path
+    main_male_parquet_path: Path
+    child_parquet_path: Path
+    background_parquet_path: Path
     summary_json_path: Path
     textgrid_path: Path
     main_female_wav_path: Path

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ===========================================================================
-# Stage 03: Speaker Classification
+# Stage 03: Voice Activity Detection (VAD)
 #
 # Usage:
 #   # Single analysis WAV:
@@ -18,4 +18,4 @@ set -euo pipefail
 #   uv run bash scripts/run_stage_03.sh --analysis_dir /path/to/processed --limit 3
 # ===========================================================================
 
-python -m src.hindibabynet.pipeline.stage_03_speaker_classification "$@"
+python -m src.hindibabynet.pipeline.stage_03_vad "$@"

@@ -8,6 +8,9 @@ from src.hindibabynet.utils.io_utils import read_yaml, make_run_id
 from src.hindibabynet.entity.config_entity import (
     DataIngestionConfig,
     AudioPreparationConfig,
+    VADConfig,
+    DiarizationConfig,
+    IntersectionConfig,
     SpeakerClassificationConfig,
 )
 
@@ -27,8 +30,8 @@ class ConfigurationManager:
         return make_run_id()
 
     # ---- Stage 01: Data Ingestion ----
-    def get_data_ingestion_config(self) -> DataIngestionConfig:
-        run_id = make_run_id()
+    def get_data_ingestion_config(self, run_id: str | None = None) -> DataIngestionConfig:
+        run_id = run_id or make_run_id()
         artifacts_root = Path(self.config["artifacts_root"])
         di = self.config["data_ingestion"]
 
@@ -69,7 +72,66 @@ class ConfigurationManager:
             / f"{recording_id}_analysis_meta.json",
         )
 
-    # ---- Stage 03: Speaker Classification ----
+    # ---- Stage 03: VAD ----
+    def get_vad_config(
+        self, run_id: str, participant_id: str
+    ) -> VADConfig:
+        sc = self.config["speaker_classification"]
+        artifacts_root = Path(self.config["artifacts_root"])
+        artifacts_dir = artifacts_root / run_id / "vad"
+
+        return VADConfig(
+            artifacts_dir=artifacts_dir,
+            vad_aggressiveness=int(sc.get("vad_aggressiveness", 2)),
+            vad_frame_ms=int(sc.get("vad_frame_ms", 30)),
+            vad_min_region_ms=int(sc.get("vad_min_region_ms", 300)),
+            vad_parquet_path=artifacts_dir / f"{participant_id}_vad.parquet",
+            summary_json_path=artifacts_dir / f"{participant_id}_vad_summary.json",
+        )
+
+    # ---- Stage 04: Diarization ----
+    def get_diarization_config(
+        self, run_id: str, participant_id: str
+    ) -> DiarizationConfig:
+        sc = self.config["speaker_classification"]
+        artifacts_root = Path(self.config["artifacts_root"])
+        artifacts_dir = artifacts_root / run_id / "diarization"
+        output_audio_root = Path(sc["output_audio_root"])
+
+        return DiarizationConfig(
+            artifacts_dir=artifacts_dir,
+            diarization_model=str(
+                sc.get("diarization_model", "pyannote/speaker-diarization-3.1")
+            ),
+            chunk_sec=float(sc.get("chunk_sec", 900.0)),
+            overlap_sec=float(sc.get("overlap_sec", 10.0)),
+            min_speakers=int(sc.get("min_speakers", 2)),
+            max_speakers=int(sc.get("max_speakers", 4)),
+            tmp_dir=output_audio_root / "_tmp_diar" / participant_id,
+            diarization_parquet_path=artifacts_dir
+            / f"{participant_id}_diarization.parquet",
+            summary_json_path=artifacts_dir
+            / f"{participant_id}_diarization_summary.json",
+        )
+
+    # ---- Stage 05: Intersection ----
+    def get_intersection_config(
+        self, run_id: str, participant_id: str
+    ) -> IntersectionConfig:
+        sc = self.config["speaker_classification"]
+        artifacts_root = Path(self.config["artifacts_root"])
+        artifacts_dir = artifacts_root / run_id / "intersection"
+
+        return IntersectionConfig(
+            artifacts_dir=artifacts_dir,
+            min_segment_sec=float(sc.get("min_segment_sec", 0.2)),
+            speech_segments_parquet_path=artifacts_dir
+            / f"{participant_id}_speech_segments.parquet",
+            summary_json_path=artifacts_dir
+            / f"{participant_id}_intersection_summary.json",
+        )
+
+    # ---- Stage 06: Speaker Classification ----
     def get_speaker_classification_config(
         self, run_id: str, participant_id: str
     ) -> SpeakerClassificationConfig:
@@ -90,23 +152,26 @@ class ConfigurationManager:
                 )
             ),
             egemaps_dim=int(sc.get("egemaps_dim", 88)),
-            vad_aggressiveness=int(sc.get("vad_aggressiveness", 2)),
-            vad_frame_ms=int(sc.get("vad_frame_ms", 30)),
-            vad_min_region_ms=int(sc.get("vad_min_region_ms", 300)),
-            diarization_model=str(
-                sc.get("diarization_model", "pyannote/speaker-diarization-3.1")
-            ),
-            chunk_sec=float(sc.get("chunk_sec", 900.0)),
-            overlap_sec=float(sc.get("overlap_sec", 10.0)),
-            min_speakers=int(sc.get("min_speakers", 2)),
-            max_speakers=int(sc.get("max_speakers", 4)),
-            merge_gap_sec=float(sc.get("merge_gap_sec", 0.7)),
+            merge_gap_sec=float(sc.get("merge_gap_sec", 0.3)),
             min_segment_sec=float(sc.get("min_segment_sec", 0.2)),
             classify_win_sec=float(sc.get("classify_win_sec", 1.0)),
             classify_hop_sec=float(sc.get("classify_hop_sec", 0.5)),
+            diarization_model=str(
+                sc.get("diarization_model", "pyannote/speaker-diarization-3.1")
+            ),
+            min_speakers=1,
+            max_speakers=3,
             output_audio_root=output_audio_root,
-            segments_parquet_path=artifacts_dir
-            / f"{participant_id}_segments.parquet",
+            classified_segments_parquet_path=artifacts_dir
+            / f"{participant_id}_classified_segments.parquet",
+            main_female_parquet_path=artifacts_dir
+            / f"{participant_id}_main_female.parquet",
+            main_male_parquet_path=artifacts_dir
+            / f"{participant_id}_main_male.parquet",
+            child_parquet_path=artifacts_dir
+            / f"{participant_id}_child.parquet",
+            background_parquet_path=artifacts_dir
+            / f"{participant_id}_background.parquet",
             summary_json_path=artifacts_dir / f"{participant_id}_summary.json",
             textgrid_path=artifacts_dir / f"{participant_id}.TextGrid",
             main_female_wav_path=output_dir / f"{participant_id}_main_female.wav",
