@@ -5,8 +5,9 @@ Standalone ADS / IDS annotation tool  (NOT part of the hindibabynet package).
 Workflow
 --------
 1.  Load main_male.wav and/or main_female.wav for a participant.
-2.  Detect speech segments via energy-based silence detection
-    (recovers the ~0.15 s gaps that were inserted during stream concatenation).
+2.  Load segment boundaries from the Stage 03 parquet file
+    (no energy-based silence detection — segments come directly from the
+    pipeline's VAD → diarization → merge → classify output).
 3.  Play each segment; the annotator labels it from the terminal:
         0  =  Other
         1  =  ADS  (Adult-Directed Speech)
@@ -18,8 +19,12 @@ Workflow
 
 Usage examples
 --------------
-    # Annotate one participant (both speakers)
+    # Annotate one participant (both speakers), auto-discover parquet
     python scripts/annotate_ads_ids.py --participant ABAN141223
+
+    # Annotate with explicit parquet path
+    python scripts/annotate_ads_ids.py --participant ABAN141223 \
+        --parquet artifacts/runs/<run_id>/speaker_classification/ABAN141223_segments.parquet
 
     # Annotate only the female speaker
     python scripts/annotate_ads_ids.py --participant ABAN141223 --speaker female
@@ -60,22 +65,21 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 CLASSIFIED_ROOT = Path("/scratch/users/arunps/hindibabynet/audio_classified")
 ANNOTATION_ROOT = Path("/scratch/users/arunps/hindibabynet/annotations")
+ARTIFACTS_ROOT = Path(__file__).resolve().parent.parent / "artifacts" / "runs"
 
 LABEL_MAP = {0: "Other", 1: "ADS", 2: "IDS"}
 SPEAKERS = ("female", "male")
+SPEAKER_CLASS_MAP = {"female": "adult_female", "male": "adult_male"}
 
-# Silence-detection defaults (tuned for 16 kHz, PCM-16 WAVs produced by the pipeline)
-FRAME_MS = 20          # analysis frame length in ms
-SILENCE_THRESH_DB = -40  # frames below this RMS (dBFS) are considered silence
-MIN_SILENCE_SEC = 0.08   # minimum silence duration to split on (the gaps are ~0.15 s)
-MIN_SEGMENT_SEC = 0.25   # discard segments shorter than this
-MAX_SEGMENT_SEC = 15.0   # split segments longer than this at the quietest internal point
+# Gap inserted between segments when building main_female/male.wav (must match pipeline)
+STREAM_GAP_SEC = 0.15
 
 
 # ============================================================================
@@ -110,138 +114,76 @@ def write_wav_int16(path: Path, audio: np.ndarray, sr: int) -> None:
 
 
 # ============================================================================
-# Silence-based segmentation
+# Parquet-based segment loading (replaces silence-based segmentation)
 # ============================================================================
 
-def _rms_frames(audio: np.ndarray, sr: int, frame_ms: int = 20) -> np.ndarray:
-    """Compute per-frame RMS energy (dBFS). Returns 1-D array of dB values."""
-    frame_len = int(sr * frame_ms / 1000)
-    n_frames = len(audio) // frame_len
-    if n_frames == 0:
-        return np.array([], dtype=np.float32)
-    trimmed = audio[: n_frames * frame_len].reshape(n_frames, frame_len)
-    rms = np.sqrt(np.mean(trimmed ** 2, axis=1) + 1e-12)
-    db = 20 * np.log10(rms + 1e-12)
-    return db.astype(np.float32)
-
-
-def detect_segments(
-    audio: np.ndarray,
-    sr: int,
-    frame_ms: int = FRAME_MS,
-    silence_thresh_db: float = SILENCE_THRESH_DB,
-    min_silence_sec: float = MIN_SILENCE_SEC,
-    min_segment_sec: float = MIN_SEGMENT_SEC,
-    max_segment_sec: float = MAX_SEGMENT_SEC,
-) -> List[Tuple[float, float]]:
+def find_segments_parquet(participant_id: str) -> Optional[Path]:
     """
-    Detect speech segments by finding silence gaps in the audio.
+    Auto-discover the most recent Stage 03 segments parquet for a participant.
 
-    Returns list of (start_sec, end_sec) tuples.
+    Searches: artifacts/runs/*/speaker_classification/<pid>_segments.parquet
+    Returns the one from the latest run_id (lexicographic sort), or None.
     """
-    if len(audio) == 0:
-        return []
+    pattern = f"*/speaker_classification/{participant_id}_segments.parquet"
+    candidates = sorted(ARTIFACTS_ROOT.glob(pattern))
+    if candidates:
+        return candidates[-1]  # latest run_id (timestamp-based names)
+    return None
 
-    frame_len = int(sr * frame_ms / 1000)
-    db = _rms_frames(audio, sr, frame_ms)
-    if len(db) == 0:
-        return []
 
-    is_silence = db < silence_thresh_db
-    min_sil_frames = max(1, int(min_silence_sec * 1000 / frame_ms))
+def load_segments_from_parquet(
+    parquet_path: Path,
+    speaker: str,
+    gap_sec: float = STREAM_GAP_SEC,
+) -> Tuple[List[Tuple[float, float]], pd.DataFrame]:
+    """
+    Load classified segments from the Stage 03 parquet and reconstruct
+    their positions inside main_female.wav / main_male.wav.
 
-    # Find silence regions (runs of True in is_silence)
-    silence_regions: List[Tuple[int, int]] = []  # (start_frame, end_frame)
-    in_sil = False
-    sil_start = 0
-    for i, s in enumerate(is_silence):
-        if s and not in_sil:
-            in_sil = True
-            sil_start = i
-        elif (not s) and in_sil:
-            in_sil = False
-            if i - sil_start >= min_sil_frames:
-                silence_regions.append((sil_start, i))
-    if in_sil and len(is_silence) - sil_start >= min_sil_frames:
-        silence_regions.append((sil_start, len(is_silence)))
+    The pipeline's ``build_class_stream`` concatenates all segments of a
+    given ``predicted_class`` (sorted by ``start_sec``) with ``gap_sec``
+    silence gaps between them.  We replicate that logic here to compute
+    each segment's (stream_start, stream_end) inside the WAV.
 
-    # Convert silence regions to segment boundaries
-    total_dur = len(audio) / sr
+    Parameters
+    ----------
+    parquet_path : Path
+        ``<pid>_segments.parquet`` produced by Stage 03.
+    speaker : str
+        ``"female"`` or ``"male"``.
+    gap_sec : float
+        Silent gap inserted between segments (default 0.15 s, matching pipeline).
+
+    Returns
+    -------
+    segments : list[(stream_start, stream_end)]
+        Playback positions inside the main_<speaker>.wav file.
+    seg_df : pd.DataFrame
+        Filtered & sorted DataFrame with original parquet metadata.
+    """
+    target_class = SPEAKER_CLASS_MAP[speaker]
+    df = pd.read_parquet(parquet_path)
+
+    # Filter for target class and sort by original start time
+    seg_df = (
+        df[df["predicted_class"] == target_class]
+        .copy()
+        .sort_values("start_sec")
+        .reset_index(drop=True)
+    )
+
+    if seg_df.empty:
+        return [], seg_df
+
+    # Reconstruct stream-local positions (mirrors build_class_stream logic)
     segments: List[Tuple[float, float]] = []
+    cursor = 0.0
+    for _, row in seg_df.iterrows():
+        dur = float(row["duration_sec"])
+        segments.append((cursor, cursor + dur))
+        cursor += dur + gap_sec
 
-    if not silence_regions:
-        # No silence found → entire audio is one segment
-        segments.append((0.0, total_dur))
-    else:
-        # Before first silence
-        first_sil_start = silence_regions[0][0] * frame_len / sr
-        if first_sil_start > 0:
-            segments.append((0.0, first_sil_start))
-
-        # Between silences
-        for i in range(len(silence_regions) - 1):
-            seg_start = silence_regions[i][1] * frame_len / sr
-            seg_end = silence_regions[i + 1][0] * frame_len / sr
-            if seg_end > seg_start:
-                segments.append((seg_start, seg_end))
-
-        # After last silence
-        last_sil_end = silence_regions[-1][1] * frame_len / sr
-        if last_sil_end < total_dur:
-            segments.append((last_sil_end, total_dur))
-
-    # Filter out very short segments
-    segments = [(s, e) for s, e in segments if (e - s) >= min_segment_sec]
-
-    # Split very long segments at their quietest internal point
-    final_segments: List[Tuple[float, float]] = []
-    for s, e in segments:
-        if (e - s) <= max_segment_sec:
-            final_segments.append((s, e))
-        else:
-            final_segments.extend(_split_long_segment(audio, sr, s, e, max_segment_sec, frame_ms))
-
-    return final_segments
-
-
-def _split_long_segment(
-    audio: np.ndarray,
-    sr: int,
-    start: float,
-    end: float,
-    max_sec: float,
-    frame_ms: int,
-) -> List[Tuple[float, float]]:
-    """Recursively split a long segment at its quietest internal point."""
-    dur = end - start
-    if dur <= max_sec:
-        return [(start, end)]
-
-    # Extract segment audio
-    s_samp = int(start * sr)
-    e_samp = int(end * sr)
-    seg = audio[s_samp:e_samp]
-
-    # Find the quietest frame (prefer the middle region)
-    db = _rms_frames(seg, sr, frame_ms)
-    if len(db) < 3:
-        return [(start, end)]
-
-    # Prefer splitting in the middle 60%
-    n = len(db)
-    lo = n // 5
-    hi = n - n // 5
-    search_db = db[lo:hi]
-    if len(search_db) == 0:
-        return [(start, end)]
-
-    split_frame = lo + int(np.argmin(search_db))
-    frame_len = int(sr * frame_ms / 1000)
-    split_sec = start + split_frame * frame_len / sr
-
-    left = _split_long_segment(audio, sr, start, split_sec, max_sec, frame_ms)
-    right = _split_long_segment(audio, sr, split_sec, end, max_sec, frame_ms)
-    return left + right
+    return segments, seg_df
 
 
 # ============================================================================
@@ -304,18 +246,40 @@ def save_annotations(
     speaker: str,
     segments: List[Tuple[float, float]],
     annotations: Dict[int, int],
+    seg_df: Optional[pd.DataFrame] = None,
 ) -> Path:
-    """Save annotations to CSV. Returns the path."""
+    """Save annotations to CSV. Returns the path.
+
+    If *seg_df* is provided (parquet metadata), extra columns
+    ``orig_start_sec``, ``orig_end_sec``, ``chunk_id``, ``predicted_confidence``
+    are included.
+    """
     p = _csv_path(participant_id, speaker)
     p.parent.mkdir(parents=True, exist_ok=True)
+    has_meta = seg_df is not None and not seg_df.empty
     with open(p, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["segment_index", "start_sec", "end_sec", "duration_sec", "label", "label_name"])
+        header = [
+            "segment_index", "start_sec", "end_sec", "duration_sec",
+            "label", "label_name",
+        ]
+        if has_meta:
+            header += ["orig_start_sec", "orig_end_sec", "chunk_id", "predicted_confidence"]
+        writer.writerow(header)
         for idx in sorted(annotations.keys()):
             if idx < len(segments):
                 s, e = segments[idx]
                 label = annotations[idx]
-                writer.writerow([idx, f"{s:.4f}", f"{e:.4f}", f"{e-s:.4f}", label, LABEL_MAP[label]])
+                row = [idx, f"{s:.4f}", f"{e:.4f}", f"{e-s:.4f}", label, LABEL_MAP[label]]
+                if has_meta and idx < len(seg_df):
+                    r = seg_df.iloc[idx]
+                    row += [
+                        f"{r['start_sec']:.4f}",
+                        f"{r['end_sec']:.4f}",
+                        int(r["chunk_id"]) if "chunk_id" in r.index else "",
+                        f"{r['predicted_confidence']:.4f}" if "predicted_confidence" in r.index else "",
+                    ]
+                writer.writerow(row)
     return p
 
 
@@ -378,6 +342,7 @@ def annotate_speaker(
     sr: int,
     segments: List[Tuple[float, float]],
     resume: bool = True,
+    seg_df: Optional[pd.DataFrame] = None,
 ) -> Dict[int, int]:
     """Run the interactive annotation loop for one speaker."""
     sd = _try_import_sounddevice()
@@ -441,7 +406,7 @@ def annotate_speaker(
 
                 if raw == "q":
                     print("\n  Saving progress and quitting...")
-                    save_annotations(participant_id, speaker, segments, annotations)
+                    save_annotations(participant_id, speaker, segments, annotations, seg_df)
                     return annotations
                 elif raw == "r":
                     print("    (replaying...)")
@@ -462,7 +427,7 @@ def annotate_speaker(
 
                     # Auto-save every 10 segments
                     if len(annotations) % 10 == 0:
-                        save_annotations(participant_id, speaker, segments, annotations)
+                        save_annotations(participant_id, speaker, segments, annotations, seg_df)
 
                     break
                 else:
@@ -471,7 +436,7 @@ def annotate_speaker(
     except KeyboardInterrupt:
         print("\n\n  Interrupted! Saving progress...")
 
-    save_annotations(participant_id, speaker, segments, annotations)
+    save_annotations(participant_id, speaker, segments, annotations, seg_df)
     return annotations
 
 
@@ -484,16 +449,22 @@ def process_participant(
     speakers: Tuple[str, ...] = SPEAKERS,
     resume: bool = True,
     export_only: bool = False,
-    silence_db: float = SILENCE_THRESH_DB,
-    min_silence: float = MIN_SILENCE_SEC,
-    min_segment: float = MIN_SEGMENT_SEC,
-    max_segment: float = MAX_SEGMENT_SEC,
+    parquet_path: Optional[Path] = None,
 ) -> None:
     """Annotate (or just export) one participant."""
     pdir = CLASSIFIED_ROOT / participant_id
     if not pdir.is_dir():
         print(f"ERROR: Participant directory not found: {pdir}")
         return
+
+    # Resolve parquet (explicit or auto-discover)
+    pq = parquet_path or find_segments_parquet(participant_id)
+    if pq is None or not pq.exists():
+        print(f"ERROR: Segments parquet not found for {participant_id}.")
+        print(f"  Searched: {ARTIFACTS_ROOT}/*/speaker_classification/{participant_id}_segments.parquet")
+        print(f"  Pass --parquet <path> to specify explicitly.")
+        return
+    print(f"  Using parquet: {pq}")
 
     for speaker in speakers:
         wav_path = pdir / f"{participant_id}_main_{speaker}.wav"
@@ -507,16 +478,10 @@ def process_participant(
         dur = len(audio) / sr
         print(f"  Duration: {dur:.1f} s  ({dur/60:.1f} min)  |  SR: {sr} Hz")
 
-        # Detect segments
-        print(f"  Detecting segments (silence threshold={silence_db} dB) ...")
-        segments = detect_segments(
-            audio, sr,
-            silence_thresh_db=silence_db,
-            min_silence_sec=min_silence,
-            min_segment_sec=min_segment,
-            max_segment_sec=max_segment,
-        )
-        print(f"  Found {len(segments)} segments.")
+        # Load segments from parquet
+        print(f"  Loading segments from parquet (class={SPEAKER_CLASS_MAP[speaker]}) ...")
+        segments, seg_df = load_segments_from_parquet(pq, speaker)
+        print(f"  Found {len(segments)} segments from parquet.")
 
         if len(segments) == 0:
             print(f"  No segments found — skipping.")
@@ -536,7 +501,8 @@ def process_participant(
                 continue
         else:
             annotations = annotate_speaker(
-                participant_id, speaker, audio, sr, segments, resume=resume
+                participant_id, speaker, audio, sr, segments, resume=resume,
+                seg_df=seg_df,
             )
 
         # Export WAVs
@@ -613,6 +579,8 @@ Labels:
 Examples:
     python scripts/annotate_ads_ids.py --participant ABAN141223
     python scripts/annotate_ads_ids.py --participant ABAN141223 --speaker female
+    python scripts/annotate_ads_ids.py --participant ABAN141223 \\
+        --parquet artifacts/runs/<run_id>/speaker_classification/ABAN141223_segments.parquet
     python scripts/annotate_ads_ids.py --all
     python scripts/annotate_ads_ids.py --status
     python scripts/annotate_ads_ids.py --participant ABAN141223 --export-only
@@ -631,35 +599,26 @@ Examples:
     parser.add_argument("--resume", action="store_true", default=True, help="Resume from previous annotations (default)")
     parser.add_argument("--no-resume", action="store_true", help="Start fresh, ignoring previous annotations")
     parser.add_argument("--export-only", action="store_true", help="Skip annotation; just export WAVs from existing CSV")
-
-    # Silence detection tuning
-    parser.add_argument("--silence-db", type=float, default=SILENCE_THRESH_DB,
-                        help=f"Silence threshold in dBFS (default: {SILENCE_THRESH_DB})")
-    parser.add_argument("--min-silence", type=float, default=MIN_SILENCE_SEC,
-                        help=f"Min silence duration to split on, seconds (default: {MIN_SILENCE_SEC})")
-    parser.add_argument("--min-segment", type=float, default=MIN_SEGMENT_SEC,
-                        help=f"Discard segments shorter than this, seconds (default: {MIN_SEGMENT_SEC})")
-    parser.add_argument("--max-segment", type=float, default=MAX_SEGMENT_SEC,
-                        help=f"Split segments longer than this, seconds (default: {MAX_SEGMENT_SEC})")
+    parser.add_argument(
+        "--parquet", type=str, default=None,
+        help="Path to Stage 03 segments parquet. If omitted, auto-discovers the latest one.",
+    )
 
     args = parser.parse_args()
 
     resume = not args.no_resume
     speakers = SPEAKERS if args.speaker == "both" else (args.speaker,)
+    parquet_path = Path(args.parquet) if args.parquet else None
 
     if args.status:
         show_status()
         return
 
-    seg_kwargs = dict(
-        silence_db=args.silence_db,
-        min_silence=args.min_silence,
-        min_segment=args.min_segment,
-        max_segment=args.max_segment,
-    )
-
     if args.participant:
-        process_participant(args.participant, speakers=speakers, resume=resume, export_only=args.export_only, **seg_kwargs)
+        process_participant(
+            args.participant, speakers=speakers, resume=resume,
+            export_only=args.export_only, parquet_path=parquet_path,
+        )
     elif args.all:
         participants = sorted(
             d.name for d in CLASSIFIED_ROOT.iterdir()
@@ -670,7 +629,10 @@ Examples:
             print(f"\n{'='*60}")
             print(f"  PARTICIPANT {i}/{len(participants)}: {pid}")
             print(f"{'='*60}")
-            process_participant(pid, speakers=speakers, resume=resume, export_only=args.export_only, **seg_kwargs)
+            process_participant(
+                pid, speakers=speakers, resume=resume,
+                export_only=args.export_only, parquet_path=parquet_path,
+            )
 
 
 if __name__ == "__main__":
