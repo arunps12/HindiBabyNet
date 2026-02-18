@@ -24,7 +24,7 @@ from sklearn.metrics import (
     recall_score,
 )
 
-CLASSES = ["adult_male", "adult_female", "child", "background"]
+CLASSES = ["MAL", "FEM", "KCHI", "SIL"]
 
 
 def main():

@@ -76,7 +76,7 @@ ARTIFACTS_ROOT = Path(__file__).resolve().parent.parent / "artifacts" / "runs"
 
 LABEL_MAP = {0: "Other", 1: "ADS", 2: "IDS"}
 SPEAKERS = ("female", "male")
-SPEAKER_CLASS_MAP = {"female": "adult_female", "male": "adult_male"}
+SPEAKER_CLASS_MAP = {"female": "FEM", "male": "MAL"}
 
 # Gap inserted between segments when building main_female/male.wav (must match pipeline)
 STREAM_GAP_SEC = 0.15

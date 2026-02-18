@@ -26,14 +26,14 @@ Output
 <output_root>/<pid>/test_set/
     annotation_sheet.csv          ← fill in 'human_label' column
     clips/
-        adult_female/
+        FEM/
             seg_0042_3.21s-5.67s.wav
             ...
-        adult_male/
+        MAL/
             ...
-        child/
+        KCHI/
             ...
-        background/
+        SIL/
             ...
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ import soundfile as sf
 
 
 # ── Label map (same as speaker-type-classifier) ────────
-ID2LABEL = {0: "adult_male", 1: "adult_female", 2: "child", 3: "background"}
+ID2LABEL = {0: "MAL", 1: "FEM", 2: "KCHI", 3: "SIL"}
 LABEL2ID = {v: k for k, v in ID2LABEL.items()}
 CLASSES = list(LABEL2ID.keys())
 
