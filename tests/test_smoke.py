@@ -41,11 +41,13 @@ def test_import_entities():
         AudioPreparationConfig,
         DataIngestionConfig,
         SpeakerClassificationConfig,
+        VTCConfig,
     )
     from src.hindibabynet.entity.artifact_entity import (
         AudioPreparationArtifact,
         DataIngestionArtifact,
         SpeakerClassificationArtifact,
+        VTCInferenceArtifact,
     )
 
 
@@ -57,6 +59,7 @@ def test_import_components():
     from src.hindibabynet.components.data_ingestion import DataIngestion
     from src.hindibabynet.components.audio_preparation import AudioPreparation
     from src.hindibabynet.components.speaker_classification import SpeakerClassification
+    from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
 
 
 def test_import_exception():
