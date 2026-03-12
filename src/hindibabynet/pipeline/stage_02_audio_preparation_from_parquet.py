@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +17,54 @@ logger = get_logger(__name__)
 def _is_stage_02_complete(ap_cfg) -> bool:
     """Check the analysis WAV under processed_audio_root (fixed path, survives new run_ids)."""
     return ap_cfg.analysis_wav_path.exists()
+
+
+def _cleanup_after_processing(
+    ap_cfg,
+    df_pid: pd.DataFrame,
+    pid: str,
+    recording_id: str,
+) -> None:
+    """Delete raw WAV folder and temp dirs for a participant to free disk space."""
+
+    # 1) Remove raw WAV folder(s) for this participant
+    #    Raw paths look like: <raw_root>/RawAudioData/<pid>/<date>/<file>.WAV
+    #    We delete the participant-level folder: <raw_root>/RawAudioData/<pid>/
+    raw_paths = [Path(p) for p in df_pid["path"].astype(str).tolist()]
+    raw_dirs_deleted = set()
+    for rp in raw_paths:
+        # Walk up to the participant folder (parent of date folder)
+        # e.g. .../RawAudioData/ABAN141223/20250216/file.WAV -> .../RawAudioData/ABAN141223
+        participant_raw_dir = rp.parent.parent
+        if participant_raw_dir not in raw_dirs_deleted and participant_raw_dir.is_dir():
+            try:
+                shutil.rmtree(participant_raw_dir)
+                raw_dirs_deleted.add(participant_raw_dir)
+                logger.info(f"[{pid}] CLEANUP | deleted raw dir: {participant_raw_dir}")
+            except Exception as exc:
+                logger.warning(f"[{pid}] CLEANUP | failed to delete raw dir {participant_raw_dir}: {exc}")
+
+    # 2) Remove temp directories
+    for tmp_name in ("_tmp_combine", "_tmp_prep"):
+        tmp_dir = ap_cfg.processed_audio_root / tmp_name / recording_id
+        if tmp_dir.is_dir():
+            try:
+                shutil.rmtree(tmp_dir)
+                logger.info(f"[{pid}] CLEANUP | deleted temp dir: {tmp_dir}")
+            except Exception as exc:
+                logger.warning(f"[{pid}] CLEANUP | failed to delete temp dir {tmp_dir}: {exc}")
+
+
+def _cleanup_temp_only(ap_cfg, recording_id: str, pid: str) -> None:
+    """Delete only temp dirs (e.g. after a failure) to reclaim space."""
+    for tmp_name in ("_tmp_combine", "_tmp_prep"):
+        tmp_dir = ap_cfg.processed_audio_root / tmp_name / recording_id
+        if tmp_dir.is_dir():
+            try:
+                shutil.rmtree(tmp_dir)
+                logger.info(f"[{pid}] CLEANUP | deleted temp dir after failure: {tmp_dir}")
+            except Exception as exc:
+                logger.warning(f"[{pid}] CLEANUP | failed to delete temp dir {tmp_dir}: {exc}")
 
 
 def main():
@@ -85,10 +134,18 @@ def main():
             )
             n_ok += 1
 
+            # Free disk space: delete raw WAVs + temp dirs for this participant
+            _cleanup_after_processing(ap_cfg, df_pid, pid, recording_id)
+
         except Exception as e:
             n_fail += 1
             logger.error(f"[{pid}] FAILED: {e}")
             logger.error(format_traceback(e))
+            # Still clean temp dirs on failure to reclaim space
+            try:
+                _cleanup_temp_only(ap_cfg, recording_id, pid)
+            except Exception:
+                pass
 
     logger.info(f"Stage 02 batch finished | ok={n_ok} skip={n_skip} fail={n_fail} run_id={run_id}")
     print(f"Stage 02 batch finished | ok={n_ok} skip={n_skip} fail={n_fail} run_id={run_id}")

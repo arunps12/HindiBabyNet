@@ -2,7 +2,7 @@ artifacts_root: artifacts/runs
 logs_root: logs
 
 data_ingestion:
-  raw_audio_root: /scratch/users/arunps/hindibabynet/audio_raw
+  raw_audio_root: /itf-fi-ml/home/arunps/hindibabynet_data/audio_raw
   allowed_ext: [".wav", ".WAV"]
   recordings_filename: recordings.parquet
 
@@ -10,7 +10,7 @@ artifacts_root: artifacts/runs
 logs_root: logs
 
 audio_preparation:
-  processed_audio_root: /scratch/users/arunps/hindibabynet/audio_processed
+  processed_audio_root: /itf-fi-ml/home/arunps/hindibabynet_data/audio_processed
   target_sr: 16000
   to_mono: true
   target_peak_dbfs: -1.0
@@ -20,7 +20,7 @@ speaker_classification:
   model_path: models/xgb_egemaps.pkl
   class_names: ["adult_male", "adult_female", "child", "background"]
   egemaps_dim: 88
-  output_audio_root: /scratch/users/arunps/hindibabynet/audio_classified
+  output_audio_root: /itf-fi-ml/home/arunps/hindibabynet_data/audio_classified
 
   # VAD (webrtcvad)
   vad_aggressiveness: 2
