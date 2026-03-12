@@ -12,6 +12,7 @@ from src.hindibabynet.entity.config_entity import (
     DiarizationConfig,
     IntersectionConfig,
     SpeakerClassificationConfig,
+    VTCConfig,
 )
 
 
@@ -28,6 +29,12 @@ class ConfigurationManager:
 
     def make_run_id(self) -> str:
         return make_run_id()
+
+    # ---- Backend selector ----
+    def get_speaker_classification_backend(self) -> str:
+        """Return 'xgb' (default) or 'vtc'."""
+        sc = self.config.get("speaker_classification", {})
+        return str(sc.get("backend", "xgb")).lower()
 
     # ---- Stage 01: Data Ingestion ----
     def get_data_ingestion_config(self, run_id: str | None = None) -> DataIngestionConfig:
@@ -178,4 +185,15 @@ class ConfigurationManager:
             main_male_wav_path=output_dir / f"{participant_id}_main_male.wav",
             child_wav_path=output_dir / f"{participant_id}_child.wav",
             background_wav_path=output_dir / f"{participant_id}_background.wav",
+        )
+
+    # ---- VTC (Voice Type Classifier) ----
+    def get_vtc_config(self) -> VTCConfig:
+        vtc = self.config.get("vtc", {})
+        return VTCConfig(
+            repo_path=Path(vtc.get("repo_path", "external_models/VTC")),
+            device=str(vtc.get("device", "cuda")),
+            output_root=Path(vtc["output_root"]),
+            input_root=Path(vtc["input_root"]),
+            keep_inputs=bool(vtc.get("keep_inputs", False)),
         )
