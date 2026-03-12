@@ -17,6 +17,7 @@ audio_preparation:
   combine_gap_sec: 0.0
 
 speaker_classification:
+  backend: xgb                  # "xgb" (default HindiBabyNet) or "vtc" (external VTC 2.0)
   model_path: models/xgb_egemaps.pkl
   class_names: ["adult_male", "adult_female", "child", "background"]
   egemaps_dim: 88
@@ -51,3 +52,12 @@ speaker_classification:
 
   classify_win_sec: 1.0
   classify_hop_sec: 0.5
+
+# ─── VTC 2.0 (Voice Type Classifier) — external backend ───
+# Only used when speaker_classification.backend = "vtc"
+vtc:
+  repo_path: external_models/VTC        # path to cloned VTC repo (relative to project root or absolute)
+  device: cuda                           # cpu / cuda / gpu / mps
+  output_root: /itf-fi-ml/home/arunps/hindibabynet_data/vtc_predictions
+  input_root: /itf-fi-ml/home/arunps/hindibabynet_data/vtc_inputs
+  keep_inputs: false                     # keep temporary per-participant input folders after inference
