@@ -12,6 +12,7 @@ Given **raw WAV recordings** (one file or an entire directory tree), this pipeli
 2. [Prerequisites](#prerequisites)
 3. [Installation](#installation)
 4. [Configuration](#configuration)
+   - [VTC 2.0 Backend (Optional)](#vtc-20-backend-optional)
 5. [Usage](#usage)
    - [Process a Single Raw WAV](#option-a--process-a-single-raw-wav-file)
    - [Process a Directory of Raw WAVs (All Participants)](#option-b--process-a-directory-of-raw-wavs-all-participants)
@@ -39,10 +40,16 @@ Raw WAV recordings
 │  Combine per participant → mono → 16 kHz → peak norm    │
 ├─────────────────────────────────────────────────────────┤
 │  Stage 03 — Speaker Classification                      │
-│  VAD → diarization → eGeMAPS features → XGBoost         │
-│  → separate class streams → secondary diarization       │
-│  → export main_female, main_male, child, background WAV │
-│  → export TextGrid                                      │
+│                                                         │
+│  backend=xgb (default):                                 │
+│    VAD → diarization → eGeMAPS features → XGBoost       │
+│    → separate class streams → secondary diarization     │
+│    → export main_female, main_male, child, background   │
+│    → export TextGrid                                    │
+│                                                         │
+│  backend=vtc (optional):                                │
+│    External VTC 2.0 → FEM / MAL / KCHI / OCH            │
+│    → RTTM + CSV outputs (unchanged)                     │
 ├─────────────────────────────────────────────────────────┤
 │  Manual Annotation (notebook or terminal script)        │
 │  Listen to each segment in main_female / main_male      │
@@ -117,6 +124,82 @@ speaker_classification:
 ```
 
 All other parameters (sample rate, VAD aggressiveness, diarization settings, etc.) have sensible defaults and usually don't need changing. See [Configuration Reference](#configuration-reference) below for the full list.
+
+### VTC 2.0 Backend (Optional)
+
+HindiBabyNet supports an optional second backend for Stage 03: **VTC 2.0 (Voice Type Classifier)** from [LAAC-LSCP/VTC](https://github.com/LAAC-LSCP/VTC). VTC classifies audio into four voice types: `FEM`, `MAL`, `KCHI`, `OCH`.
+
+> **Important:** VTC runs in its own virtual environment, completely isolated from HindiBabyNet. VTC outputs are preserved exactly as produced — no labels are renamed or transformed.
+
+#### VTC Setup
+
+```bash
+# 1. Install system dependencies (if not already present)
+#    - uv: https://docs.astral.sh/uv/
+#    - ffmpeg: sudo apt install ffmpeg
+#    - git-lfs: sudo apt install git-lfs
+
+# 2. Clone VTC into external_models/ (from HindiBabyNet root)
+git lfs install
+git clone --recurse-submodules https://github.com/LAAC-LSCP/VTC.git external_models/VTC
+
+# 3. Install VTC dependencies (creates its own venv)
+cd external_models/VTC
+uv sync
+cd ../..
+```
+
+#### VTC Configuration
+
+Add/update these sections in `configs/config.yaml`:
+
+```yaml
+speaker_classification:
+  backend: vtc                  # "xgb" (default) or "vtc"
+
+vtc:
+  repo_path: external_models/VTC
+  device: cuda                  # cpu / cuda / gpu / mps
+  output_root: /path/to/scratch/vtc_predictions
+  input_root: /path/to/scratch/vtc_inputs
+  keep_inputs: false
+```
+
+#### Running with VTC
+
+```bash
+# Single WAV:
+uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/<pid>/<pid>.wav --backend vtc
+
+# Batch (directory):
+uv run bash scripts/run_stage_03.sh --analysis_dir /path/to/audio_processed --backend vtc
+
+# Or set backend: vtc in config.yaml and omit --backend flag
+```
+
+#### VTC Outputs
+
+VTC outputs are stored per participant, unchanged:
+
+```
+<vtc_output_root>/<participant_id>/
+├── rttm/
+├── raw_rttm/
+├── rttm.csv
+├── raw_rttm.csv
+└── vtc_run_info.json    # HindiBabyNet metadata (participant, command, runtime)
+```
+
+VTC output classes:
+
+| Class | Description |
+|-------|-------------|
+| `FEM` | Adult female speech |
+| `MAL` | Adult male speech |
+| `KCHI` | Key-child speech |
+| `OCH` | Other child speech |
+
+> **Note:** When backend is `vtc`, HindiBabyNet does **not** produce its own speaker-classification artifacts (`main_female.wav`, `TextGrid`, `segments.parquet`, etc.). Only VTC outputs are generated.
 
 ---
 
@@ -416,6 +499,7 @@ audio_preparation:
 
 # ─── Stage 03: Speaker Classification ───
 speaker_classification:
+  backend: xgb              # "xgb" (default) or "vtc"
   model_path: models/xgb_egemaps.pkl
   class_names: ["adult_male", "adult_female", "child", "background"]
   egemaps_dim: 88
@@ -438,6 +522,14 @@ speaker_classification:
   min_segment_sec: 0.2      # discard segments shorter than this (seconds)
   classify_win_sec: 1.0     # eGeMAPS extraction window (seconds)
   classify_hop_sec: 0.5     # eGeMAPS window hop (seconds)
+
+# ─── VTC 2.0 (only used when backend = vtc) ───
+vtc:
+  repo_path: external_models/VTC
+  device: cuda               # cpu / cuda / gpu / mps
+  output_root: /path/to/scratch/vtc_predictions
+  input_root: /path/to/scratch/vtc_inputs
+  keep_inputs: false
 ```
 
 ---
@@ -448,6 +540,8 @@ speaker_classification:
 HindiBabyNet/
 ├── configs/
 │   └── config.yaml                    # All pipeline parameters
+├── external_models/
+│   └── VTC/                           # 🔧 Cloned VTC repo (separate venv, optional)
 ├── models/
 │   └── xgb_egemaps.pkl                # Pre-trained 4-class XGBoost classifier
 ├── scripts/
@@ -455,13 +549,14 @@ HindiBabyNet/
 │   ├── run_stage_01.sh                # Stage 01 only
 │   ├── run_stage_02_from_parquet.sh   # Stage 02 batch
 │   ├── run_stage_02_single_wav.sh     # Stage 02 single WAV
-│   ├── run_stage_03.sh               # Stage 03 (single / batch / parquet)
+│   ├── run_stage_03.sh               # Stage 03 (single / batch / parquet, --backend xgb|vtc)
 │   └── annotate_ads_ids.py            # ⭐ ADS/IDS annotation tool (standalone)
 ├── src/hindibabynet/
 │   ├── components/
 │   │   ├── data_ingestion.py          # Stage 01: scan & catalogue WAVs
 │   │   ├── audio_preparation.py       # Stage 02: combine, resample, normalize
-│   │   └── speaker_classification.py  # Stage 03: VAD → diar → classify → export
+│   │   ├── speaker_classification.py  # Stage 03 (xgb): VAD → diar → classify → export
+│   │   └── speaker_classification_vtc.py  # Stage 03 (vtc): external VTC 2.0 runner
 │   ├── config/
 │   │   └── configuration.py           # ConfigurationManager (reads config.yaml)
 │   ├── entity/
@@ -475,12 +570,13 @@ HindiBabyNet/
 │   │   ├── stage_01_data_ingestion.py
 │   │   ├── stage_02_audio_preparation_from_parquet.py
 │   │   ├── stage_02_audio_preparation_single_wav.py
-│   │   └── stage_03_speaker_classification.py
+│   │   └── stage_03_speaker_classification.py  # Dispatches to xgb or vtc backend
 │   └── utils/
 │       ├── audio_utils.py             # Streaming resample, normalize, concatenate
 │       └── io_utils.py                # YAML, JSON, Parquet, run_id helpers
 ├── tests/
-│   └── test_smoke.py                  # Import smoke tests
+│   ├── test_smoke.py                  # Import smoke tests
+│   └── test_vtc_integration.py        # VTC backend unit tests
 ├── notebooks/
 │   ├── 00_research.ipynb              # Research notebook (source of truth for ML logic)
 │   └── 02_annotation_player.ipynb     # ⭐ ADS/IDS annotation notebook (listen + label)
