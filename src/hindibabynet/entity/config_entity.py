@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 
 @dataclass(frozen=True)
@@ -117,3 +117,15 @@ class SpeakerClassificationConfig:
     main_male_wav_path: Path
     child_wav_path: Path
     background_wav_path: Path
+
+
+# =========================================================================
+# VTC (Voice Type Classifier) External Backend
+# =========================================================================
+@dataclass(frozen=True)
+class VTCConfig:
+    repo_path: Path                      # path to cloned VTC repo
+    device: str                          # cpu / cuda / gpu / mps
+    output_root: Path                    # root for VTC prediction outputs
+    input_root: Path                     # root for temporary VTC input folders
+    keep_inputs: bool                    # whether to keep temporary input folders

@@ -60,3 +60,16 @@ class SpeakerClassificationArtifact:
     n_segments: int
     total_speech_sec: float
     class_durations: dict          # {"adult_male": 123.4, ...}
+
+
+@dataclass(frozen=True)
+class VTCInferenceArtifact:
+    participant_id: str
+    output_dir: Path
+    rttm_dir: Path
+    raw_rttm_dir: Path
+    rttm_csv_path: Path
+    raw_rttm_csv_path: Path
+    run_info_json_path: Path
+    runtime_sec: float
+    status: str                    # "success" or "failed"
