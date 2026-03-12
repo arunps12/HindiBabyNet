@@ -1,11 +1,16 @@
 """
 Stage 03 — Speaker Classification
 
+Supports two backends (selected via config or --backend flag):
+  xgb  — existing HindiBabyNet pipeline (VAD → diarization → eGeMAPS → XGBoost)
+  vtc  — external VTC 2.0 voice-type classifier
+
 CLI modes:
   --wav <path>                         Process a single analysis-ready WAV
   --analysis_dir <path>                Process all <pid>/<pid>.wav files in a directory
   --recordings_parquet <path>          Process all participants from a recordings parquet
                                        (expects Stage 02 outputs to already exist)
+  --backend <xgb|vtc>                  Override backend from config
 """
 from __future__ import annotations
 
@@ -21,8 +26,14 @@ from src.hindibabynet.logging.logger import get_logger, add_file_handler
 
 logger = get_logger(__name__)
 
+_VALID_BACKENDS = ("xgb", "vtc")
 
-def _is_stage_03_complete(cfg: ConfigurationManager, run_id: str, participant_id: str) -> bool:
+
+# ---------------------------------------------------------------------------
+#  Completion checks
+# ---------------------------------------------------------------------------
+
+def _is_xgb_complete(cfg: ConfigurationManager, run_id: str, participant_id: str) -> bool:
     """Check all 4 output WAVs under output_audio_root (fixed paths, survive new run_ids)."""
     sc_cfg = cfg.get_speaker_classification_config(run_id=run_id, participant_id=participant_id)
     out_dir = sc_cfg.output_audio_root / participant_id
@@ -34,12 +45,55 @@ def _is_stage_03_complete(cfg: ConfigurationManager, run_id: str, participant_id
     )
 
 
-def _run_single(cfg: ConfigurationManager, run_id: str, wav_path: Path, participant_id: str):
-    """Process one analysis WAV end-to-end."""
+def _is_vtc_complete(cfg: ConfigurationManager, participant_id: str) -> bool:
+    """Check VTC outputs already exist for this participant."""
+    vtc_cfg = cfg.get_vtc_config()
+    out_dir = vtc_cfg.output_root / participant_id
+    return (
+        (out_dir / "rttm").is_dir()
+        and (out_dir / "raw_rttm").is_dir()
+        and (out_dir / "rttm.csv").is_file()
+        and (out_dir / "raw_rttm.csv").is_file()
+    )
+
+
+def _is_stage_03_complete(
+    cfg: ConfigurationManager, run_id: str, participant_id: str, backend: str
+) -> bool:
+    if backend == "vtc":
+        return _is_vtc_complete(cfg, participant_id)
+    return _is_xgb_complete(cfg, run_id, participant_id)
+
+
+# ---------------------------------------------------------------------------
+#  Single-participant runners
+# ---------------------------------------------------------------------------
+
+def _run_single_xgb(cfg: ConfigurationManager, run_id: str, wav_path: Path, participant_id: str):
+    """Process one analysis WAV with the XGB backend (unchanged)."""
     sc_cfg = cfg.get_speaker_classification_config(run_id=run_id, participant_id=participant_id)
     component = SpeakerClassification(sc_cfg)
     artifact = component.run(analysis_wav_path=wav_path, participant_id=participant_id)
     return artifact
+
+
+def _run_single_vtc(cfg: ConfigurationManager, wav_path: Path, participant_id: str):
+    """Process one analysis WAV with the external VTC 2.0 backend."""
+    from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
+
+    vtc_cfg = cfg.get_vtc_config()
+    runner = VTCInferenceRunner(vtc_cfg)
+    artifact = runner.run(wav_path=wav_path, participant_id=participant_id)
+    return artifact
+
+
+def _run_single(
+    cfg: ConfigurationManager, run_id: str, wav_path: Path, participant_id: str, backend: str
+):
+    """Dispatch to the selected backend."""
+    if backend == "vtc":
+        return _run_single_vtc(cfg, wav_path, participant_id)
+    return _run_single_xgb(cfg, run_id, wav_path, participant_id)
 
 
 def main():
@@ -57,12 +111,23 @@ def main():
     ap.add_argument("--audio_processed_root", type=str, default=None,
                     help="Root where Stage 02 wrote analysis WAVs (for --recordings_parquet mode)")
     ap.add_argument("--limit", type=int, default=None, help="Process only first N participants")
+    ap.add_argument(
+        "--backend", type=str, default=None, choices=list(_VALID_BACKENDS),
+        help="Override speaker-classification backend (default: from config.yaml)",
+    )
     args = ap.parse_args()
 
     cfg = ConfigurationManager()
     run_id = cfg.make_run_id()
 
-    add_file_handler(logger, cfg.get_logs_root() / run_id / "stage_03_speaker_classification.log")
+    # Resolve backend: CLI flag overrides config
+    backend = (args.backend or cfg.get_speaker_classification_backend()).lower()
+    if backend not in _VALID_BACKENDS:
+        raise ValueError(f"Unknown backend '{backend}'. Must be one of {_VALID_BACKENDS}")
+
+    log_name = f"stage_03_speaker_classification_{backend}.log"
+    add_file_handler(logger, cfg.get_logs_root() / run_id / log_name)
+    logger.info(f"Speaker-classification backend: {backend}")
 
     # ======= Mode 1: Single WAV =======
     if args.wav:
@@ -71,8 +136,8 @@ def main():
             raise FileNotFoundError(f"WAV not found: {wav_path}")
 
         pid = args.participant_id or wav_path.stem
-        logger.info(f"Stage 03 (single) | wav={wav_path} participant_id={pid} run_id={run_id}")
-        artifact = _run_single(cfg, run_id, wav_path, pid)
+        logger.info(f"Stage 03 (single) | wav={wav_path} participant_id={pid} run_id={run_id} backend={backend}")
+        artifact = _run_single(cfg, run_id, wav_path, pid, backend)
         logger.info(f"Stage 03 done: {artifact}")
         print(artifact)
         return
@@ -100,18 +165,18 @@ def main():
         if args.limit:
             wav_files = wav_files[: args.limit]
 
-        logger.info(f"Stage 03 batch (analysis_dir) | n_files={len(wav_files)} run_id={run_id}")
+        logger.info(f"Stage 03 batch (analysis_dir) | n_files={len(wav_files)} run_id={run_id} backend={backend}")
         n_ok, n_fail, n_skip = 0, 0, 0
 
         for wav_path in wav_files:
             pid = wav_path.stem
-            if _is_stage_03_complete(cfg, run_id, pid):
-                logger.info(f"[{pid}] SKIP | Stage 03 outputs already exist")
+            if _is_stage_03_complete(cfg, run_id, pid, backend):
+                logger.info(f"[{pid}] SKIP | Stage 03 outputs already exist (backend={backend})")
                 n_skip += 1
                 continue
             try:
-                logger.info(f"[{pid}] Processing {wav_path}")
-                _run_single(cfg, run_id, wav_path, pid)
+                logger.info(f"[{pid}] Processing {wav_path} (backend={backend})")
+                _run_single(cfg, run_id, wav_path, pid, backend)
                 n_ok += 1
             except Exception as e:
                 n_fail += 1
@@ -143,7 +208,7 @@ def main():
 
         logger.info(
             f"Stage 03 batch (parquet) | participants={len(participants)} "
-            f"processed_root={processed_root} run_id={run_id}"
+            f"processed_root={processed_root} run_id={run_id} backend={backend}"
         )
 
         n_ok, n_fail, n_skip = 0, 0, 0
@@ -153,13 +218,13 @@ def main():
                 logger.warning(f"[{pid}] analysis wav not found: {analysis_wav}, skipping")
                 n_skip += 1
                 continue
-            if _is_stage_03_complete(cfg, run_id, pid):
-                logger.info(f"[{pid}] SKIP | Stage 03 outputs already exist")
+            if _is_stage_03_complete(cfg, run_id, pid, backend):
+                logger.info(f"[{pid}] SKIP | Stage 03 outputs already exist (backend={backend})")
                 n_skip += 1
                 continue
             try:
-                logger.info(f"[{pid}] Processing {analysis_wav}")
-                _run_single(cfg, run_id, analysis_wav, pid)
+                logger.info(f"[{pid}] Processing {analysis_wav} (backend={backend})")
+                _run_single(cfg, run_id, analysis_wav, pid, backend)
                 n_ok += 1
             except Exception as e:
                 n_fail += 1
