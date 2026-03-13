@@ -17,12 +17,13 @@ Given **raw WAV recordings** (one file or an entire directory tree), this pipeli
    - [Process a Single Raw WAV](#option-a--process-a-single-raw-wav-file)
    - [Process a Directory of Raw WAVs (All Participants)](#option-b--process-a-directory-of-raw-wavs-all-participants)
    - [Run Individual Stages Manually](#running-individual-stages-manually)
-6. [ADS / IDS Annotation](#ads--ids-annotation)
-7. [Pipeline Details](#pipeline-details-9-steps)
-8. [Output Files](#output-files)
-9. [Configuration Reference](#configuration-reference)
-10. [Project Structure](#project-structure)
-11. [Troubleshooting](#troubleshooting)
+6. [GUI](#gui)
+7. [ADS / IDS Annotation](#ads--ids-annotation)
+8. [Pipeline Details](#pipeline-details-9-steps)
+9. [Output Files](#output-files)
+10. [Configuration Reference](#configuration-reference)
+11. [Project Structure](#project-structure)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -299,6 +300,37 @@ uv run bash scripts/run_stage_03.sh \
 uv run bash scripts/run_stage_03.sh \
     --analysis_dir /path/to/scratch/audio_processed --limit 5
 ```
+
+---
+
+## GUI
+
+HindiBabyNet includes a desktop GUI for researchers who prefer a graphical interface over CLI scripts.
+
+### Launch
+
+```bash
+# Any of these methods:
+uv run hindibabynet-gui
+uv run python -m hindibabynet_gui
+uv run bash scripts/run_gui.sh
+```
+
+### Features
+
+- **Configuration editor** — Edit `configs/config.yaml` with form fields, file pickers, and validation
+- **Pipeline runner** — Execute any stage or the full pipeline with live log streaming
+- **Output browser** — Browse participant outputs (WAVs, TextGrids, parquets, JSON)
+- **Logs viewer** — Browse saved logs and run history
+- **Annotation launcher** — Wrap the ADS/IDS annotation tool with a GUI
+- **Diagnostics** — Check Python, CUDA, model files, paths, and tools
+- **Backend selection** — Switch between `xgb` and `vtc` backends
+
+### Documentation
+
+- [User Guide](docs/gui_user_guide.md)
+- [Architecture](docs/gui_architecture.md)
+- [Troubleshooting](docs/gui_troubleshooting.md)
 
 ---
 
