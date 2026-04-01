@@ -113,10 +113,10 @@ data_ingestion:
   raw_audio_root: /path/to/your/raw/audio              # ← CHANGE THIS
 
 audio_preparation:
-  processed_audio_root: /path/to/scratch/audio_processed  # ← CHANGE THIS
+  processed_audio_root: /path/to/your/audio_processed  # ← CHANGE THIS
 
 speaker_classification:
-  output_root: /path/to/scratch/classification_outputs     # ← CHANGE THIS
+  output_root: /path/to/your/classification_outputs     # ← CHANGE THIS
 ```
 
 ### Backend: XGB (default)
@@ -176,7 +176,7 @@ Set `backend: vtc` in `config.yaml`:
 ```yaml
 speaker_classification:
   backend: vtc
-  output_root: /path/to/scratch/classification_outputs
+  output_root: /path/to/your/classification_outputs
 
   vtc:
     repo_path: external_models/VTC    # path to cloned VTC repo
