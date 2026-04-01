@@ -23,6 +23,11 @@ class ConfigurationManager:
     def __post_init__(self):
         self.config: Dict[str, Any] = read_yaml(self.config_path)
 
+    def _require(self, mapping: dict, key: str, section: str) -> Any:
+        if key not in mapping:
+            raise ValueError(f"Missing required config key: {section}.{key}")
+        return mapping[key]
+
     # ---- helpers ----
     def get_logs_root(self) -> Path:
         return Path(self.config.get("logs_root", "logs"))
@@ -36,11 +41,61 @@ class ConfigurationManager:
         sc = self.config.get("speaker_classification", {})
         return str(sc.get("backend", "xgb")).lower()
 
+    # ---- Unified param accessors (support old flat + new nested config) ---
+    def get_xgb_params(self) -> dict:
+        """Return the XGB algorithm parameters dict.
+
+        New config:  ``speaker_classification.xgb.*``
+        Old config:  ``speaker_classification.*``  (flat)
+        """
+        sc = self.config.get("speaker_classification", {})
+        if "xgb" in sc and isinstance(sc["xgb"], dict):
+            return sc["xgb"]
+        # Fallback: old flat config — return the whole section
+        return sc
+
+    def get_vtc_params(self) -> dict:
+        """Return the VTC parameters dict.
+
+        New config:  ``speaker_classification.vtc.*``
+        Old config:  top-level ``vtc.*``
+        """
+        sc = self.config.get("speaker_classification", {})
+        if "vtc" in sc and isinstance(sc["vtc"], dict):
+            return sc["vtc"]
+        # Fallback: old top-level vtc section
+        return self.config.get("vtc", {})
+
+    def get_classification_output_root(self) -> Path:
+        """Return the unified classification output root directory.
+
+        New config:  ``speaker_classification.output_root``
+        Old config:  ``speaker_classification.output_audio_root``
+        """
+        sc = self.config.get("speaker_classification", {})
+        if "output_root" in sc:
+            return Path(sc["output_root"])
+        if "output_audio_root" in sc:
+            return Path(sc["output_audio_root"])
+        raise ValueError(
+            "Missing 'speaker_classification.output_root' in config. "
+            "Please update configs/config.yaml to the new format."
+        )
+
+    def get_processed_audio_root(self) -> Path:
+        """Return the processed audio root from audio_preparation config."""
+        ap = self.config.get("audio_preparation", {})
+        if "processed_audio_root" not in ap:
+            raise ValueError("Missing 'audio_preparation.processed_audio_root' in config.")
+        return Path(ap["processed_audio_root"])
+
     # ---- Stage 01: Data Ingestion ----
     def get_data_ingestion_config(self, run_id: str | None = None) -> DataIngestionConfig:
         run_id = run_id or make_run_id()
-        artifacts_root = Path(self.config["artifacts_root"])
-        di = self.config["data_ingestion"]
+        artifacts_root = Path(self.config.get("artifacts_root", "artifacts/runs"))
+        di = self.config.get("data_ingestion", {})
+
+        raw_audio_root = self._require(di, "raw_audio_root", "data_ingestion")
 
         artifacts_dir = artifacts_root / run_id / "data_ingestion"
         recordings_parquet_path = artifacts_dir / di.get(
@@ -48,7 +103,7 @@ class ConfigurationManager:
         )
 
         return DataIngestionConfig(
-            raw_audio_root=Path(di["raw_audio_root"]),
+            raw_audio_root=Path(raw_audio_root),
             allowed_ext=list(di.get("allowed_ext", [".wav", ".WAV"])),
             artifacts_dir=artifacts_dir,
             recordings_parquet_path=recordings_parquet_path,
@@ -58,11 +113,15 @@ class ConfigurationManager:
     def get_audio_preparation_config(
         self, run_id: str, recording_id: str
     ) -> AudioPreparationConfig:
-        ap = self.config["audio_preparation"]
-        artifacts_root = Path(self.config["artifacts_root"])
+        ap = self.config.get("audio_preparation", {})
+        artifacts_root = Path(self.config.get("artifacts_root", "artifacts/runs"))
+
+        processed_audio_root = self._require(
+            ap, "processed_audio_root", "audio_preparation"
+        )
 
         artifacts_dir = artifacts_root / run_id / "audio_preparation"
-        processed_root = Path(ap["processed_audio_root"])
+        processed_root = Path(processed_audio_root)
         processed_dir = processed_root / recording_id
 
         return AudioPreparationConfig(
@@ -83,8 +142,8 @@ class ConfigurationManager:
     def get_vad_config(
         self, run_id: str, participant_id: str
     ) -> VADConfig:
-        sc = self.config["speaker_classification"]
-        artifacts_root = Path(self.config["artifacts_root"])
+        sc = self.get_xgb_params()
+        artifacts_root = Path(self.config.get("artifacts_root", "artifacts/runs"))
         artifacts_dir = artifacts_root / run_id / "vad"
 
         return VADConfig(
@@ -100,10 +159,10 @@ class ConfigurationManager:
     def get_diarization_config(
         self, run_id: str, participant_id: str
     ) -> DiarizationConfig:
-        sc = self.config["speaker_classification"]
-        artifacts_root = Path(self.config["artifacts_root"])
+        sc = self.get_xgb_params()
+        artifacts_root = Path(self.config.get("artifacts_root", "artifacts/runs"))
         artifacts_dir = artifacts_root / run_id / "diarization"
-        output_audio_root = Path(sc["output_audio_root"])
+        output_audio_root = self.get_classification_output_root()
 
         return DiarizationConfig(
             artifacts_dir=artifacts_dir,
@@ -125,8 +184,8 @@ class ConfigurationManager:
     def get_intersection_config(
         self, run_id: str, participant_id: str
     ) -> IntersectionConfig:
-        sc = self.config["speaker_classification"]
-        artifacts_root = Path(self.config["artifacts_root"])
+        sc = self.get_xgb_params()
+        artifacts_root = Path(self.config.get("artifacts_root", "artifacts/runs"))
         artifacts_dir = artifacts_root / run_id / "intersection"
 
         return IntersectionConfig(
@@ -138,20 +197,20 @@ class ConfigurationManager:
             / f"{participant_id}_intersection_summary.json",
         )
 
-    # ---- Stage 06: Speaker Classification ----
+    # ---- Stage 06: Speaker Classification (6-stage pipeline) ----
     def get_speaker_classification_config(
         self, run_id: str, participant_id: str
     ) -> SpeakerClassificationConfig:
-        sc = self.config["speaker_classification"]
-        artifacts_root = Path(self.config["artifacts_root"])
+        sc = self.get_xgb_params()
+        artifacts_root = Path(self.config.get("artifacts_root", "artifacts/runs"))
 
         artifacts_dir = artifacts_root / run_id / "speaker_classification"
-        output_audio_root = Path(sc["output_audio_root"])
-        output_dir = output_audio_root / participant_id
+        output_audio_root = self.get_classification_output_root()
+        output_dir = output_audio_root / "xgb" / participant_id
 
         return SpeakerClassificationConfig(
             artifacts_dir=artifacts_dir,
-            model_path=Path(sc["model_path"]),
+            model_path=Path(sc.get("model_path", "models/xgb_egemaps.pkl")),
             class_names=list(
                 sc.get(
                     "class_names",
@@ -168,19 +227,19 @@ class ConfigurationManager:
             ),
             min_speakers=1,
             max_speakers=3,
-            output_audio_root=output_audio_root,
-            classified_segments_parquet_path=artifacts_dir
-            / f"{participant_id}_classified_segments.parquet",
-            main_female_parquet_path=artifacts_dir
+            output_audio_root=output_audio_root / "xgb",
+            classified_segments_parquet_path=output_dir
+            / f"{participant_id}_segments.parquet",
+            main_female_parquet_path=output_dir
             / f"{participant_id}_main_female.parquet",
-            main_male_parquet_path=artifacts_dir
+            main_male_parquet_path=output_dir
             / f"{participant_id}_main_male.parquet",
-            child_parquet_path=artifacts_dir
+            child_parquet_path=output_dir
             / f"{participant_id}_child.parquet",
-            background_parquet_path=artifacts_dir
+            background_parquet_path=output_dir
             / f"{participant_id}_background.parquet",
-            summary_json_path=artifacts_dir / f"{participant_id}_summary.json",
-            textgrid_path=artifacts_dir / f"{participant_id}.TextGrid",
+            summary_json_path=output_dir / f"{participant_id}_summary.json",
+            textgrid_path=output_dir / f"{participant_id}.TextGrid",
             main_female_wav_path=output_dir / f"{participant_id}_main_female.wav",
             main_male_wav_path=output_dir / f"{participant_id}_main_male.wav",
             child_wav_path=output_dir / f"{participant_id}_child.wav",
@@ -189,11 +248,13 @@ class ConfigurationManager:
 
     # ---- VTC (Voice Type Classifier) ----
     def get_vtc_config(self) -> VTCConfig:
-        vtc = self.config.get("vtc", {})
+        """Build VTCConfig (kept for backward compat with old VTCInferenceRunner)."""
+        vtc = self.get_vtc_params()
+        output_root = self.get_classification_output_root() / "vtc"
         return VTCConfig(
             repo_path=Path(vtc.get("repo_path", "external_models/VTC")),
             device=str(vtc.get("device", "cuda")),
-            output_root=Path(vtc["output_root"]),
-            input_root=Path(vtc["input_root"]),
+            output_root=output_root,
+            input_root=output_root / "_tmp_vtc_inputs",
             keep_inputs=bool(vtc.get("keep_inputs", False)),
         )

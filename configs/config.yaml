@@ -1,63 +1,58 @@
+# ─── HindiBabyNet Pipeline Configuration ───
+# This file is the single source of truth for all pipeline settings.
+# Edit paths below to match your system, then run stages via:
+#   uv run bash scripts/run_all.sh
+#   uv run bash scripts/run_stage_03.sh
+
 artifacts_root: artifacts/runs
 logs_root: logs
 
+# ─── Stage 01: Data Ingestion ───
 data_ingestion:
-  raw_audio_root: /itf-fi-ml/home/arunps/hindibabynet_data/audio_raw
+  raw_audio_root: /path/to/your/raw/audio           # ← CHANGE THIS
   allowed_ext: [".wav", ".WAV"]
   recordings_filename: recordings.parquet
 
-artifacts_root: artifacts/runs
-logs_root: logs
-
+# ─── Stage 02: Audio Preparation ───
 audio_preparation:
-  processed_audio_root: /itf-fi-ml/home/arunps/hindibabynet_data/audio_processed
+  processed_audio_root: /path/to/scratch/audio_processed  # ← CHANGE THIS
   target_sr: 16000
   to_mono: true
   target_peak_dbfs: -1.0
   combine_gap_sec: 0.0
 
+# ─── Stage 03: Speaker Classification ───
+# Both backends share output_root; outputs go to <output_root>/xgb/ or <output_root>/vtc/
 speaker_classification:
-  backend: xgb                  # "xgb" (default HindiBabyNet) or "vtc" (external VTC 2.0)
-  model_path: models/xgb_egemaps.pkl
-  class_names: ["adult_male", "adult_female", "child", "background"]
-  egemaps_dim: 88
-  output_audio_root: /itf-fi-ml/home/arunps/hindibabynet_data/audio_classified
+  backend: xgb                  # "xgb" (default) or "vtc"
+  output_root: /path/to/scratch/classification_outputs  # ← CHANGE THIS
 
-  # VAD (webrtcvad)
-  vad_aggressiveness: 2
-  vad_frame_ms: 30
-  vad_min_region_ms: 300
+  # ── XGB backend (native HindiBabyNet) ──
+  xgb:
+    model_path: models/xgb_egemaps.pkl
+    class_names: ["adult_male", "adult_female", "child", "background"]
+    egemaps_dim: 88
 
-  # Diarization (pyannote)
-  diarization_model: "pyannote/speaker-diarization-3.1"
-  chunk_sec: 900.0
-  overlap_sec: 10.0
-  min_speakers: 2
-  max_speakers: 4
+    # VAD (webrtcvad)
+    vad_aggressiveness: 2
+    vad_frame_ms: 30
+    vad_min_region_ms: 300
 
-  # Merge & classify
-  # merge_gap_sec: merge same-speaker segments separated by gaps ≤ this value.
-  #   0.3  → phrase-level; captures within-phrase breathing pauses only (recommended)
-  #   0.5  → slightly coarser; still separates distinct utterances well
-  #   0.7  → may bridge short between-phrase pauses
-  #   1.0+ → risk merging separate phrases/utterances together
-  merge_gap_sec: 0.3
+    # Diarization (pyannote)
+    diarization_model: "pyannote/speaker-diarization-3.1"
+    chunk_sec: 900.0
+    overlap_sec: 10.0
+    min_speakers: 2
+    max_speakers: 4
 
-  # min_segment_sec: discard segments shorter than this value (after merging).
-  #   0.2  → keeps very short segments; noise transients may slip through (recommended)
-  #   0.3  → drops most artefacts; retains short infant vocalisations
-  #   0.5  → more reliable features; may lose the shortest babbles/coos
-  #   1.0  → only substantial utterances; loses many genuine child sounds
-  min_segment_sec: 0.2
+    # Merge & classify
+    merge_gap_sec: 0.3           # merge same-speaker segments ≤ this gap
+    min_segment_sec: 0.2         # discard segments shorter than this
+    classify_win_sec: 1.0        # eGeMAPS extraction window (seconds)
+    classify_hop_sec: 0.5        # eGeMAPS window hop (seconds)
 
-  classify_win_sec: 1.0
-  classify_hop_sec: 0.5
-
-# ─── VTC 2.0 (Voice Type Classifier) — external backend ───
-# Only used when speaker_classification.backend = "vtc"
-vtc:
-  repo_path: external_models/VTC        # path to cloned VTC repo (relative to project root or absolute)
-  device: cuda                           # cpu / cuda / gpu / mps
-  output_root: /itf-fi-ml/home/arunps/hindibabynet_data/vtc_predictions
-  input_root: /itf-fi-ml/home/arunps/hindibabynet_data/vtc_inputs
-  keep_inputs: false                     # keep temporary per-participant input folders after inference
+  # ── VTC backend (external VTC 2.0) ──
+  vtc:
+    repo_path: external_models/VTC    # path to cloned VTC repo
+    device: cpu                       # cpu / cuda / gpu / mps
+    keep_inputs: false                # keep temp VTC input folders after inference
