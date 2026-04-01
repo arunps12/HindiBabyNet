@@ -77,6 +77,7 @@ Stage 01 and Stage 02 are **shared** — they run identically regardless of whic
 | **Python** | 3.10 – 3.12 |
 | **GPU** | NVIDIA GPU with CUDA (strongly recommended for pyannote diarization; CPU works but is very slow) |
 | **[uv](https://docs.astral.sh/uv/)** | Fast Python package manager (`pip install uv` or `curl -LsSf https://astral.sh/uv/install.sh \| sh`) |
+| **Microsoft C++ Build Tools (Windows, XGB only)** | Needed only if you install XGB extra (because `webrtcvad` is compiled from source) |
 | **HuggingFace token** | Required by the pyannote diarization model — get one free at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and accept the model terms at [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) |
 | **Disk space** | Intermediate files can be large for long recordings; ensure sufficient scratch space |
 
@@ -89,14 +90,17 @@ Stage 01 and Stage 02 are **shared** — they run identically regardless of whic
 git clone https://github.com/arunps12/HindiBabyNet.git
 cd HindiBabyNet
 
-# 2. Install all dependencies (creates a virtual environment automatically)
+# 2a. Install core dependencies (VTC-only usage)
 uv sync
+
+# 2b. Install XGB dependencies as well (XGB backend or both backends)
+uv sync --extra xgb
 
 # 3. Create a .env file with your HuggingFace token
 echo "HF_TOKEN=hf_your_token_here" > .env
 ```
 
-That's it — `uv sync` handles Python, virtual environment creation, and all packages (including PyTorch with CUDA).
+`uv sync` is enough for VTC-only workflows. Use `uv sync --extra xgb` when you need the XGB backend.
 
 ---
 
@@ -121,7 +125,7 @@ speaker_classification:
 
 ### Backend: XGB (default)
 
-**Setup:** No extra setup needed — everything is included after `uv sync`. The pre-trained XGBoost model ships with the repository at `models/xgb_egemaps.pkl`.
+**Setup:** Install XGB extra dependencies first: `uv sync --extra xgb`. The pre-trained XGBoost model ships with the repository at `models/xgb_egemaps.pkl`.
 
 Set `backend: xgb` in `config.yaml` (this is the default):
 
@@ -630,6 +634,7 @@ Backward-compatibility fallbacks are implemented for old keys, but new projects 
 | Problem | Solution |
 |---------|----------|
 | `HF_TOKEN not loaded` | Create a `.env` file in the project root: `echo "HF_TOKEN=hf_..." > .env` |
+| `Failed to build webrtcvad` (Windows) | Install Microsoft C++ Build Tools, or run VTC-only setup (`uv sync`) without XGB extra. |
 | `webrtcvad needs sr in (8k,16k,32k,48k)` | Your input WAV has an unusual sample rate. Run Stage 02 first to resample to 16 kHz. |
 | `No <pid>/<pid>.wav files found` | Stage 02 hasn't been run yet, or the `processed_audio_root` path in config.yaml is wrong. |
 | Out of GPU memory | Reduce `chunk_sec` in config.yaml (e.g., from 900 to 300). Smaller chunks use less VRAM. |

@@ -9,13 +9,13 @@ logs_root: logs
 
 # ─── Stage 01: Data Ingestion ───
 data_ingestion:
-  raw_audio_root: /path/to/your/raw/audio           # ← CHANGE THIS
+  raw_audio_root: \\hypatia.uio.no\lh-hf-iln-sociocognitivelab\Research\HindiNet\RawAudioData           # ← CHANGE THIS
   allowed_ext: [".wav", ".WAV"]
   recordings_filename: recordings.parquet
 
 # ─── Stage 02: Audio Preparation ───
 audio_preparation:
-  processed_audio_root: /path/to/your/audio_processed  # ← CHANGE THIS
+  processed_audio_root: \\hypatia.uio.no\lh-hf-iln-sociocognitivelab\Research\HindiNet\Audio_data_processing  # ← CHANGE THIS
   target_sr: 16000
   to_mono: true
   target_peak_dbfs: -1.0
@@ -24,8 +24,8 @@ audio_preparation:
 # ─── Stage 03: Speaker Classification ───
 # Both backends share output_root; outputs go to <output_root>/xgb/ or <output_root>/vtc/
 speaker_classification:
-  backend: xgb                  # "xgb" (default) or "vtc"
-  output_root: /path/to/your/classification_outputs  # ← CHANGE THIS
+  backend: vtc                 # "xgb" (default) or "vtc"
+  output_root: \\hypatia.uio.no\lh-hf-iln-sociocognitivelab\Research\HindiNet\Classification_outputs/VTC  # ← CHANGE THIS
 
   # ── XGB backend (native HindiBabyNet) ──
   xgb:
