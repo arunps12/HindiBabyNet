@@ -211,3 +211,7 @@ artifacts/
 
 #docs
 docs/
+
+# External models (keep only the README)
+external_models/*
+!external_models/README.md
