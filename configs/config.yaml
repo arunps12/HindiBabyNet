@@ -15,7 +15,7 @@ data_ingestion:
 
 # ─── Stage 02: Audio Preparation ───
 audio_preparation:
-  processed_audio_root: /path/to/scratch/audio_processed  # ← CHANGE THIS
+  processed_audio_root: /path/to/your/audio_processed  # ← CHANGE THIS
   target_sr: 16000
   to_mono: true
   target_peak_dbfs: -1.0
@@ -25,7 +25,7 @@ audio_preparation:
 # Both backends share output_root; outputs go to <output_root>/xgb/ or <output_root>/vtc/
 speaker_classification:
   backend: xgb                  # "xgb" (default) or "vtc"
-  output_root: /path/to/scratch/classification_outputs  # ← CHANGE THIS
+  output_root: /path/to/your/classification_outputs  # ← CHANGE THIS
 
   # ── XGB backend (native HindiBabyNet) ──
   xgb:
