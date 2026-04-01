@@ -150,7 +150,7 @@ speaker_classification:
 
 Exports: caregiver WAVs, child/background WAVs, TextGrid, segments parquet, and summary JSON. ADS/IDS annotation is designed for XGB outputs.
 
-### Backend: VTC (optional)
+### Backend: VTC (optional) [LAAC-LSCP/VTC](https://github.com/LAAC-LSCP/VTC)
 
 **Setup required.** The VTC model is **not** included in this repository (only `external_models/README.md` is committed). You must clone and install VTC yourself:
 
