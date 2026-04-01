@@ -2,7 +2,7 @@
 
 > Automatic speaker classification pipeline for long-form Hindi child–caregiver audio recordings.
 
-Given **raw WAV recordings** (one file or an entire directory tree), this pipeline automatically finds and separates **female adult speech**, **male adult speech**, **child vocalisations**, and **background noise** — then exports the main female and male caregiver audio as standalone files plus a Praat-compatible TextGrid for annotation review.
+Given **raw WAV recordings** (one file or an entire directory tree), this pipeline automatically classifies speech into speaker types. With the **XGB backend** (default), it separates **female adult speech**, **male adult speech**, **child vocalisations**, and **background noise** — then exports the main female and male caregiver audio as standalone files plus a Praat-compatible TextGrid for annotation review. With the **VTC backend**, it produces `FEM/MAL/KCHI/OCH` RTTM and CSV outputs from the external VTC 2.0 model.
 
 ---
 
@@ -12,18 +12,25 @@ Given **raw WAV recordings** (one file or an entire directory tree), this pipeli
 2. [Prerequisites](#prerequisites)
 3. [Installation](#installation)
 4. [Configuration](#configuration)
-   - [VTC 2.0 Backend (Optional)](#vtc-20-backend-optional)
+   - [Required Paths](#required-paths)
+   - [Backend: XGB (default)](#backend-xgb-default)
+   - [Backend: VTC (optional)](#backend-vtc-optional)
+   - [Full Configuration Reference](#full-configuration-reference)
 5. [Usage](#usage)
-   - [Process a Single Raw WAV](#option-a--process-a-single-raw-wav-file)
-   - [Process a Directory of Raw WAVs (All Participants)](#option-b--process-a-directory-of-raw-wavs-all-participants)
-   - [Run Individual Stages Manually](#running-individual-stages-manually)
-6. [GUI](#gui)
+   - [Quick Start](#quick-start)
+   - [Process a Single Raw WAV](#process-a-single-raw-wav)
+   - [Process a Directory of Raw WAVs](#process-a-directory-of-raw-wavs)
+   - [Running Individual Stages](#running-individual-stages)
+6. [Output Files](#output-files)
+   - [XGB Outputs](#xgb-outputs)
+   - [VTC Outputs](#vtc-outputs)
+   - [Segments Parquet Schema](#segments-parquet-schema)
+   - [Summary JSON](#summary-json)
 7. [ADS / IDS Annotation](#ads--ids-annotation)
-8. [Pipeline Details](#pipeline-details-9-steps)
-9. [Output Files](#output-files)
-10. [Configuration Reference](#configuration-reference)
-11. [Project Structure](#project-structure)
-12. [Troubleshooting](#troubleshooting)
+8. [Pipeline Details (XGB, 9 Steps)](#pipeline-details-xgb-9-steps)
+9. [Project Structure](#project-structure)
+10. [Migration Notes](#migration-notes)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -52,27 +59,14 @@ Raw WAV recordings
 │    External VTC 2.0 → FEM / MAL / KCHI / OCH            │
 │    → RTTM + CSV outputs (unchanged)                     │
 ├─────────────────────────────────────────────────────────┤
-│  Manual Annotation (notebook or terminal script)        │
+│  Manual Annotation — XGB only (notebook or script)      │
 │  Listen to each segment in main_female / main_male      │
 │  → label as ADS, IDS, or Other                          │
 │  → export separate ADS & IDS WAVs per speaker           │
 └─────────────────────────────────────────────────────────┘
-        │
-        ▼
-   <pid>_main_female.wav  <pid>_main_male.wav  <pid>_child.wav
-   <pid>_background.wav   <pid>.TextGrid       <pid>_summary.json
-   <pid>_female_ADS.wav   <pid>_female_IDS.wav
-   <pid>_male_ADS.wav     <pid>_male_IDS.wav
 ```
 
-**Four output classes:**
-
-| Class | Description |
-|-------|-------------|
-| `adult_female` | Adult female speech (typically the mother) |
-| `adult_male` | Adult male speech (typically the father) |
-| `child` | Child / infant vocalisations |
-| `background` | Non-speech or ambient noise |
+Stage 01 and Stage 02 are **shared** — they run identically regardless of which Stage 03 backend you choose.
 
 ---
 
@@ -108,35 +102,60 @@ That's it — `uv sync` handles Python, virtual environment creation, and all pa
 
 ## Configuration
 
-Before running, edit **`configs/config.yaml`** to set the paths for your system:
+Edit **`configs/config.yaml`** before running. The subsections below explain each part.
+
+### Required Paths
+
+These three paths **must** be set for your system:
 
 ```yaml
-# ─── Where raw WAV files live ───
 data_ingestion:
-  raw_audio_root: /path/to/your/raw/audio     # ← CHANGE THIS
+  raw_audio_root: /path/to/your/raw/audio              # ← CHANGE THIS
 
-# ─── Where intermediate analysis WAVs are written ───
 audio_preparation:
-  processed_audio_root: /path/to/scratch/audio_processed   # ← CHANGE THIS
+  processed_audio_root: /path/to/scratch/audio_processed  # ← CHANGE THIS
 
-# ─── Where final classified outputs are written ───
 speaker_classification:
-  output_audio_root: /path/to/scratch/audio_classified     # ← CHANGE THIS
+  output_root: /path/to/scratch/classification_outputs     # ← CHANGE THIS
 ```
 
-All other parameters (sample rate, VAD aggressiveness, diarization settings, etc.) have sensible defaults and usually don't need changing. See [Configuration Reference](#configuration-reference) below for the full list.
+### Backend: XGB (default)
 
-### VTC 2.0 Backend (Optional)
+**Setup:** No extra setup needed — everything is included after `uv sync`. The pre-trained XGBoost model ships with the repository at `models/xgb_egemaps.pkl`.
 
-HindiBabyNet supports an optional second backend for Stage 03: **VTC 2.0 (Voice Type Classifier)** from [LAAC-LSCP/VTC](https://github.com/LAAC-LSCP/VTC). VTC classifies audio into four voice types: `FEM`, `MAL`, `KCHI`, `OCH`.
+Set `backend: xgb` in `config.yaml` (this is the default):
 
-> **Important:** VTC runs in its own virtual environment, completely isolated from HindiBabyNet. VTC outputs are preserved exactly as produced — no labels are renamed or transformed.
+```yaml
+speaker_classification:
+  backend: xgb
+  output_root: /path/to/scratch/classification_outputs
 
-#### VTC Setup
+  xgb:
+    model_path: models/xgb_egemaps.pkl
+    class_names: ["adult_male", "adult_female", "child", "background"]
+    egemaps_dim: 88
+    vad_aggressiveness: 2
+    vad_frame_ms: 30
+    vad_min_region_ms: 300
+    diarization_model: "pyannote/speaker-diarization-3.1"
+    chunk_sec: 900.0
+    overlap_sec: 10.0
+    min_speakers: 2
+    max_speakers: 4
+    merge_gap_sec: 0.7
+    min_segment_sec: 0.2
+    classify_win_sec: 1.0
+    classify_hop_sec: 0.5
+```
+
+Exports: caregiver WAVs, child/background WAVs, TextGrid, segments parquet, and summary JSON. ADS/IDS annotation is designed for XGB outputs.
+
+### Backend: VTC (optional)
+
+**Setup required.** The VTC model is **not** included in this repository (only `external_models/README.md` is committed). You must clone and install VTC yourself:
 
 ```bash
 # 1. Install system dependencies (if not already present)
-#    - uv: https://docs.astral.sh/uv/
 #    - ffmpeg: sudo apt install ffmpeg
 #    - git-lfs: sudo apt install git-lfs
 
@@ -144,90 +163,125 @@ HindiBabyNet supports an optional second backend for Stage 03: **VTC 2.0 (Voice 
 git lfs install
 git clone --recurse-submodules https://github.com/LAAC-LSCP/VTC.git external_models/VTC
 
-# 3. Install VTC dependencies (creates its own venv)
+# 3. Install VTC dependencies (creates its own separate venv)
 cd external_models/VTC
 uv sync
 cd ../..
 ```
 
-#### VTC Configuration
+> **Note:** VTC runs in its own virtual environment, completely isolated from HindiBabyNet.
 
-Add/update these sections in `configs/config.yaml`:
+Set `backend: vtc` in `config.yaml`:
 
 ```yaml
 speaker_classification:
-  backend: vtc                  # "xgb" (default) or "vtc"
+  backend: vtc
+  output_root: /path/to/scratch/classification_outputs
 
-vtc:
-  repo_path: external_models/VTC
-  device: cuda                  # cpu / cuda / gpu / mps
-  output_root: /path/to/scratch/vtc_predictions
-  input_root: /path/to/scratch/vtc_inputs
-  keep_inputs: false
+  vtc:
+    repo_path: external_models/VTC    # path to cloned VTC repo
+    device: cuda                      # cpu / cuda / gpu / mps
+    keep_inputs: false                # keep temp VTC input folders after inference
 ```
 
-#### Running with VTC
+Exports: `FEM/MAL/KCHI/OCH` RTTM/CSV outputs unchanged from [LAAC-LSCP/VTC](https://github.com/LAAC-LSCP/VTC). Does **not** produce `main_female.wav`, `TextGrid`, etc.
 
-```bash
-# Single WAV:
-uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/<pid>/<pid>.wav --backend vtc
+### Full Configuration Reference
 
-# Batch (directory):
-uv run bash scripts/run_stage_03.sh --analysis_dir /path/to/audio_processed --backend vtc
+All parameters in **`configs/config.yaml`**:
 
-# Or set backend: vtc in config.yaml and omit --backend flag
+```yaml
+# ─── Paths ───
+artifacts_root: artifacts/runs           # where run artifacts are saved
+logs_root: logs                          # where log files are saved
+
+# ─── Stage 01: Data Ingestion ───
+data_ingestion:
+  raw_audio_root: /path/to/raw/audio     # root directory to scan for WAV files
+  allowed_ext: [".wav", ".WAV"]          # accepted file extensions
+  recordings_filename: recordings.parquet
+
+# ─── Stage 02: Audio Preparation ───
+audio_preparation:
+  processed_audio_root: /path/to/scratch/audio_processed
+  target_sr: 16000          # target sample rate (Hz)
+  to_mono: true             # convert to mono
+  target_peak_dbfs: -1.0    # peak normalization target (dBFS)
+  combine_gap_sec: 0.0      # silence gap when concatenating files (seconds)
+
+# ─── Stage 03: Speaker Classification ───
+speaker_classification:
+  backend: xgb              # "xgb" (default) or "vtc"
+  output_root: /path/to/scratch/classification_outputs
+
+  xgb:                      # see "Backend: XGB" above for key descriptions
+    model_path: models/xgb_egemaps.pkl
+    class_names: ["adult_male", "adult_female", "child", "background"]
+    egemaps_dim: 88
+    vad_aggressiveness: 2
+    vad_frame_ms: 30
+    vad_min_region_ms: 300
+    diarization_model: "pyannote/speaker-diarization-3.1"
+    chunk_sec: 900.0
+    overlap_sec: 10.0
+    min_speakers: 2
+    max_speakers: 4
+    merge_gap_sec: 0.7
+    min_segment_sec: 0.2
+    classify_win_sec: 1.0
+    classify_hop_sec: 0.5
+
+  vtc:                      # see "Backend: VTC" above for key descriptions
+    repo_path: external_models/VTC
+    device: cuda             # cpu / cuda / gpu / mps
+    keep_inputs: false
 ```
-
-#### VTC Outputs
-
-VTC outputs are stored per participant, unchanged:
-
-```
-<vtc_output_root>/<participant_id>/
-├── rttm/
-├── raw_rttm/
-├── rttm.csv
-├── raw_rttm.csv
-└── vtc_run_info.json    # HindiBabyNet metadata (participant, command, runtime)
-```
-
-VTC output classes:
-
-| Class | Description |
-|-------|-------------|
-| `FEM` | Adult female speech |
-| `MAL` | Adult male speech |
-| `KCHI` | Key-child speech |
-| `OCH` | Other child speech |
-
-> **Note:** When backend is `vtc`, HindiBabyNet does **not** produce its own speaker-classification artifacts (`main_female.wav`, `TextGrid`, `segments.parquet`, etc.). Only VTC outputs are generated.
 
 ---
 
 ## Usage
 
-### Option A — Process a Single Raw WAV File
+> **Tip:** You can either set `backend:` in `config.yaml` or pass `--backend xgb|vtc` on the command line. The CLI flag overrides whatever is in the config file.
 
-If you have **one WAV file** and want to classify speakers in it:
+### Quick Start
+
+Run the entire pipeline (Stage 01 → 02 → 03) end-to-end with a single command:
+
+```bash
+# Optional setup diagnostics (recommended once per machine):
+uv run hindibabynet-check
+
+# ─── Using XGB (default, reads backend from config.yaml) ───
+uv run bash scripts/run_all.sh
+
+# ─── Using VTC (override backend on CLI) ───
+uv run bash scripts/run_all.sh --backend vtc
+
+# Process only the first N participants (useful for testing):
+uv run bash scripts/run_all.sh --limit 3
+```
+
+This runs all three stages sequentially:
+1. **Stage 01** scans `raw_audio_root` and catalogues every WAV file
+2. **Stage 02** combines all WAVs per participant into a single analysis-ready WAV
+3. **Stage 03** runs speaker classification on each participant using the selected backend
+
+If a run stops midway, run the same command again — Stage 02 and Stage 03 automatically skip participants whose outputs are already complete.
+
+### Process a Single Raw WAV
 
 ```bash
 # Step 1: Prepare the audio (mono, 16 kHz, normalized)
 uv run bash scripts/run_stage_02_single_wav.sh /path/to/your/recording.wav
 
-# Step 2: Find the prepared analysis WAV (printed by Step 1), then classify
-uv run bash scripts/run_stage_03.sh --wav /path/to/scratch/audio_processed/recording/recording.wav
+# Step 2: Classify with XGB (default)
+uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/recording/recording.wav
+
+# Step 2 (alternative): Classify with VTC
+uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/recording/recording.wav --backend vtc
 ```
 
-**What you get:**
-- `recording_main_female.wav` — isolated main female speaker
-- `recording_main_male.wav` — isolated main male speaker
-- `recording_child.wav` — child vocalisations
-- `recording_background.wav` — background / non-speech
-- `recording.TextGrid` — Praat-compatible annotation with FEM / MAL / CHILD / BACKGROUND tiers
-- `recording_segments.parquet` — every classified segment with timestamps and probabilities
-- `recording_summary.json` — per-class duration statistics
-
-### Option B — Process a Directory of Raw WAVs (All Participants)
+### Process a Directory of Raw WAVs
 
 If you have a directory tree of recordings organised by participant:
 
@@ -245,28 +299,11 @@ your_audio_directory/
   └── ...
 ```
 
-**Run the entire pipeline end-to-end with a single command:**
+Use `run_all.sh` as shown in [Quick Start](#quick-start), or run stages individually below.
 
-```bash
-# Process ALL participants automatically
-uv run bash scripts/run_all.sh
+### Running Individual Stages
 
-# Process only the first N participants (useful for testing)
-uv run bash scripts/run_all.sh 3
-```
-
-If a run stops midway, you can run the same command again. Stage 02 and Stage 03 will automatically skip participants whose outputs are already complete, so finished files are not recreated.
-
-This runs all three stages sequentially:
-1. **Stage 01** scans `raw_audio_root` (from config.yaml) and catalogues every WAV file
-2. **Stage 02** combines all WAVs per participant into a single analysis-ready WAV
-3. **Stage 03** runs the full classification pipeline on each participant
-
-**All participants are processed automatically — no manual per-participant runs needed.**
-
-### Running Individual Stages Manually
-
-You can also run each stage independently:
+Stage 01 and Stage 02 are shared for both backends. Only Stage 03 differs.
 
 ```bash
 # ─── Stage 01: Scan raw audio directory ───
@@ -290,53 +327,112 @@ uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/<pid>/<pid>.w
 
 # ─── Stage 03: Classify all prepared WAVs in a directory ───
 uv run bash scripts/run_stage_03.sh \
-    --analysis_dir /path/to/scratch/audio_processed
+    --analysis_dir /path/to/audio_processed
 
 # ─── Stage 03: Classify from recordings parquet (needs Stage 02 done) ───
 uv run bash scripts/run_stage_03.sh \
     --recordings_parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
 
-# ─── Stage 03: Limit to first N participants ───
-uv run bash scripts/run_stage_03.sh \
-    --analysis_dir /path/to/scratch/audio_processed --limit 5
+# ─── Stage 03: Override backend or limit participants ───
+uv run bash scripts/run_stage_03.sh --analysis_dir /path/to/audio_processed --backend vtc --limit 5
 ```
 
 ---
 
-## GUI
+## Output Files
 
-HindiBabyNet includes a desktop GUI for researchers who prefer a graphical interface over CLI scripts.
+### XGB Outputs
 
-### Launch
+For each participant:
 
-```bash
-# Any of these methods:
-uv run hindibabynet-gui
-uv run python -m hindibabynet_gui
-uv run bash scripts/run_gui.sh
+```
+<output_root>/xgb/<participant_id>/
+  ├── <pid>_main_female.wav       # Main female caregiver audio (16 kHz mono)
+  ├── <pid>_main_male.wav         # Main male caregiver audio (16 kHz mono)
+  ├── <pid>_child.wav             # Child vocalisations (16 kHz mono)
+  ├── <pid>_background.wav        # Background / non-speech (16 kHz mono)
+  ├── <pid>_segments.parquet      # All classified segments
+  ├── <pid>_summary.json          # Per-class duration statistics
+  └── <pid>.TextGrid              # Praat-compatible annotation
 ```
 
-### Features
+**Four output classes:**
 
-- **Configuration editor** — Edit `configs/config.yaml` with form fields, file pickers, and validation
-- **Pipeline runner** — Execute any stage or the full pipeline with live log streaming
-- **Output browser** — Browse participant outputs (WAVs, TextGrids, parquets, JSON)
-- **Logs viewer** — Browse saved logs and run history
-- **Annotation launcher** — Wrap the ADS/IDS annotation tool with a GUI
-- **Diagnostics** — Check Python, CUDA, model files, paths, and tools
-- **Backend selection** — Switch between `xgb` and `vtc` backends
+| Class | Description |
+|-------|-------------|
+| `adult_female` | Adult female speech (typically the mother) |
+| `adult_male` | Adult male speech (typically the father) |
+| `child` | Child / infant vocalisations |
+| `background` | Non-speech or ambient noise |
 
-### Documentation
+### VTC Outputs
 
-- [User Guide](docs/gui_user_guide.md)
-- [Architecture](docs/gui_architecture.md)
-- [Troubleshooting](docs/gui_troubleshooting.md)
+For each participant (unchanged VTC 2.0 output):
+
+```
+<output_root>/vtc/<participant_id>/
+  ├── rttm/
+  ├── raw_rttm/
+  ├── rttm.csv
+  ├── raw_rttm.csv
+  └── run_info.json              # HindiBabyNet metadata (participant, command, runtime)
+```
+
+**VTC output classes:**
+
+| Class | Description |
+|-------|-------------|
+| `FEM` | Adult female speech |
+| `MAL` | Adult male speech |
+| `KCHI` | Key-child speech |
+| `OCH` | Other child speech |
+
+> **Note:** When backend is `vtc`, HindiBabyNet does **not** produce its own speaker-classification artifacts (`main_female.wav`, `TextGrid`, `segments.parquet`, etc.). Only VTC outputs are generated.
+
+### Segments Parquet Schema
+
+(XGB only)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `start_sec` | float | Segment start time (seconds from WAV beginning) |
+| `end_sec` | float | Segment end time |
+| `duration_sec` | float | Segment duration |
+| `chunk_id` | int | Diarization chunk this segment came from |
+| `speaker_id_local` | str | Local speaker label from diarization |
+| `n_merged` | int | How many raw segments were merged into this one |
+| `n_windows` | int | Number of eGeMAPS windows used for classification |
+| `probs_adult_male` | float | Probability of adult_male |
+| `probs_adult_female` | float | Probability of adult_female |
+| `probs_child` | float | Probability of child |
+| `probs_background` | float | Probability of background |
+| `predicted_class` | str | Winning class label |
+| `predicted_confidence` | float | Probability of the winning class |
+
+### Summary JSON
+
+(XGB only)
+
+```json
+{
+  "participant_id": "ABAN141223",
+  "duration_sec": 28800.0,
+  "n_classified_segments": 4523,
+  "total_speech_sec": 12456.7,
+  "class_durations": {
+    "adult_male": 2345.6,
+    "adult_female": 5678.9,
+    "child": 3210.1,
+    "background": 1222.1
+  }
+}
+```
 
 ---
 
 ## ADS / IDS Annotation
 
-After Stage 03 produces `main_female.wav` and `main_male.wav` for each participant, you can manually annotate each speech segment as **ADS** (Adult-Directed Speech), **IDS** (Infant-Directed Speech), or **Other**.
+> **Applies to XGB backend only.** After Stage 03 (XGB) produces `main_female.wav` and `main_male.wav` for each participant, you can manually annotate each speech segment as **ADS** (Adult-Directed Speech), **IDS** (Infant-Directed Speech), or **Other**.
 
 ### How Segmentation Works
 
@@ -391,7 +487,7 @@ python scripts/annotate_ads_ids.py -p ABAN141223 --export-only
 ### Annotation Output
 
 ```
-/scratch/users/<user>/hindibabynet/annotations/<participant_id>/
+<annotations_root>/<participant_id>/
   ├── <pid>_female_annotations.csv     # Segment-level labels
   ├── <pid>_male_annotations.csv
   ├── <pid>_female_ADS.wav             # All female ADS segments concatenated
@@ -417,9 +513,9 @@ The CSV contains per-segment timestamps and labels:
 
 ---
 
-## Pipeline Details (9 Steps)
+## Pipeline Details (XGB, 9 Steps)
 
-Stage 03 internally executes the following sub-steps per participant:
+Stage 03 with the XGB backend internally executes these sub-steps per participant:
 
 | Step | What Happens | Method |
 |------|-------------|--------|
@@ -452,120 +548,6 @@ The XGBoost model (`models/xgb_egemaps.pkl`) classifies 1-second audio windows u
 
 ---
 
-## Output Files
-
-For each participant, the pipeline produces:
-
-```
-<output_audio_root>/<participant_id>/
-  ├── <participant_id>_main_female.wav   # Main female caregiver audio (16 kHz mono)
-  ├── <participant_id>_main_male.wav     # Main male caregiver audio (16 kHz mono)
-  ├── <participant_id>_child.wav         # Child vocalisations (16 kHz mono)
-  └── <participant_id>_background.wav    # Background / non-speech (16 kHz mono)
-
-artifacts/runs/<run_id>/speaker_classification/
-  ├── <participant_id>_segments.parquet   # All classified segments
-  ├── <participant_id>_summary.json      # Per-class duration statistics
-  └── <participant_id>.TextGrid          # Praat-compatible annotation
-```
-
-### Segments Parquet Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `start_sec` | float | Segment start time (seconds from WAV beginning) |
-| `end_sec` | float | Segment end time |
-| `duration_sec` | float | Segment duration |
-| `chunk_id` | int | Diarization chunk this segment came from |
-| `speaker_id_local` | str | Local speaker label from diarization |
-| `n_merged` | int | How many raw segments were merged into this one |
-| `n_windows` | int | Number of eGeMAPS windows used for classification |
-| `probs_adult_male` | float | Probability of adult_male |
-| `probs_adult_female` | float | Probability of adult_female |
-| `probs_child` | float | Probability of child |
-| `probs_background` | float | Probability of background |
-| `predicted_class` | str | Winning class label |
-| `predicted_confidence` | float | Probability of the winning class |
-
-### Summary JSON
-
-```json
-{
-  "participant_id": "ABAN141223",
-  "duration_sec": 28800.0,
-  "n_classified_segments": 4523,
-  "total_speech_sec": 12456.7,
-  "class_durations": {
-    "adult_male": 2345.6,
-    "adult_female": 5678.9,
-    "child": 3210.1,
-    "background": 1222.1
-  }
-}
-```
-
----
-
-## Configuration Reference
-
-All parameters live in **`configs/config.yaml`**:
-
-```yaml
-# ─── Paths ───
-artifacts_root: artifacts/runs           # where run artifacts are saved
-logs_root: logs                          # where log files are saved
-
-# ─── Stage 01: Data Ingestion ───
-data_ingestion:
-  raw_audio_root: /path/to/raw/audio     # root directory to scan for WAV files
-  allowed_ext: [".wav", ".WAV"]          # accepted file extensions
-  recordings_filename: recordings.parquet
-
-# ─── Stage 02: Audio Preparation ───
-audio_preparation:
-  processed_audio_root: /path/to/scratch/audio_processed
-  target_sr: 16000          # target sample rate (Hz)
-  to_mono: true             # convert to mono
-  target_peak_dbfs: -1.0    # peak normalization target (dBFS)
-  combine_gap_sec: 0.0      # silence gap when concatenating files (seconds)
-
-# ─── Stage 03: Speaker Classification ───
-speaker_classification:
-  backend: xgb              # "xgb" (default) or "vtc"
-  model_path: models/xgb_egemaps.pkl
-  class_names: ["adult_male", "adult_female", "child", "background"]
-  egemaps_dim: 88
-  output_audio_root: /path/to/scratch/audio_classified
-
-  # VAD
-  vad_aggressiveness: 2     # 0 (least aggressive) to 3 (most aggressive)
-  vad_frame_ms: 30          # VAD frame size in milliseconds
-  vad_min_region_ms: 300    # minimum speech region to keep (ms)
-
-  # Diarization
-  diarization_model: "pyannote/speaker-diarization-3.1"
-  chunk_sec: 900.0          # chunk size for diarization (seconds)
-  overlap_sec: 10.0         # overlap between chunks (seconds)
-  min_speakers: 2           # minimum expected speakers per chunk
-  max_speakers: 4           # maximum expected speakers per chunk
-
-  # Merge & Classify
-  merge_gap_sec: 0.7        # merge same-speaker segments with gaps ≤ this (seconds)
-  min_segment_sec: 0.2      # discard segments shorter than this (seconds)
-  classify_win_sec: 1.0     # eGeMAPS extraction window (seconds)
-  classify_hop_sec: 0.5     # eGeMAPS window hop (seconds)
-
-# ─── VTC 2.0 (only used when backend = vtc) ───
-vtc:
-  repo_path: external_models/VTC
-  device: cuda               # cpu / cuda / gpu / mps
-  output_root: /path/to/scratch/vtc_predictions
-  input_root: /path/to/scratch/vtc_inputs
-  keep_inputs: false
-```
-
----
-
 ## Project Structure
 
 ```
@@ -584,11 +566,20 @@ HindiBabyNet/
 │   ├── run_stage_03.sh               # Stage 03 (single / batch / parquet, --backend xgb|vtc)
 │   └── annotate_ads_ids.py            # ⭐ ADS/IDS annotation tool (standalone)
 ├── src/hindibabynet/
+│   ├── check_setup.py                 # Environment/config diagnostics
+│   ├── cli/
+│   │   ├── run_all.py
+│   │   └── run_stage_03.py
 │   ├── components/
 │   │   ├── data_ingestion.py          # Stage 01: scan & catalogue WAVs
 │   │   ├── audio_preparation.py       # Stage 02: combine, resample, normalize
-│   │   ├── speaker_classification.py  # Stage 03 (xgb): VAD → diar → classify → export
-│   │   └── speaker_classification_vtc.py  # Stage 03 (vtc): external VTC 2.0 runner
+│   │   └── speaker_classification/
+│   │       ├── base.py
+│   │       ├── dispatcher.py
+│   │       ├── xgb_backend.py
+│   │       ├── vtc_backend.py
+│   │       ├── output_checks.py
+│   │       └── metadata.py
 │   ├── config/
 │   │   └── configuration.py           # ConfigurationManager (reads config.yaml)
 │   ├── entity/
@@ -622,6 +613,18 @@ HindiBabyNet/
 
 ---
 
+## Migration Notes
+
+If you are upgrading from an older HindiBabyNet layout, update:
+
+1. `speaker_classification.output_audio_root` → `speaker_classification.output_root`
+2. Flat Stage 03 XGB keys under `speaker_classification.*` → `speaker_classification.xgb.*`
+3. Top-level `vtc.*` block → nested `speaker_classification.vtc.*`
+
+Backward-compatibility fallbacks are implemented for old keys, but new projects should use the nested schema.
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -642,7 +645,7 @@ Every pipeline run creates timestamped log files:
 logs/<run_id>/
   ├── stage_01_data_ingestion.log
   ├── stage_02_audio_preparation_batch.log
-  └── stage_03_speaker_classification.log
+  └── stage_03_speaker_classification_<backend>.log
 ```
 
 Check these for detailed progress, warnings, and error tracebacks.

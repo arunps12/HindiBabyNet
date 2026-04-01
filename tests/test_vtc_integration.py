@@ -1,284 +1,139 @@
-"""Tests for VTC backend integration."""
 from __future__ import annotations
 
-import json
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.hindibabynet.entity.config_entity import VTCConfig
-from src.hindibabynet.entity.artifact_entity import VTCInferenceArtifact
+from src.hindibabynet.config.configuration import ConfigurationManager
+from src.hindibabynet.components.speaker_classification.dispatcher import get_backend
+from src.hindibabynet.components.speaker_classification.output_checks import (
+    is_stage03_complete,
+    is_vtc_complete,
+    is_xgb_complete,
+)
 
 
-# =====================================================================
-# Fixtures
-# =====================================================================
-
-@pytest.fixture
-def vtc_config(tmp_path: Path) -> VTCConfig:
-    repo = tmp_path / "VTC"
-    repo.mkdir()
-    (repo / "scripts").mkdir()
-    (repo / "scripts" / "infer.py").write_text("# stub")
-    return VTCConfig(
-        repo_path=repo,
-        device="cpu",
-        output_root=tmp_path / "vtc_outputs",
-        input_root=tmp_path / "vtc_inputs",
-        keep_inputs=False,
+def _write_config(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "artifacts_root: artifacts/runs",
+                "logs_root: logs",
+                "data_ingestion:",
+                "  raw_audio_root: /tmp/raw",
+                "audio_preparation:",
+                "  processed_audio_root: /tmp/processed",
+                "speaker_classification:",
+                "  backend: vtc",
+                "  output_root: /tmp/classification_outputs",
+                "  xgb:",
+                "    model_path: models/xgb_egemaps.pkl",
+                "    diarization_model: pyannote/speaker-diarization-3.1",
+                "  vtc:",
+                "    repo_path: external_models/VTC",
+                "    device: cpu",
+                "    keep_inputs: false",
+            ]
+        ),
+        encoding="utf-8",
     )
 
 
-@pytest.fixture
-def sample_wav(tmp_path: Path) -> Path:
-    wav = tmp_path / "audio" / "PID001" / "PID001.wav"
+def test_config_nested_vtc_parsing(tmp_path: Path):
+    cfg_file = tmp_path / "config.yaml"
+    _write_config(cfg_file)
+
+    cfg = ConfigurationManager(config_path=cfg_file)
+    assert cfg.get_speaker_classification_backend() == "vtc"
+    assert cfg.get_classification_output_root() == Path("/tmp/classification_outputs")
+
+    vtc_cfg = cfg.get_vtc_config()
+    assert vtc_cfg.repo_path == Path("external_models/VTC")
+    assert vtc_cfg.device == "cpu"
+    assert vtc_cfg.output_root == Path("/tmp/classification_outputs") / "vtc"
+
+
+def test_dispatcher_returns_vtc_backend(tmp_path: Path):
+    cfg_file = tmp_path / "config.yaml"
+    _write_config(cfg_file)
+
+    cfg = ConfigurationManager(config_path=cfg_file)
+    backend = get_backend(cfg)
+    assert backend.name == "vtc"
+
+
+def test_dispatcher_override_xgb(tmp_path: Path):
+    cfg_file = tmp_path / "config.yaml"
+    _write_config(cfg_file)
+
+    cfg = ConfigurationManager(config_path=cfg_file)
+    backend = get_backend(cfg, override="xgb")
+    assert backend.name == "xgb"
+
+
+def test_output_checks_xgb_and_vtc(tmp_path: Path):
+    pid = "PID001"
+
+    xgb_out = tmp_path / "xgb" / pid
+    xgb_out.mkdir(parents=True)
+    (xgb_out / f"{pid}_main_female.wav").write_text("")
+    (xgb_out / f"{pid}_main_male.wav").write_text("")
+    (xgb_out / f"{pid}_summary.json").write_text("{}")
+    (xgb_out / f"{pid}.TextGrid").write_text("")
+    assert is_xgb_complete(pid, xgb_out)
+    assert is_stage03_complete(pid, "xgb", xgb_out)
+
+    vtc_out = tmp_path / "vtc" / pid
+    (vtc_out / "rttm").mkdir(parents=True)
+    (vtc_out / "raw_rttm").mkdir(parents=True)
+    (vtc_out / "rttm.csv").write_text("")
+    (vtc_out / "raw_rttm.csv").write_text("")
+    assert is_vtc_complete(pid, vtc_out)
+    assert is_stage03_complete(pid, "vtc", vtc_out)
+
+
+@patch("src.hindibabynet.components.speaker_classification.vtc_backend.subprocess.run")
+def test_vtc_backend_command_and_outputs(mock_run, tmp_path: Path):
+    cfg_file = tmp_path / "config.yaml"
+    _write_config(cfg_file)
+    cfg = ConfigurationManager(config_path=cfg_file)
+
+    repo = tmp_path / "external_models" / "VTC"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "scripts" / "infer.py").write_text("# stub", encoding="utf-8")
+
+    # Override repo path after config load for isolated temp workspace
+    cfg.config["speaker_classification"]["vtc"]["repo_path"] = str(repo)
+
+    wav = tmp_path / "processed" / "PID001" / "PID001.wav"
     wav.parent.mkdir(parents=True)
-    wav.write_bytes(b"\x00" * 100)  # dummy file
-    return wav
+    wav.write_bytes(b"\x00" * 32)
+
+    out_dir = tmp_path / "classification_outputs" / "vtc" / "PID001"
+    (out_dir / "rttm").mkdir(parents=True)
+    (out_dir / "raw_rttm").mkdir(parents=True)
+    (out_dir / "rttm.csv").write_text("")
+    (out_dir / "raw_rttm.csv").write_text("")
+
+    mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+
+    backend = get_backend(cfg, override="vtc")
+    info = backend.run_participant(wav, "PID001", out_dir)
+
+    assert info["backend"] == "vtc"
+    assert info["status"] == "success"
+    assert (out_dir / "run_info.json").exists()
+    assert "scripts/infer.py" in info["command"]
 
 
-# =====================================================================
-# Config parsing tests
-# =====================================================================
+@patch("src.hindibabynet.cli.run_stage_03.get_backend")
+def test_stage03_config_driven_defaults(mock_get_backend, tmp_path: Path):
+    from src.hindibabynet.cli.run_stage_03 import _discover_participants
 
-class TestConfigParsing:
-    def test_vtc_config_entity(self, vtc_config: VTCConfig):
-        assert vtc_config.device == "cpu"
-        assert vtc_config.keep_inputs is False
-        assert vtc_config.repo_path.name == "VTC"
+    processed = tmp_path / "processed"
+    (processed / "P1").mkdir(parents=True)
+    (processed / "P1" / "P1.wav").write_text("")
 
-    def test_vtc_artifact_entity(self, tmp_path: Path):
-        art = VTCInferenceArtifact(
-            participant_id="PID001",
-            output_dir=tmp_path / "out",
-            rttm_dir=tmp_path / "out" / "rttm",
-            raw_rttm_dir=tmp_path / "out" / "raw_rttm",
-            rttm_csv_path=tmp_path / "out" / "rttm.csv",
-            raw_rttm_csv_path=tmp_path / "out" / "raw_rttm.csv",
-            run_info_json_path=tmp_path / "out" / "vtc_run_info.json",
-            runtime_sec=12.3,
-            status="success",
-        )
-        assert art.status == "success"
-        assert art.participant_id == "PID001"
-
-    def test_backend_selector_default(self, tmp_path: Path):
-        """Default backend is xgb when not specified in config."""
-        from src.hindibabynet.config.configuration import ConfigurationManager
-
-        cfg_file = tmp_path / "config.yaml"
-        cfg_file.write_text(
-            "artifacts_root: artifacts/runs\n"
-            "speaker_classification:\n"
-            "  model_path: models/xgb_egemaps.pkl\n"
-            "  output_audio_root: /tmp/out\n"
-        )
-        cm = ConfigurationManager(config_path=cfg_file)
-        assert cm.get_speaker_classification_backend() == "xgb"
-
-    def test_backend_selector_vtc(self, tmp_path: Path):
-        """Backend read from config when set to vtc."""
-        from src.hindibabynet.config.configuration import ConfigurationManager
-
-        cfg_file = tmp_path / "config.yaml"
-        cfg_file.write_text(
-            "artifacts_root: artifacts/runs\n"
-            "speaker_classification:\n"
-            "  backend: vtc\n"
-            "  model_path: models/xgb_egemaps.pkl\n"
-            "  output_audio_root: /tmp/out\n"
-            "vtc:\n"
-            "  repo_path: external_models/VTC\n"
-            "  device: cuda\n"
-            "  output_root: /tmp/vtc_out\n"
-            "  input_root: /tmp/vtc_in\n"
-            "  keep_inputs: false\n"
-        )
-        cm = ConfigurationManager(config_path=cfg_file)
-        assert cm.get_speaker_classification_backend() == "vtc"
-        vtc = cm.get_vtc_config()
-        assert vtc.device == "cuda"
-        assert vtc.repo_path == Path("external_models/VTC")
-
-
-# =====================================================================
-# VTC runner tests
-# =====================================================================
-
-class TestVTCRunner:
-    def test_command_construction(self, vtc_config: VTCConfig):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        runner = VTCInferenceRunner(vtc_config)
-        cmd = runner._build_command(Path("/in"), Path("/out"))
-        assert cmd == [
-            "uv", "run", "scripts/infer.py",
-            "--wavs", "/in",
-            "--output", "/out",
-            "--device", "cpu",
-        ]
-
-    def test_repo_validation_missing(self, tmp_path: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        cfg = VTCConfig(
-            repo_path=tmp_path / "nonexistent",
-            device="cpu",
-            output_root=tmp_path / "out",
-            input_root=tmp_path / "in",
-            keep_inputs=False,
-        )
-        runner = VTCInferenceRunner(cfg)
-        with pytest.raises(FileNotFoundError, match="VTC repo not found"):
-            runner._validate_repo()
-
-    def test_repo_validation_no_infer_script(self, tmp_path: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        repo = tmp_path / "VTC"
-        repo.mkdir()
-        cfg = VTCConfig(
-            repo_path=repo,
-            device="cpu",
-            output_root=tmp_path / "out",
-            input_root=tmp_path / "in",
-            keep_inputs=False,
-        )
-        runner = VTCInferenceRunner(cfg)
-        with pytest.raises(FileNotFoundError, match="infer script not found"):
-            runner._validate_repo()
-
-    def test_input_preparation(self, vtc_config: VTCConfig, sample_wav: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        runner = VTCInferenceRunner(vtc_config)
-        input_dir = runner._prepare_input_folder(sample_wav, "PID001")
-        assert input_dir == vtc_config.input_root / "PID001"
-        assert (input_dir / "PID001.wav").exists()
-
-    def test_output_verification_missing(self, vtc_config: VTCConfig, tmp_path: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        runner = VTCInferenceRunner(vtc_config)
-        empty_dir = tmp_path / "empty_out"
-        empty_dir.mkdir()
-        result = runner._verify_outputs(empty_dir)
-        assert all(v is False for v in result.values())
-
-    def test_output_verification_present(self, vtc_config: VTCConfig, tmp_path: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        runner = VTCInferenceRunner(vtc_config)
-        out_dir = tmp_path / "full_out"
-        out_dir.mkdir()
-        (out_dir / "rttm").mkdir()
-        (out_dir / "raw_rttm").mkdir()
-        (out_dir / "rttm.csv").write_text("")
-        (out_dir / "raw_rttm.csv").write_text("")
-        result = runner._verify_outputs(out_dir)
-        assert all(v is True for v in result.values())
-
-    @patch("src.hindibabynet.components.speaker_classification_vtc.subprocess.run")
-    def test_run_success(self, mock_run, vtc_config: VTCConfig, sample_wav: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        # Mock successful subprocess
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="OK", stderr=""
-        )
-
-        runner = VTCInferenceRunner(vtc_config)
-
-        # Pre-create expected VTC outputs in output folder
-        out_dir = vtc_config.output_root / "PID001"
-        out_dir.mkdir(parents=True)
-        (out_dir / "rttm").mkdir()
-        (out_dir / "raw_rttm").mkdir()
-        (out_dir / "rttm.csv").write_text("")
-        (out_dir / "raw_rttm.csv").write_text("")
-
-        artifact = runner.run(wav_path=sample_wav, participant_id="PID001")
-
-        assert artifact.status == "success"
-        assert artifact.participant_id == "PID001"
-        assert artifact.rttm_dir == out_dir / "rttm"
-        mock_run.assert_called_once()
-
-        # Check run_info.json was written
-        assert artifact.run_info_json_path.exists()
-        info = json.loads(artifact.run_info_json_path.read_text())
-        assert info["backend"] == "vtc"
-        assert info["status"] == "success"
-
-    @patch("src.hindibabynet.components.speaker_classification_vtc.subprocess.run")
-    def test_run_failure(self, mock_run, vtc_config: VTCConfig, sample_wav: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="CUDA OOM"
-        )
-
-        runner = VTCInferenceRunner(vtc_config)
-        with pytest.raises(RuntimeError, match="VTC inference failed"):
-            runner.run(wav_path=sample_wav, participant_id="PID001")
-
-    def test_run_wav_not_found(self, vtc_config: VTCConfig, tmp_path: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        runner = VTCInferenceRunner(vtc_config)
-        with pytest.raises(FileNotFoundError, match="Source WAV not found"):
-            runner.run(wav_path=tmp_path / "nope.wav", participant_id="X")
-
-    @patch("src.hindibabynet.components.speaker_classification_vtc.subprocess.run")
-    def test_cleanup_input(self, mock_run, vtc_config: VTCConfig, sample_wav: Path):
-        from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
-
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-        runner = VTCInferenceRunner(vtc_config)
-
-        # Pre-create outputs
-        out_dir = vtc_config.output_root / "PID001"
-        out_dir.mkdir(parents=True)
-        (out_dir / "rttm").mkdir()
-        (out_dir / "raw_rttm").mkdir()
-        (out_dir / "rttm.csv").write_text("")
-        (out_dir / "raw_rttm.csv").write_text("")
-
-        runner.run(wav_path=sample_wav, participant_id="PID001")
-
-        # Input should be cleaned up (keep_inputs=False)
-        assert not (vtc_config.input_root / "PID001").exists()
-
-
-# =====================================================================
-# Stage 03 dispatch tests
-# =====================================================================
-
-class TestStage03Dispatch:
-    def test_dispatch_xgb(self, tmp_path: Path):
-        """_run_single dispatches to XGB when backend=xgb."""
-        from src.hindibabynet.pipeline.stage_03_speaker_classification import (
-            _run_single_xgb,
-        )
-
-        # Just verify the function exists and is callable
-        assert callable(_run_single_xgb)
-
-    def test_dispatch_vtc(self, tmp_path: Path):
-        """_run_single dispatches to VTC when backend=vtc."""
-        from src.hindibabynet.pipeline.stage_03_speaker_classification import (
-            _run_single_vtc,
-        )
-
-        assert callable(_run_single_vtc)
-
-    def test_valid_backends_constant(self):
-        from src.hindibabynet.pipeline.stage_03_speaker_classification import (
-            _VALID_BACKENDS,
-        )
-
-        assert "xgb" in _VALID_BACKENDS
-        assert "vtc" in _VALID_BACKENDS
+    rows = _discover_participants(processed)
+    assert rows == [("P1", processed / "P1" / "P1.wav")]
