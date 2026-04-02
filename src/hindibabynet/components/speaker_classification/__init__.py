@@ -15,9 +15,15 @@ from src.hindibabynet.components.speaker_classification.base import Classificati
 from src.hindibabynet.components.speaker_classification.dispatcher import get_backend
 from src.hindibabynet.components.speaker_classification.output_checks import is_stage03_complete
 
-# Backward-compatible re-export so old imports still resolve:
-#   from src.hindibabynet.components.speaker_classification import SpeakerClassification
-from src.hindibabynet.components.speaker_classification._xgb_core import SpeakerClassification
+# Backward-compatible lazy re-export so old imports still resolve without
+# forcing XGB-only deps (opensmile/torch) in VTC-only environments.
+class SpeakerClassification:  # noqa: N801
+    def __new__(cls, *args, **kwargs):
+        from src.hindibabynet.components.speaker_classification._xgb_core import (
+            SpeakerClassification as _SpeakerClassification,
+        )
+
+        return _SpeakerClassification(*args, **kwargs)
 
 __all__ = [
     "ClassificationBackend",

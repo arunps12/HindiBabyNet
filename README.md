@@ -93,7 +93,7 @@ cd HindiBabyNet
 # 2a. Install core dependencies (VTC-only usage)
 uv sync
 
-# 2b. Install XGB dependencies as well (XGB backend or both backends)
+# 2b. Install XGB-specific dependencies as well (XGB backend or both backends)
 uv sync --extra xgb
 
 # 3. Create a .env file with your HuggingFace token
@@ -125,7 +125,7 @@ speaker_classification:
 
 ### Backend: XGB (default)
 
-**Setup:** Install XGB extra dependencies first: `uv sync --extra xgb`. The pre-trained XGBoost model ships with the repository at `models/xgb_egemaps.pkl`.
+**Setup:** Install the XGB extra first: `uv sync --extra xgb`. (Core Stage 01/02 dependencies like `scipy` are already included in `uv sync`.) The pre-trained XGBoost model ships with the repository at `models/xgb_egemaps.pkl`.
 
 Set `backend: xgb` in `config.yaml` (this is the default):
 

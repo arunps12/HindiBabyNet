@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import soundfile as sf
-import webrtcvad
 from scipy.signal import resample_poly
 
 from src.hindibabynet.utils.io_utils import ensure_dir
@@ -100,6 +99,14 @@ def webrtc_vad_regions(
     min_region_ms: int = 300,
 ) -> List[Tuple[float, float]]:
     """Return speech intervals ``(start_sec, end_sec)`` via WebRTC VAD."""
+    try:
+        import webrtcvad  # Imported lazily so VTC-only installs can run Stage 02.
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "webrtcvad is required only for the XGB backend VAD step. "
+            "Install XGB dependencies with: uv sync --extra xgb"
+        ) from exc
+
     vad = webrtcvad.Vad(aggressiveness)
     info = sf.info(str(path))
     sr = int(info.samplerate)
