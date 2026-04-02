@@ -21,30 +21,14 @@ def _is_stage_02_complete(ap_cfg) -> bool:
 
 def _cleanup_after_processing(
     ap_cfg,
-    df_pid: pd.DataFrame,
     pid: str,
     recording_id: str,
 ) -> None:
-    """Delete raw WAV folder and temp dirs for a participant to free disk space."""
+    """Delete only Stage 02 temp dirs under processed_audio_root.
 
-    # 1) Remove raw WAV folder(s) for this participant
-    #    Raw paths look like: <raw_root>/RawAudioData/<pid>/<date>/<file>.WAV
-    #    We delete the participant-level folder: <raw_root>/RawAudioData/<pid>/
-    raw_paths = [Path(p) for p in df_pid["path"].astype(str).tolist()]
-    raw_dirs_deleted = set()
-    for rp in raw_paths:
-        # Walk up to the participant folder (parent of date folder)
-        # e.g. .../RawAudioData/ABAN141223/20250216/file.WAV -> .../RawAudioData/ABAN141223
-        participant_raw_dir = rp.parent.parent
-        if participant_raw_dir not in raw_dirs_deleted and participant_raw_dir.is_dir():
-            try:
-                shutil.rmtree(participant_raw_dir)
-                raw_dirs_deleted.add(participant_raw_dir)
-                logger.info(f"[{pid}] CLEANUP | deleted raw dir: {participant_raw_dir}")
-            except Exception as exc:
-                logger.warning(f"[{pid}] CLEANUP | failed to delete raw dir {participant_raw_dir}: {exc}")
+    NOTE: raw_audio_root is treated as read-only source data and is never modified.
+    """
 
-    # 2) Remove temp directories
     for tmp_name in ("_tmp_combine", "_tmp_prep"):
         tmp_dir = ap_cfg.processed_audio_root / tmp_name / recording_id
         if tmp_dir.is_dir():
@@ -134,8 +118,8 @@ def main():
             )
             n_ok += 1
 
-            # Free disk space: delete raw WAVs + temp dirs for this participant
-            _cleanup_after_processing(ap_cfg, df_pid, pid, recording_id)
+            # Free disk space: delete only temp dirs (never touch raw_audio_root)
+            _cleanup_after_processing(ap_cfg, pid, recording_id)
 
         except Exception as e:
             n_fail += 1

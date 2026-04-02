@@ -176,9 +176,9 @@ def main() -> None:
             backend.run_participant(wav_path, pid, out_dir)
             ok += 1
             logger.info(f"OK | {pid}")
-        except Exception:
+        except Exception as exc:
             fail += 1
-            logger.error(f"FAIL | {pid}\n{format_traceback()}")
+            logger.error(f"FAIL | {pid}\n{format_traceback(exc)}")
 
     logger.info(f"Stage 03 finished | ok={ok} skip={skip} fail={fail}")
 

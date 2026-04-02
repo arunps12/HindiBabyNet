@@ -7,6 +7,8 @@ Wraps the existing :class:`VTCInferenceRunner` behind the
 from __future__ import annotations
 
 import json
+import os
+import platform
 import shutil
 import subprocess
 import time
@@ -158,21 +160,42 @@ class VTCBackend(ClassificationBackend):
 
     def _run_subprocess(self, cmd: list[str]) -> subprocess.CompletedProcess:
         logger.info(f"VTC command: {' '.join(cmd)}")
+
+        # Avoid uv warning about mismatched active env; we explicitly run in VTC repo.
+        child_env = os.environ.copy()
+        child_env.pop("VIRTUAL_ENV", None)
+
         result = subprocess.run(
             cmd,
             cwd=str(self._repo_path),
             capture_output=True,
             text=True,
+            env=child_env,
         )
         if result.stdout:
             logger.info(f"VTC stdout:\n{result.stdout}")
         if result.stderr:
             logger.warning(f"VTC stderr:\n{result.stderr}")
         if result.returncode != 0:
+            extra_hint = ""
+            stderr_lower = (result.stderr or "").lower()
+            if "could not load libtorchcodec" in stderr_lower:
+                if platform.system().lower().startswith("win"):
+                    extra_hint = (
+                        "\nHint: VTC upstream currently documents Linux/macOS support only. "
+                        "On Windows, torchcodec frequently fails to load FFmpeg DLLs. "
+                        "Recommended fix: run VTC in WSL/Linux and ensure ffmpeg is installed "
+                        "inside that environment."
+                    )
+                else:
+                    extra_hint = (
+                        "\nHint: Ensure ffmpeg is installed and available on PATH in the VTC runtime environment."
+                    )
             raise RuntimeError(
                 f"VTC inference failed (exit code {result.returncode}).\n"
                 f"Command: {' '.join(cmd)}\n"
                 f"Stderr: {result.stderr}"
+                f"{extra_hint}"
             )
         return result
 
