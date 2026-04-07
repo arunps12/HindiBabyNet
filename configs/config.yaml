@@ -9,13 +9,13 @@ logs_root: logs
 
 # ─── Stage 01: Data Ingestion ───
 data_ingestion:
-  raw_audio_root: \\hypatia.uio.no\lh-hf-iln-sociocognitivelab\Research\HindiNet\RawAudioData           # ← CHANGE THIS
+  raw_audio_root: /home/arunps/hindinet_data/RawAudioData           # ← CHANGE THIS
   allowed_ext: [".wav", ".WAV"]
   recordings_filename: recordings.parquet
 
 # ─── Stage 02: Audio Preparation ───
 audio_preparation:
-  processed_audio_root: \\hypatia.uio.no\lh-hf-iln-sociocognitivelab\Research\HindiNet\Audio_data_processing  # ← CHANGE THIS
+  processed_audio_root: /home/arunps/hindinet_data/Audio_data_processing  # ← CHANGE THIS
   target_sr: 16000
   to_mono: true
   target_peak_dbfs: -1.0
@@ -25,7 +25,7 @@ audio_preparation:
 # Both backends share output_root; outputs go to <output_root>/xgb/ or <output_root>/vtc/
 speaker_classification:
   backend: vtc                 # "xgb" (default) or "vtc"
-  output_root: \\hypatia.uio.no\lh-hf-iln-sociocognitivelab\Research\HindiNet\Classification_outputs/VTC  # ← CHANGE THIS
+  output_root: /home/arunps/hindinet_data/Classification_outputs  # ← CHANGE THIS
 
   # ── XGB backend (native HindiBabyNet) ──
   xgb:
@@ -53,6 +53,7 @@ speaker_classification:
 
   # ── VTC backend (external VTC 2.0) ──
   vtc:
-    repo_path: external_models/VTC    # path to cloned VTC repo
+    repo_path: /home/arunps/VTC       # path to cloned VTC repo (must be on Linux filesystem for WSL)
     device: cpu                       # cpu / cuda / gpu / mps
+    batch_size: 32                    # lower = less RAM (default VTC is 128, reduce if OOM)
     keep_inputs: false                # keep temp VTC input folders after inference

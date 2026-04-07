@@ -44,6 +44,7 @@ class VTCBackend(ClassificationBackend):
         vtc = cfg.get_vtc_params()
         self._repo_path = Path(vtc.get("repo_path", "external_models/VTC"))
         self._device = str(vtc.get("device", "cuda"))
+        self._batch_size = int(vtc.get("batch_size", 128))
         self._keep_inputs = bool(vtc.get("keep_inputs", False))
 
     # -- protocol ----------------------------------------------------------
@@ -87,6 +88,7 @@ class VTCBackend(ClassificationBackend):
                 "--wavs", str(tmp_input_dir),
                 "--output", str(output_dir),
                 "--device", self._device,
+                "--batch_size", str(self._batch_size),
             ]
 
             started = utcnow_iso()

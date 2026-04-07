@@ -24,8 +24,6 @@ import argparse
 import sys
 from pathlib import Path
 
-import pandas as pd
-
 from src.hindibabynet.config.configuration import ConfigurationManager
 from src.hindibabynet.components.speaker_classification import get_backend
 from src.hindibabynet.exception.exception import format_traceback
@@ -126,6 +124,7 @@ def main() -> None:
             logger.error(f"recordings_parquet not found: {rec_path}")
             sys.exit(1)
 
+        import pandas as pd  # type: ignore[import-unresolved]
         df = pd.read_parquet(rec_path)
         if "participant_id" not in df.columns:
             logger.error("recordings_parquet missing required column: participant_id")
