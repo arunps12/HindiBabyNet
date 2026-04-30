@@ -1,0 +1,19 @@
+{
+  "participant_id": "VISO240624",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/VISO240624/VISO240624.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/VISO240624",
+  "started_at": "2026-04-10T01:38:14+00:00",
+  "finished_at": "2026-04-10T02:39:31+00:00",
+  "runtime_sec": 3677.16,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/VISO240624 --output /home/arunps/hindinet_data/Classification_outputs/vtc/VISO240624 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

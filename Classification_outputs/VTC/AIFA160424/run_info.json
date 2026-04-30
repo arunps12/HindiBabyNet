@@ -1,0 +1,19 @@
+{
+  "participant_id": "AIFA160424",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/AIFA160424/AIFA160424.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/AIFA160424",
+  "started_at": "2026-04-07T16:18:58+00:00",
+  "finished_at": "2026-04-07T16:53:36+00:00",
+  "runtime_sec": 2077.65,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/AIFA160424 --output /home/arunps/hindinet_data/Classification_outputs/vtc/AIFA160424 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

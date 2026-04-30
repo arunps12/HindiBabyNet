@@ -1,0 +1,19 @@
+{
+  "participant_id": "KASE020823",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/KASE020823/KASE020823.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/KASE020823",
+  "started_at": "2026-04-08T22:49:56+00:00",
+  "finished_at": "2026-04-08T23:35:18+00:00",
+  "runtime_sec": 2721.82,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/KASE020823 --output /home/arunps/hindinet_data/Classification_outputs/vtc/KASE020823 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

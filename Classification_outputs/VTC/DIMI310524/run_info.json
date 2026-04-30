@@ -1,0 +1,19 @@
+{
+  "participant_id": "DIMI310524",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/DIMI310524/DIMI310524.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/DIMI310524",
+  "started_at": "2026-04-08T16:44:37+00:00",
+  "finished_at": "2026-04-08T17:35:59+00:00",
+  "runtime_sec": 3081.58,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/DIMI310524 --output /home/arunps/hindinet_data/Classification_outputs/vtc/DIMI310524 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "participant_id": "MOSH150224",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/MOSH150224/MOSH150224.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/MOSH150224",
+  "started_at": "2026-04-09T03:03:31+00:00",
+  "finished_at": "2026-04-09T04:02:55+00:00",
+  "runtime_sec": 3564.74,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/MOSH150224 --output /home/arunps/hindinet_data/Classification_outputs/vtc/MOSH150224 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

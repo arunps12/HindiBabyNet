@@ -1,0 +1,19 @@
+{
+  "participant_id": "AVSO161024",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/AVSO161024/AVSO161024.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/AVSO161024",
+  "started_at": "2026-04-08T09:57:22+00:00",
+  "finished_at": "2026-04-08T11:01:27+00:00",
+  "runtime_sec": 3844.87,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/AVSO161024 --output /home/arunps/hindinet_data/Classification_outputs/vtc/AVSO161024 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

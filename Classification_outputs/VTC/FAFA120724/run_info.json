@@ -1,0 +1,19 @@
+{
+  "participant_id": "FAFA120724",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/FAFA120724/FAFA120724.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/FAFA120724",
+  "started_at": "2026-04-08T20:11:25+00:00",
+  "finished_at": "2026-04-08T21:07:46+00:00",
+  "runtime_sec": 3380.47,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/FAFA120724 --output /home/arunps/hindinet_data/Classification_outputs/vtc/FAFA120724 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

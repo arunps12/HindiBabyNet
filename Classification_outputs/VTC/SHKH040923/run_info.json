@@ -1,0 +1,19 @@
+{
+  "participant_id": "SHKH040923",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/SHKH040923/SHKH040923.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/SHKH040923",
+  "started_at": "2026-04-09T17:14:51+00:00",
+  "finished_at": "2026-04-09T18:13:08+00:00",
+  "runtime_sec": 3497.16,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/SHKH040923 --output /home/arunps/hindinet_data/Classification_outputs/vtc/SHKH040923 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

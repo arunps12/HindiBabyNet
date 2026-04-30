@@ -1,0 +1,19 @@
+{
+  "participant_id": "RIGA250424",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/RIGA250424/RIGA250424.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/RIGA250424",
+  "started_at": "2026-04-09T09:09:52+00:00",
+  "finished_at": "2026-04-09T10:03:56+00:00",
+  "runtime_sec": 3244.53,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/RIGA250424 --output /home/arunps/hindinet_data/Classification_outputs/vtc/RIGA250424 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

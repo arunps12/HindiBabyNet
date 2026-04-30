@@ -1,0 +1,19 @@
+{
+  "participant_id": "RUKA101123",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/RUKA101123/RUKA101123.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/RUKA101123",
+  "started_at": "2026-04-09T10:04:05+00:00",
+  "finished_at": "2026-04-09T11:15:52+00:00",
+  "runtime_sec": 4307.34,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/RUKA101123 --output /home/arunps/hindinet_data/Classification_outputs/vtc/RUKA101123 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "participant_id": "NARA010624",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/NARA010624/NARA010624.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/NARA010624",
+  "started_at": "2026-04-09T04:03:07+00:00",
+  "finished_at": "2026-04-09T05:07:46+00:00",
+  "runtime_sec": 3878.54,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/NARA010624 --output /home/arunps/hindinet_data/Classification_outputs/vtc/NARA010624 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}

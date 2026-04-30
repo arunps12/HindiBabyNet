@@ -1,0 +1,19 @@
+{
+  "participant_id": "AYGU120623",
+  "backend": "vtc",
+  "input_wav": "/home/arunps/hindinet_data/Audio_data_processing/AYGU120623/AYGU120623.wav",
+  "output_dir": "/home/arunps/hindinet_data/Classification_outputs/vtc/AYGU120623",
+  "started_at": "2026-04-08T11:01:33+00:00",
+  "finished_at": "2026-04-08T12:15:45+00:00",
+  "runtime_sec": 4451.68,
+  "status": "success",
+  "command": "uv run scripts/infer.py --wavs /home/arunps/hindinet_data/Classification_outputs/vtc/_tmp_vtc_inputs/AYGU120623 --output /home/arunps/hindinet_data/Classification_outputs/vtc/AYGU120623 --device cpu --batch_size 32",
+  "device": "cpu",
+  "vtc_repo_path": "/home/arunps/VTC",
+  "outputs_present": {
+    "rttm": true,
+    "raw_rttm": false,
+    "rttm.csv": true,
+    "raw_rttm.csv": false
+  }
+}
