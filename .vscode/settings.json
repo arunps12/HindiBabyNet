@@ -1,0 +1,7 @@
+{
+  "python.defaultInterpreterPath": "c:/Users/arunps/OneDrive/Projects/HindiBabyNet/external_models/VTC/.venv/Scripts/python.exe",
+  "isort.importStrategy": "fromEnvironment",
+  "isort.interpreter": [
+    "c:/Users/arunps/OneDrive/Projects/HindiBabyNet/external_models/VTC/.venv/Scripts/python.exe"
+  ]
+}
