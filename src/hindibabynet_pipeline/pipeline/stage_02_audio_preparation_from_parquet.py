@@ -69,35 +69,56 @@ def main():
     if missing:
         raise ValueError(f"recordings.parquet missing columns: {sorted(missing)}")
 
-    participants = sorted(df["participant_id"].dropna().unique().tolist())
-    if args.limit is not None:
-        participants = participants[: int(args.limit)]
-
     cfg = ConfigurationManager()
+    ap_params = cfg.get_audio_preparation_params()
+    join_multiple_files = bool(ap_params.get("join_multiple_files", True))
     run_id = args.run_id or cfg.make_run_id()
 
     # One log file for the whole batch
     add_file_handler(logger, cfg.get_logs_root() / run_id / "stage_02_audio_preparation_batch.log")
 
     logger.info(
-        f"Stage 02 batch started | recordings={len(df)} | participants={len(participants)} | run_id={run_id}"
+        f"Stage 02 batch started | recordings={len(df)} | join_multiple_files={join_multiple_files} | run_id={run_id}"
     )
 
     n_ok = 0
     n_skip = 0
     n_fail = 0
 
-    for pid in participants:
+    if join_multiple_files:
+        units: list[dict[str, object]] = [
+            {
+                "mode": "participant",
+                "participant_id": str(pid),
+                "recording_id": str(pid),
+                "dataframe": df[df["participant_id"] == pid].copy(),
+            }
+            for pid in sorted(df["participant_id"].dropna().unique().tolist())
+        ]
+    else:
+        sort_cols = [c for c in ["participant_id", "session_date", "recording_id"] if c in df.columns]
+        sorted_df = df.sort_values(sort_cols if sort_cols else ["recording_id"]).reset_index(drop=True)
+        units = []
+        for row in sorted_df.itertuples(index=False):
+            row_dict = row._asdict()
+            recording_id = str(row_dict.get("recording_id") or Path(str(row_dict["path"])).stem)
+            participant_id = str(row_dict.get("participant_id") or recording_id)
+            units.append(
+                {
+                    "mode": "recording",
+                    "participant_id": participant_id,
+                    "recording_id": recording_id,
+                    "wav_path": Path(str(row_dict["path"])),
+                }
+            )
+
+    if args.limit is not None:
+        units = units[: int(args.limit)]
+
+    for unit in units:
         try:
-            df_pid = df[df["participant_id"] == pid].copy()
-            if df_pid.empty:
-                raise ValueError(f"No rows for participant_id={pid}")
-
-            # stable ordering when concatenating
-            sort_cols = [c for c in ["session_date", "recording_id"] if c in df_pid.columns]
-            df_pid = df_pid.sort_values(sort_cols if sort_cols else ["recording_id"]).reset_index(drop=True)
-
-            recording_id = str(pid)  # output name = participant_id
+            pid = str(unit["participant_id"])
+            recording_id = str(unit["recording_id"])
             ap_cfg = cfg.get_audio_preparation_config(run_id=run_id, recording_id=recording_id)
 
             if _is_stage_02_complete(ap_cfg):
@@ -105,13 +126,21 @@ def main():
                 n_skip += 1
                 continue
 
-            logger.info(f"[{pid}] files={len(df_pid)} -> {ap_cfg.analysis_wav_path}")
-
-            artifact = AudioPreparation(ap_cfg).run(
-                recordings_df=df_pid,
-                participant_id=str(pid),
-                recording_id=recording_id,
-            )
+            if unit["mode"] == "participant":
+                df_pid = unit["dataframe"]
+                logger.info(f"[{pid}] files={len(df_pid)} -> {ap_cfg.analysis_wav_path}")
+                artifact = AudioPreparation(ap_cfg).run(
+                    recordings_df=df_pid,
+                    participant_id=str(pid),
+                    recording_id=recording_id,
+                )
+            else:
+                wav_path = unit["wav_path"]
+                logger.info(f"[{pid}] wav={wav_path} -> {ap_cfg.analysis_wav_path}")
+                artifact = AudioPreparation(ap_cfg).run(
+                    wav_path=wav_path,
+                    recording_id=recording_id,
+                )
 
             logger.info(
                 f"[{pid}] DONE | dur={artifact.duration_sec/3600:.2f}h sr={artifact.sample_rate} ch={artifact.channels}"

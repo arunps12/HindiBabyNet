@@ -160,17 +160,26 @@ class ConfigurationManager:
 
         artifacts_dir = artifacts_root / run_id / "audio_preparation"
         processed_root = self.get_processed_audio_root()
+        raw_joined_root = self.get_raw_joined_audio_root()
         processed_dir = processed_root / recording_id
+        raw_joined_dir = raw_joined_root / recording_id
 
         return AudioPreparationConfig(
             artifacts_dir=artifacts_dir,
             processed_audio_root=processed_root,
+            raw_joined_audio_root=raw_joined_root,
             target_sr=int(ap_params.get("target_sr", 16000)),
             to_mono=bool(ap_params.get("convert_to_mono", True)),
             target_peak_dbfs=float(ap_params.get("target_peak_dbfs", -1.0)),
             combine_gap_sec=float(ap_params.get("combine_gap_sec", 0.0)),
+            join_multiple_files=bool(ap_params.get("join_multiple_files", True)),
+            resample=bool(ap_params.get("resample", True)),
+            normalize=bool(ap_params.get("normalize", True)),
+            save_raw_joined_audio=bool(ap_runtime.get("save_raw_joined_audio", True)),
+            save_prepared_audio=bool(ap_runtime.get("save_prepared_audio", True)),
             manifest_parquet_path=artifacts_dir
             / f"{recording_id}_audio_manifest.parquet",
+            raw_joined_wav_path=raw_joined_dir / f"{recording_id}.wav",
             analysis_wav_path=processed_dir / f"{recording_id}.wav",
             analysis_meta_json_path=artifacts_dir
             / f"{recording_id}_analysis_meta.json",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -12,12 +13,14 @@ class DataIngestionArtifact:
 
 @dataclass(frozen=True)
 class AudioPreparationArtifact:
+    raw_joined_wav_path: Optional[Path]
     analysis_wav_path: Path
     manifest_parquet_path: Path
     analysis_meta_json_path: Path
     duration_sec: float
     sample_rate: int
     channels: int
+    prepared_audio_saved: bool
 
 
 @dataclass(frozen=True)

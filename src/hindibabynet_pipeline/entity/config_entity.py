@@ -15,13 +15,20 @@ class DataIngestionConfig:
 class AudioPreparationConfig:
     artifacts_dir: Path                  # artifacts/runs/<run_id>/audio_preparation
     processed_audio_root: Path           # scratch
+    raw_joined_audio_root: Path          # external root for optional joined raw audio
     target_sr: int                       # 16000
     to_mono: bool                        # True
     target_peak_dbfs: float              # -1.0
     combine_gap_sec: float               # 0.0
+    join_multiple_files: bool            # whether to concatenate participant wavs
+    resample: bool                       # whether to resample to target_sr
+    normalize: bool                      # whether to peak normalize
+    save_raw_joined_audio: bool          # whether to persist the joined raw waveform
+    save_prepared_audio: bool            # whether to persist the final prepared audio
 
     # outputs (paths)
     manifest_parquet_path: Path
+    raw_joined_wav_path: Path            # optional persisted raw-joined waveform
     analysis_wav_path: Path              # final analysis-ready wav (mono, 16k, normalized)
     analysis_meta_json_path: Path
 
