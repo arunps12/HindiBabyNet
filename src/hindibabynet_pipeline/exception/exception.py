@@ -1,4 +1,4 @@
-# src/hindibabynet/exception/exception.py
+# Exception helpers for hindibabynet_pipeline.
 from __future__ import annotations
 
 import traceback
@@ -9,7 +9,7 @@ from typing import Optional
 @dataclass
 class HindiBabyNetError(Exception):
     """
-    Base exception for HindiBabyNet.
+    Base exception for HindiBabyNet-Pipeline.
 
     Adds optional context so errors are informative in HPC logs.
     """

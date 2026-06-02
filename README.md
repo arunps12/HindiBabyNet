@@ -256,16 +256,16 @@ Run the entire pipeline (Stage 01 → 02 → 03) end-to-end with a single comman
 
 ```bash
 # Optional setup diagnostics (recommended once per machine):
-uv run hindibabynet-check
+uv run hindibabynet-pipeline-check
 
-# ─── Using XGB (default, reads backend from config.yaml) ───
-uv run bash scripts/run_all.sh
+# Using XGB (default, reads backend from config.yaml)
+uv run bash scripts/run_pipeline.sh
 
-# ─── Using VTC (override backend on CLI) ───
-uv run bash scripts/run_all.sh --backend vtc
+# Using VTC (override backend on CLI)
+uv run bash scripts/run_pipeline.sh --backend vtc
 
 # Process only the first N participants (useful for testing):
-uv run bash scripts/run_all.sh --limit 3
+uv run bash scripts/run_pipeline.sh --limit 3
 ```
 
 This runs all three stages sequentially:
@@ -279,13 +279,13 @@ If a run stops midway, run the same command again — Stage 02 and Stage 03 auto
 
 ```bash
 # Step 1: Prepare the audio (mono, 16 kHz, normalized)
-uv run bash scripts/run_stage_02_single_wav.sh /path/to/your/recording.wav
+uv run bash scripts/run_prepare_audio.sh --wav /path/to/your/recording.wav
 
 # Step 2: Classify with XGB (default)
-uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/recording/recording.wav
+uv run bash scripts/run_classify_xgb.sh --wav /path/to/audio_processed/recording/recording.wav
 
 # Step 2 (alternative): Classify with VTC
-uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/recording/recording.wav --backend vtc
+uv run bash scripts/run_classify_vtc.sh --wav /path/to/audio_processed/recording/recording.wav
 ```
 
 ### Process a Directory of Raw WAVs
@@ -306,42 +306,44 @@ your_audio_directory/
   └── ...
 ```
 
-Use `run_all.sh` as shown in [Quick Start](#quick-start), or run stages individually below.
+Use `run_pipeline.sh` as shown in [Quick Start](#quick-start), or run the individual wrapper scripts below.
 
 ### Running Individual Stages
 
-Stage 01 and Stage 02 are shared for both backends. Only Stage 03 differs.
+The current repository exposes one pipeline wrapper, one audio-preparation wrapper, and backend-specific classification wrappers.
 
 ```bash
-# ─── Stage 01: Scan raw audio directory ───
-uv run bash scripts/run_stage_01.sh
-# Output: artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+# End-to-end pipeline
+uv run bash scripts/run_pipeline.sh
 
-# ─── Stage 02: Prepare audio (batch, from Stage 01 output) ───
-uv run bash scripts/run_stage_02_from_parquet.sh \
-    artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+# Batch audio preparation from a recordings parquet
+uv run bash scripts/run_prepare_audio.sh \
+  --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+
 # Optional: limit to first N participants
-uv run bash scripts/run_stage_02_from_parquet.sh \
-    artifacts/runs/<run_id>/data_ingestion/recordings.parquet 5
+uv run bash scripts/run_prepare_audio.sh \
+  --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+  --limit 5
 
-# ─── Stage 02: Prepare audio (single WAV) ───
-uv run bash scripts/run_stage_02_single_wav.sh /path/to/input.wav
+# Prepare a single WAV
+uv run bash scripts/run_prepare_audio.sh --wav /path/to/input.wav
+
 # Optional: provide a custom recording_id
-uv run bash scripts/run_stage_02_single_wav.sh /path/to/input.wav my_custom_id
+uv run bash scripts/run_prepare_audio.sh --wav /path/to/input.wav --recording-id my_custom_id
 
-# ─── Stage 03: Classify speakers (single prepared WAV) ───
-uv run bash scripts/run_stage_03.sh --wav /path/to/audio_processed/<pid>/<pid>.wav
+# Classify a single prepared WAV with XGB
+uv run bash scripts/run_classify_xgb.sh --wav /path/to/audio_processed/<pid>/<pid>.wav
 
-# ─── Stage 03: Classify all prepared WAVs in a directory ───
-uv run bash scripts/run_stage_03.sh \
-    --analysis_dir /path/to/audio_processed
+# Classify all prepared WAVs in a directory with XGB
+uv run bash scripts/run_classify_xgb.sh \
+  --analysis-dir /path/to/audio_processed
 
-# ─── Stage 03: Classify from recordings parquet (needs Stage 02 done) ───
-uv run bash scripts/run_stage_03.sh \
-    --recordings_parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+# Classify from recordings parquet with XGB
+uv run bash scripts/run_classify_xgb.sh \
+  --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
 
-# ─── Stage 03: Override backend or limit participants ───
-uv run bash scripts/run_stage_03.sh --analysis_dir /path/to/audio_processed --backend vtc --limit 5
+# Classify with VTC and limit participants
+uv run bash scripts/run_classify_vtc.sh --analysis-dir /path/to/audio_processed --limit 5
 ```
 
 ---
@@ -516,7 +518,7 @@ The CSV contains per-segment timestamps and labels:
 | `label` | Numeric label (0, 1, or 2) |
 | `label_name` | Human-readable label (Other, ADS, IDS) |
 
-> **Note:** The annotation tools (`scripts/annotate_ads_ids.py` and `notebooks/02_annotation_player.ipynb`) are standalone utilities and are **not** part of the `hindibabynet` package.
+> **Note:** The annotation tools in this repository are part of the `hindibabynet_pipeline` package and its workflow/CLI structure.
 
 ---
 
@@ -558,64 +560,123 @@ The XGBoost model (`models/xgb_egemaps.pkl`) classifies 1-second audio windows u
 ## Project Structure
 
 ```
-HindiBabyNet/
+HindiBabyNet-Pipeline/
 ├── configs/
-│   └── config.yaml                    # All pipeline parameters
+│   ├── config.yaml
+│   └── params.yaml
 ├── external_models/
-│   └── VTC/                           # 🔧 Cloned VTC repo (separate venv, optional)
+│   └── VTC/
 ├── models/
-│   └── xgb_egemaps.pkl                # Pre-trained 4-class XGBoost classifier
+│   └── xgb_egemaps.pkl
 ├── scripts/
-│   ├── run_all.sh                     # ⭐ Full end-to-end pipeline
-│   ├── run_stage_01.sh                # Stage 01 only
-│   ├── run_stage_02_from_parquet.sh   # Stage 02 batch
-│   ├── run_stage_02_single_wav.sh     # Stage 02 single WAV
-│   ├── run_stage_03.sh               # Stage 03 (single / batch / parquet, --backend xgb|vtc)
-│   └── annotate_ads_ids.py            # ⭐ ADS/IDS annotation tool (standalone)
-├── src/hindibabynet/
-│   ├── check_setup.py                 # Environment/config diagnostics
-│   ├── cli/
-│   │   ├── run_all.py
-│   │   └── run_stage_03.py
-│   ├── components/
-│   │   ├── data_ingestion.py          # Stage 01: scan & catalogue WAVs
-│   │   ├── audio_preparation.py       # Stage 02: combine, resample, normalize
-│   │   └── speaker_classification/
-│   │       ├── base.py
-│   │       ├── dispatcher.py
-│   │       ├── xgb_backend.py
-│   │       ├── vtc_backend.py
-│   │       ├── output_checks.py
-│   │       └── metadata.py
-│   ├── config/
-│   │   └── configuration.py           # ConfigurationManager (reads config.yaml)
-│   ├── entity/
-│   │   ├── config_entity.py           # Frozen config dataclasses
-│   │   └── artifact_entity.py         # Frozen artifact dataclasses
-│   ├── exception/
-│   │   └── exception.py               # Custom exception with context
-│   ├── logging/
-│   │   └── logger.py                  # Console + file logging
-│   ├── pipeline/
-│   │   ├── stage_01_data_ingestion.py
-│   │   ├── stage_02_audio_preparation_from_parquet.py
-│   │   ├── stage_02_audio_preparation_single_wav.py
-│   │   └── stage_03_speaker_classification.py  # Dispatches to xgb or vtc backend
-│   └── utils/
-│       ├── audio_utils.py             # Streaming resample, normalize, concatenate
-│       └── io_utils.py                # YAML, JSON, Parquet, run_id helpers
-├── tests/
-│   ├── test_smoke.py                  # Import smoke tests
-│   └── test_vtc_integration.py        # VTC backend unit tests
+│   ├── run_pipeline.sh
+│   ├── run_prepare_audio.sh
+│   ├── run_classify_xgb.sh
+│   ├── run_classify_vtc.sh
+│   ├── run_generate_textgrids.sh
+│   ├── run_annotate_segments.sh
+│   └── run_evaluate_models.sh
+├── src/
+│   └── hindibabynet_pipeline/
+│       ├── __init__.py
+│       ├── check_setup.py
+│       ├── cli/
+│       │   ├── pipeline.py
+│       │   ├── prepare_audio.py
+│       │   ├── classify_xgb.py
+│       │   ├── classify_vtc.py
+│       │   ├── generate_textgrids.py
+│       │   ├── annotate_segments.py
+│       │   └── evaluate_models.py
+│       ├── workflow/
+│       │   ├── data_ingestion.py
+│       │   ├── audio_preparation.py
+│       │   ├── xgb_classification.py
+│       │   ├── vtc_classification.py
+│       │   ├── textgrid_generation.py
+│       │   ├── manual_annotation.py
+│       │   ├── model_evaluation.py
+│       │   └── pipeline_runner.py
+│       ├── components/
+│       │   ├── audio/
+│       │   │   ├── concatenate.py
+│       │   │   ├── resample.py
+│       │   │   ├── normalize.py
+│       │   │   ├── audio_io.py
+│       │   │   └── audio_checks.py
+│       │   ├── speaker_classification/
+│       │   │   ├── dispatcher.py
+│       │   │   ├── xgb_backend.py
+│       │   │   ├── vtc_backend.py
+│       │   │   ├── metadata.py
+│       │   │   └── output_checks.py
+│       │   ├── textgrid/
+│       │   │   ├── csv_to_textgrid.py
+│       │   │   ├── textgrid_to_csv.py
+│       │   │   └── textgrid_utils.py
+│       │   ├── annotation/
+│       │   │   ├── segment_sampler.py
+│       │   │   ├── audio_player.py
+│       │   │   ├── interactive_annotator.py
+│       │   │   └── annotation_schema.py
+│       │   └── evaluation/
+│       │       ├── accuracy.py
+│       │       ├── confusion_matrix.py
+│       │       ├── classwise_metrics.py
+│       │       └── report_generator.py
+│       ├── config/
+│       │   └── configuration.py
+│       ├── entity/
+│       │   ├── config_entity.py
+│       │   └── artifact_entity.py
+│       ├── exception/
+│       │   └── exception.py
+│       ├── logging/
+│       │   └── logger.py
+│       └── utils/
+│           ├── io_utils.py
+│           ├── time_utils.py
+│           ├── validation_utils.py
+│           ├── path_utils.py
+│           └── constants.py
 ├── notebooks/
-│   ├── 00_research.ipynb              # Research notebook (source of truth for ML logic)
-│   └── 02_annotation_player.ipynb     # ⭐ ADS/IDS annotation notebook (listen + label)
+│   ├── 00_research.ipynb
+│   ├── 01_pipeline_quality_check.ipynb
+│   └── 02_model_evaluation_summary.ipynb
 ├── docs/
-│   └── pipeline_specification.md      # Formal pipeline specification
-├── artifacts/                         # Auto-created: run artifacts & metadata
-├── logs/                              # Auto-created: per-run log files
-├── pyproject.toml                     # Dependencies & project metadata
-└── .env                               # HF_TOKEN (not committed to git)
+│   ├── pipeline_specification.md
+│   ├── audio_preparation.md
+│   ├── xgb_backend.md
+│   ├── vtc_backend.md
+│   ├── textgrid_generation.md
+│   ├── manual_annotation_protocol.md
+│   ├── model_evaluation_protocol.md
+│   └── project_map.md
+├── tests/
+│   ├── test_smoke.py
+│   ├── test_audio_preparation.py
+│   ├── test_vtc_integration.py
+│   ├── test_csv_to_textgrid.py
+│   ├── test_segment_sampler.py
+│   ├── test_config_loading.py
+│   └── test_model_evaluation.py
+├── artifacts/
+│   ├── metadata/
+│   │   └── .gitkeep
+│   ├── run_info/
+│   │   └── .gitkeep
+│   ├── summaries/
+│   │   └── .gitkeep
+│   └── small_tables/
+│       └── .gitkeep
+├── logs/
+│   └── .gitkeep
+├── .gitignore
+├── LICENSE
+├── pyproject.toml
+├── README.md
+├── uv.lock
+└── .env
 ```
 
 ---
@@ -643,7 +704,7 @@ Backward-compatibility fallbacks are implemented for old keys, but new projects 
 | Out of GPU memory | Reduce `chunk_sec` in config.yaml (e.g., from 900 to 300). Smaller chunks use less VRAM. |
 | Very slow (no GPU) | The pipeline works on CPU but diarization is 10-50× slower. Use a CUDA-capable GPU. |
 | `Model not found: models/xgb_egemaps.pkl` | Ensure the pre-trained model file is present in the `models/` directory. |
-| `recordings.parquet not found` | Run Stage 01 first (`uv run bash scripts/run_stage_01.sh`) to scan your audio directory. |
+| `recordings.parquet not found` | Run `uv run bash scripts/run_pipeline.sh` or create the manifest with the configured data-ingestion workflow before batch audio preparation. |
 
 ### Logs
 

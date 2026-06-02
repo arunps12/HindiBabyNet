@@ -1,0 +1,5 @@
+PACKAGE_NAME = "hindibabynet_pipeline"
+DEFAULT_CONFIG_PATH = "configs/config.yaml"
+DEFAULT_PARAMS_PATH = "configs/params.yaml"
+DEFAULT_ARTIFACTS_ROOT = "artifacts/runs"
+DEFAULT_LOGS_ROOT = "logs"

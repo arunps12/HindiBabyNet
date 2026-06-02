@@ -1,4 +1,4 @@
-# src/hindibabynet/logging/logger.py
+# Logging helpers for hindibabynet_pipeline.
 from __future__ import annotations
 
 import logging
@@ -10,7 +10,7 @@ _LOG_FORMAT = "[%(asctime)s] %(levelname)s - %(name)s - %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
-def get_logger(name: str = "hindibabynet", level: int = logging.INFO) -> logging.Logger:
+def get_logger(name: str = "hindibabynet_pipeline", level: int = logging.INFO) -> logging.Logger:
     """
     Get a console logger that doesn't add duplicate handlers.
     """

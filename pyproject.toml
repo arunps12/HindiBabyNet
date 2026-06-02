@@ -43,6 +43,8 @@ hindibabynet-pipeline-check = "hindibabynet_pipeline.check_setup:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["hindibabynet_pipeline*"]
+exclude = ["hindibabynet", "hindibabynet.*"]
 
 [build-system]
 requires = ["setuptools>=68"]

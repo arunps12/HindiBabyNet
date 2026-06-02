@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from hindibabynet_pipeline.workflow.pipeline import run_pipeline
+from hindibabynet_pipeline.workflow.pipeline_runner import run_pipeline
 
 
 def main() -> None:
