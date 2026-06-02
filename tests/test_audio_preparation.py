@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 import soundfile as sf
 
-from hindibabynet_pipeline.components.audio_preparation import AudioPreparation
+from hindibabynet_pipeline.workflow.audio_preparation import AudioPreparation
 from hindibabynet_pipeline.config.configuration import ConfigurationManager
 from hindibabynet_pipeline.entity.config_entity import AudioPreparationConfig
 

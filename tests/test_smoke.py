@@ -8,12 +8,6 @@ def test_import_primary_package():
     assert hindibabynet_pipeline.__version__ == "0.1.0"
 
 
-def test_import_legacy_package():
-    import hindibabynet
-
-    assert hindibabynet.__version__ == "0.1.0"
-
-
 def test_import_io_utils():
     from hindibabynet_pipeline.utils.io_utils import (
         ensure_dir,
@@ -26,25 +20,17 @@ def test_import_io_utils():
     assert isinstance(rid, str) and len(rid) > 0
 
 
-def test_import_audio_utils():
-    from hindibabynet_pipeline.utils.audio_utils import (
+def test_import_audio_components():
+    from hindibabynet_pipeline.components.audio import (
+        concatenate_wavs_streaming,
         crop_or_pad,
+        ensure_mono_16k_wav_streaming,
         load_audio_mono,
+        peak_normalize_wav_streaming,
         resample_audio,
         slice_audio,
-        webrtc_vad_regions,
         write_stream_wav,
         write_wav_chunk,
-        ensure_mono_16k_wav_streaming,
-        peak_normalize_wav_streaming,
-        concatenate_wavs_streaming,
-    )
-
-
-def test_import_textgrid_utils():
-    from hindibabynet_pipeline.utils.textgrid_utils import (
-        intervals_to_df,
-        write_textgrid,
     )
 
 
@@ -68,10 +54,10 @@ def test_import_configuration():
 
 
 def test_import_components():
-    from hindibabynet_pipeline.components.data_ingestion import DataIngestion
-    from hindibabynet_pipeline.components.audio_preparation import AudioPreparation
+    from hindibabynet_pipeline.workflow.data_ingestion import DataIngestion
+    from hindibabynet_pipeline.workflow.audio_preparation import AudioPreparation
     from hindibabynet_pipeline.components.speaker_classification import SpeakerClassification
-    from hindibabynet_pipeline.components.speaker_classification_vtc import VTCInferenceRunner
+    from hindibabynet_pipeline.components.speaker_classification._vtc_core import VTCInferenceRunner
 
 
 def test_import_exception():

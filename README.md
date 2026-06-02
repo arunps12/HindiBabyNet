@@ -13,7 +13,6 @@ This repository is the technical pipeline component of the broader HindiBabyNet 
 | HindiBabyNet-ProsodyStats | Prosodic prominence statistical analyses |
 | HindiBabyNet-ProsodyModel | Prosodic prominence model training |
 | HindiBabyNet-Docs | Protocols, manuals, collaborator documentation |
-| VocalBaby | Infant vocalization classifier/tool |
 
 ## Scope
 

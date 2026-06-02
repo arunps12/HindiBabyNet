@@ -207,8 +207,13 @@ marimo/_lsp/
 __marimo__/
 
 # Project outputs and local environments
-logs/
-artifacts/
+logs/**
+!logs/.gitkeep
+artifacts/runs/
+artifacts/**/*.parquet
+artifacts/**/*.csv
+artifacts/**/*.jsonl
+!**/.gitkeep
 .env
 
 # Audio and generated data
