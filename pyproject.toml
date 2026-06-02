@@ -1,7 +1,7 @@
 [project]
-name = "hindibabynet"
+name = "hindibabynet-pipeline"
 version = "0.1.0"
-description = "Add your description here"
+description = "Technical audio-processing pipeline for the broader HindiBabyNet project"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [
@@ -31,9 +31,12 @@ xgb = [
 ]
 
 [project.scripts]
-hindibabynet-check = "hindibabynet.check_setup:main"
-hindibabynet-stage03 = "hindibabynet.cli.run_stage_03:main"
-hindibabynet-run-all = "hindibabynet.cli.run_all:main"
+hindibabynet-pipeline-check = "hindibabynet_pipeline.check_setup:main"
+hindibabynet-pipeline-run-all = "hindibabynet_pipeline.cli.run_all:main"
+hindibabynet-pipeline-stage03 = "hindibabynet_pipeline.cli.run_stage_03:main"
+hindibabynet-check = "hindibabynet_pipeline.check_setup:main"
+hindibabynet-run-all = "hindibabynet_pipeline.cli.run_all:main"
+hindibabynet-stage03 = "hindibabynet_pipeline.cli.run_stage_03:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

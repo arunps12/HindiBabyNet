@@ -1,0 +1,53 @@
+audio_preparation:
+  join_multiple_files: true
+  combine_gap_sec: 0.0
+  resample: true
+  target_sr: 16000
+  convert_to_mono: true
+  normalize: true
+  target_peak_dbfs: -1.0
+
+xgb:
+  class_names: ["adult_male", "adult_female", "child", "background"]
+  egemaps_dim: 88
+
+  vad:
+    aggressiveness: 2
+    frame_ms: 30
+    min_region_ms: 300
+
+  diarization:
+    model: "pyannote/speaker-diarization-3.1"
+    chunk_sec: 900.0
+    overlap_sec: 10.0
+    min_speakers: 2
+    max_speakers: 4
+
+  segmentation:
+    merge_gap_sec: 0.3
+    min_segment_sec: 0.2
+
+  classification:
+    win_sec: 1.0
+    hop_sec: 0.5
+
+vtc:
+  batch_size: 32
+
+annotation:
+  n_segments_per_participant: 50
+  random_seed: 42
+  labels:
+    adult_female: 1
+    adult_male: 2
+    key_child: 3
+    other_child: 4
+    unclear: 5
+    noise: 6
+
+textgrid:
+  tiers:
+    - adult_female
+    - adult_male
+    - key_child
+    - other_child

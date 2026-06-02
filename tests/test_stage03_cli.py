@@ -5,16 +5,16 @@ from unittest.mock import MagicMock, patch
 
 
 def test_pipeline_stage03_wrapper_exports_valid_backends():
-    from src.hindibabynet.pipeline.stage_03_speaker_classification import _VALID_BACKENDS
+    from hindibabynet_pipeline.pipeline.stage_03_speaker_classification import _VALID_BACKENDS
 
     assert "xgb" in _VALID_BACKENDS
     assert "vtc" in _VALID_BACKENDS
 
 
-@patch("src.hindibabynet.cli.run_stage_03.ConfigurationManager")
-@patch("src.hindibabynet.cli.run_stage_03.get_backend")
+@patch("hindibabynet_pipeline.cli.run_stage_03.ConfigurationManager")
+@patch("hindibabynet_pipeline.cli.run_stage_03.get_backend")
 def test_stage03_main_config_driven_batch(mock_get_backend, mock_cfg, tmp_path: Path):
-    from src.hindibabynet.cli.run_stage_03 import main
+    from hindibabynet_pipeline.cli.run_stage_03 import main
 
     processed = tmp_path / "processed"
     (processed / "P1").mkdir(parents=True)

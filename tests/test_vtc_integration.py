@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.hindibabynet.config.configuration import ConfigurationManager
-from src.hindibabynet.components.speaker_classification.dispatcher import get_backend
-from src.hindibabynet.components.speaker_classification.output_checks import (
+from hindibabynet_pipeline.config.configuration import ConfigurationManager
+from hindibabynet_pipeline.components.speaker_classification.dispatcher import get_backend
+from hindibabynet_pipeline.components.speaker_classification.output_checks import (
     is_stage03_complete,
     is_vtc_complete,
     is_xgb_complete,
@@ -93,7 +93,7 @@ def test_output_checks_xgb_and_vtc(tmp_path: Path):
     assert is_stage03_complete(pid, "vtc", vtc_out)
 
 
-@patch("src.hindibabynet.components.speaker_classification.vtc_backend.subprocess.run")
+@patch("hindibabynet_pipeline.components.speaker_classification.vtc_backend.subprocess.run")
 def test_vtc_backend_command_and_outputs(mock_run, tmp_path: Path):
     cfg_file = tmp_path / "config.yaml"
     _write_config(cfg_file)
@@ -127,9 +127,9 @@ def test_vtc_backend_command_and_outputs(mock_run, tmp_path: Path):
     assert "scripts/infer.py" in info["command"]
 
 
-@patch("src.hindibabynet.cli.run_stage_03.get_backend")
+@patch("hindibabynet_pipeline.cli.run_stage_03.get_backend")
 def test_stage03_config_driven_defaults(mock_get_backend, tmp_path: Path):
-    from src.hindibabynet.cli.run_stage_03 import _discover_participants
+    from hindibabynet_pipeline.cli.run_stage_03 import _discover_participants
 
     processed = tmp_path / "processed"
     (processed / "P1").mkdir(parents=True)
@@ -137,3 +137,74 @@ def test_stage03_config_driven_defaults(mock_get_backend, tmp_path: Path):
 
     rows = _discover_participants(processed)
     assert rows == [("P1", processed / "P1" / "P1.wav")]
+
+
+def test_config_dual_file_loading(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    params_file = tmp_path / "params.yaml"
+    config_file.write_text(
+        "\n".join(
+            [
+                "artifacts_root: artifacts/runs",
+                "logs_root: logs",
+                "paths:",
+                "  raw_audio_root: /tmp/raw",
+                "  raw_joined_audio_root: /tmp/raw_joined",
+                "  prepared_audio_root: /tmp/prepared",
+                "  classification_output_root: /tmp/classification_outputs",
+                "  textgrid_output_root: /tmp/textgrids",
+                "  manual_annotation_root: /tmp/manual_annotations",
+                "  evaluation_output_root: /tmp/evaluation_outputs",
+                "data_ingestion:",
+                "  allowed_ext: ['.wav']",
+                "speaker_classification:",
+                "  backend: vtc",
+                "  vtc:",
+                "    repo_path: external_models/VTC",
+                "    device: cpu",
+                "    keep_inputs: false",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    params_file.write_text(
+        "\n".join(
+            [
+                "audio_preparation:",
+                "  target_sr: 16000",
+                "  convert_to_mono: true",
+                "  target_peak_dbfs: -1.0",
+                "  combine_gap_sec: 0.0",
+                "xgb:",
+                "  class_names: ['adult_male', 'adult_female', 'child', 'background']",
+                "  egemaps_dim: 88",
+                "  vad:",
+                "    aggressiveness: 2",
+                "    frame_ms: 30",
+                "    min_region_ms: 300",
+                "  diarization:",
+                "    model: pyannote/speaker-diarization-3.1",
+                "    chunk_sec: 900.0",
+                "    overlap_sec: 10.0",
+                "    min_speakers: 2",
+                "    max_speakers: 4",
+                "  segmentation:",
+                "    merge_gap_sec: 0.3",
+                "    min_segment_sec: 0.2",
+                "  classification:",
+                "    win_sec: 1.0",
+                "    hop_sec: 0.5",
+                "vtc:",
+                "  batch_size: 32",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    cfg = ConfigurationManager(config_path=config_file, params_path=params_file)
+
+    assert cfg.get_processed_audio_root() == Path("/tmp/prepared")
+    assert cfg.get_raw_joined_audio_root() == Path("/tmp/raw_joined")
+    assert cfg.get_textgrid_output_root() == Path("/tmp/textgrids")
+    assert cfg.get_vtc_params()["batch_size"] == 32
+    assert cfg.get_xgb_params()["vad_frame_ms"] == 30

@@ -2,8 +2,20 @@
 from __future__ import annotations
 
 
+def test_import_primary_package():
+    import hindibabynet_pipeline
+
+    assert hindibabynet_pipeline.__version__ == "0.1.0"
+
+
+def test_import_legacy_package():
+    import hindibabynet
+
+    assert hindibabynet.__version__ == "0.1.0"
+
+
 def test_import_io_utils():
-    from src.hindibabynet.utils.io_utils import (
+    from hindibabynet_pipeline.utils.io_utils import (
         ensure_dir,
         make_run_id,
         read_yaml,
@@ -15,7 +27,7 @@ def test_import_io_utils():
 
 
 def test_import_audio_utils():
-    from src.hindibabynet.utils.audio_utils import (
+    from hindibabynet_pipeline.utils.audio_utils import (
         crop_or_pad,
         load_audio_mono,
         resample_audio,
@@ -30,20 +42,20 @@ def test_import_audio_utils():
 
 
 def test_import_textgrid_utils():
-    from src.hindibabynet.utils.textgrid_utils import (
+    from hindibabynet_pipeline.utils.textgrid_utils import (
         intervals_to_df,
         write_textgrid,
     )
 
 
 def test_import_entities():
-    from src.hindibabynet.entity.config_entity import (
+    from hindibabynet_pipeline.entity.config_entity import (
         AudioPreparationConfig,
         DataIngestionConfig,
         SpeakerClassificationConfig,
         VTCConfig,
     )
-    from src.hindibabynet.entity.artifact_entity import (
+    from hindibabynet_pipeline.entity.artifact_entity import (
         AudioPreparationArtifact,
         DataIngestionArtifact,
         SpeakerClassificationArtifact,
@@ -52,18 +64,18 @@ def test_import_entities():
 
 
 def test_import_configuration():
-    from src.hindibabynet.config.configuration import ConfigurationManager
+    from hindibabynet_pipeline.config.configuration import ConfigurationManager
 
 
 def test_import_components():
-    from src.hindibabynet.components.data_ingestion import DataIngestion
-    from src.hindibabynet.components.audio_preparation import AudioPreparation
-    from src.hindibabynet.components.speaker_classification import SpeakerClassification
-    from src.hindibabynet.components.speaker_classification_vtc import VTCInferenceRunner
+    from hindibabynet_pipeline.components.data_ingestion import DataIngestion
+    from hindibabynet_pipeline.components.audio_preparation import AudioPreparation
+    from hindibabynet_pipeline.components.speaker_classification import SpeakerClassification
+    from hindibabynet_pipeline.components.speaker_classification_vtc import VTCInferenceRunner
 
 
 def test_import_exception():
-    from src.hindibabynet.exception.exception import (
+    from hindibabynet_pipeline.exception.exception import (
         HindiBabyNetError,
         format_traceback,
         wrap_exception,
@@ -71,4 +83,4 @@ def test_import_exception():
 
 
 def test_import_logger():
-    from src.hindibabynet.logging.logger import add_file_handler, get_logger
+    from hindibabynet_pipeline.logging.logger import add_file_handler, get_logger

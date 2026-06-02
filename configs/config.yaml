@@ -1,59 +1,34 @@
-# ─── HindiBabyNet Pipeline Configuration ───
-# This file is the single source of truth for all pipeline settings.
-# Edit paths below to match your system, then run stages via:
-#   uv run bash scripts/run_all.sh
-#   uv run bash scripts/run_stage_03.sh
+# Runtime configuration for HindiBabyNet-Pipeline.
+# Keep machine-specific paths and workflow output locations here.
 
 artifacts_root: artifacts/runs
 logs_root: logs
 
-# ─── Stage 01: Data Ingestion ───
+paths:
+  raw_audio_root: /home/arunps/hindinet_data/RawAudioData
+  raw_joined_audio_root: /home/arunps/hindinet_data/RawJoinedAudio
+  prepared_audio_root: /home/arunps/hindinet_data/PreparedAudio
+  classification_output_root: /home/arunps/hindinet_data/Classification_outputs
+  textgrid_output_root: /home/arunps/hindinet_data/TextGrids
+  manual_annotation_root: /home/arunps/hindinet_data/ManualAnnotations
+  evaluation_output_root: /home/arunps/hindinet_data/EvaluationOutputs
+
 data_ingestion:
-  raw_audio_root: /home/arunps/hindinet_data/RawAudioData           # ← CHANGE THIS
   allowed_ext: [".wav", ".WAV"]
   recordings_filename: recordings.parquet
 
-# ─── Stage 02: Audio Preparation ───
 audio_preparation:
-  processed_audio_root: /home/arunps/hindinet_data/Audio_data_processing  # ← CHANGE THIS
-  target_sr: 16000
-  to_mono: true
-  target_peak_dbfs: -1.0
-  combine_gap_sec: 0.0
+  save_raw_joined_audio: true
+  save_prepared_audio: true
 
-# ─── Stage 03: Speaker Classification ───
-# Both backends share output_root; outputs go to <output_root>/xgb/ or <output_root>/vtc/
 speaker_classification:
-  backend: vtc                 # "xgb" (default) or "vtc"
-  output_root: /home/arunps/hindinet_data/Classification_outputs  # ← CHANGE THIS
+  backend: vtc
+  output_root: /home/arunps/hindinet_data/Classification_outputs
 
-  # ── XGB backend (native HindiBabyNet) ──
   xgb:
     model_path: models/xgb_egemaps.pkl
-    class_names: ["adult_male", "adult_female", "child", "background"]
-    egemaps_dim: 88
 
-    # VAD (webrtcvad)
-    vad_aggressiveness: 2
-    vad_frame_ms: 30
-    vad_min_region_ms: 300
-
-    # Diarization (pyannote)
-    diarization_model: "pyannote/speaker-diarization-3.1"
-    chunk_sec: 900.0
-    overlap_sec: 10.0
-    min_speakers: 2
-    max_speakers: 4
-
-    # Merge & classify
-    merge_gap_sec: 0.3           # merge same-speaker segments ≤ this gap
-    min_segment_sec: 0.2         # discard segments shorter than this
-    classify_win_sec: 1.0        # eGeMAPS extraction window (seconds)
-    classify_hop_sec: 0.5        # eGeMAPS window hop (seconds)
-
-  # ── VTC backend (external VTC 2.0) ──
   vtc:
-    repo_path: /home/arunps/VTC       # path to cloned VTC repo (must be on Linux filesystem for WSL)
-    device: cpu                       # cpu / cuda / gpu / mps
-    batch_size: 32                    # lower = less RAM (default VTC is 128, reduce if OOM)
-    keep_inputs: false                # keep temp VTC input folders after inference
+    repo_path: /home/arunps/VTC
+    device: cpu
+    keep_inputs: false
