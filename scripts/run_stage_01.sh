@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python -m src.hindibabynet.pipeline.stage_01_data_ingestion
+echo "[deprecated] scripts/run_stage_01.sh -> use uv run python -m hindibabynet_pipeline.pipeline.stage_01_data_ingestion" >&2
+uv run python -m hindibabynet_pipeline.pipeline.stage_01_data_ingestion "$@"
