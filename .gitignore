@@ -206,11 +206,30 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-#artifacts
+# Project outputs and local environments
+logs/
 artifacts/
+.env
 
-#docs
-docs/
+# Audio and generated data
+*.wav
+*.mp3
+*.flac
+Classification_outputs/
+RawAudioData/
+RawJoinedAudio/
+PreparedAudio/
+TextGrids/
+ManualAnnotations/
+EvaluationOutputs/
+
+# External model repos
+external_models/VTC/
+
+# Generated tabular outputs
+artifacts/**/*.parquet
+artifacts/**/*.csv
+artifacts/**/*.jsonl
 
 # External models (keep only the README)
 external_models/*

@@ -1,123 +1,127 @@
-# HindiBabyNet
+# HindiBabyNet-Pipeline
 
-> Automatic speaker classification pipeline for long-form Hindi child–caregiver audio recordings.
+This repository is the technical pipeline component of the broader HindiBabyNet project. It focuses on audio preparation, speaker classification, TextGrid generation, manual speaker-class annotation, and model evaluation. It does not cover CDI analysis, vocal input statistics, prosodic statistics, prosodic model training, or ADS/IDS annotation.
 
-Given **raw WAV recordings** (one file or an entire directory tree), this pipeline automatically classifies speech into speaker types. With the **XGB backend** (default), it separates **female adult speech**, **male adult speech**, **child vocalisations**, and **background noise** — then exports the main female and male caregiver audio as standalone files plus a Praat-compatible TextGrid for annotation review. With the **VTC backend**, it produces `FEM/MAL/KCHI/OCH` RTTM and CSV outputs from the external VTC 2.0 model.
+## HindiBabyNet Project Repositories
 
----
+| Repository | Purpose |
+|---|---|
+| HindiBabyNet | Main umbrella/project homepage |
+| HindiBabyNet-Pipeline | Audio preparation, speaker classification, TextGrid generation, annotation, model evaluation |
+| HindiBabyNet-VocalInputStats | Count/hour and duration/hour analyses |
+| HindiBabyNet-CDIAnalysis | CDI questionnaire analyses |
+| HindiBabyNet-ProsodyStats | Prosodic prominence statistical analyses |
+| HindiBabyNet-ProsodyModel | Prosodic prominence model training |
+| HindiBabyNet-Docs | Protocols, manuals, collaborator documentation |
+| VocalBaby | Infant vocalization classifier/tool |
 
-## Table of Contents
+## Scope
 
-1. [What It Does](#what-it-does)
-2. [Prerequisites](#prerequisites)
-3. [Installation](#installation)
-4. [Configuration](#configuration)
-   - [Required Paths](#required-paths)
-   - [Backend: XGB (default)](#backend-xgb-default)
-   - [Backend: VTC (optional)](#backend-vtc-optional)
-   - [Full Configuration Reference](#full-configuration-reference)
-5. [Usage](#usage)
-   - [Quick Start](#quick-start)
-   - [Process a Single Raw WAV](#process-a-single-raw-wav)
-   - [Process a Directory of Raw WAVs](#process-a-directory-of-raw-wavs)
-   - [Running Individual Stages](#running-individual-stages)
-6. [Output Files](#output-files)
-   - [XGB Outputs](#xgb-outputs)
-   - [VTC Outputs](#vtc-outputs)
-   - [Segments Parquet Schema](#segments-parquet-schema)
-   - [Summary JSON](#summary-json)
-7. [ADS / IDS Annotation](#ads--ids-annotation)
-8. [Pipeline Details (XGB, 9 Steps)](#pipeline-details-xgb-9-steps)
-9. [Project Structure](#project-structure)
-10. [Migration Notes](#migration-notes)
-11. [Troubleshooting](#troubleshooting)
+The pipeline repository currently provides:
 
----
+- Flexible audio preparation with optional joining, resampling, mono conversion, normalization, and configurable output persistence.
+- Speaker classification through both the XGB backend and the external VTC backend.
+- TextGrid generation from normalized XGB and VTC segment tables.
+- Manual speaker-class annotation for evaluation.
+- Model evaluation against manual labels.
 
-## What It Does
+The repository intentionally does not present ADS/IDS annotation as an active workflow. Older ADS/IDS assets have been archived.
 
-```
-Raw WAV recordings
-        │
-        ▼
-┌─────────────────────────────────────────────────────────┐
-│  Stage 01 — Data Ingestion                              │
-│  Scan directory tree, catalogue every WAV file          │
-├─────────────────────────────────────────────────────────┤
-│  Stage 02 — Audio Preparation                           │
-│  Combine per participant → mono → 16 kHz → peak norm    │
-├─────────────────────────────────────────────────────────┤
-│  Stage 03 — Speaker Classification                      │
-│                                                         │
-│  backend=xgb (default):                                 │
-│    VAD → diarization → eGeMAPS features → XGBoost       │
-│    → separate class streams → secondary diarization     │
-│    → export main_female, main_male, child, background   │
-│    → export TextGrid                                    │
-│                                                         │
-│  backend=vtc (optional):                                │
-│    External VTC 2.0 → FEM / MAL / KCHI / OCH            │
-│    → RTTM + CSV outputs (unchanged)                     │
-├─────────────────────────────────────────────────────────┤
-│  Manual Annotation — XGB only (notebook or script)      │
-│  Listen to each segment in main_female / main_male      │
-│  → label as ADS, IDS, or Other                          │
-│  → export separate ADS & IDS WAVs per speaker           │
-└─────────────────────────────────────────────────────────┘
+## Data Layout
+
+Large generated data must live outside the repository. Use `configs/config.yaml` to point at external roots such as:
+
+```text
+/home/arunps/hindinet_data/
+├── RawAudioData/
+├── RawJoinedAudio/
+├── PreparedAudio/
+├── Classification_outputs/
+├── TextGrids/
+├── ManualAnnotations/
+└── EvaluationOutputs/
 ```
 
-Stage 01 and Stage 02 are **shared** — they run identically regardless of which Stage 03 backend you choose.
+Keep repository `artifacts/` limited to small reproducibility files such as run metadata, summaries, config snapshots, and small tables. Do not commit large WAV, MP3, FLAC, parquet, or external-model output files.
 
----
-
-## Prerequisites
-
-| Requirement | Details |
-|-------------|---------|
-| **Python** | 3.10 – 3.12 |
-| **GPU** | NVIDIA GPU with CUDA (strongly recommended for pyannote diarization; CPU works but is very slow) |
-| **[uv](https://docs.astral.sh/uv/)** | Fast Python package manager (`pip install uv` or `curl -LsSf https://astral.sh/uv/install.sh \| sh`) |
-| **Microsoft C++ Build Tools (Windows, XGB only)** | Needed only if you install XGB extra (because `webrtcvad` is compiled from source) |
-| **HuggingFace token** | Required by the pyannote diarization model — get one free at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and accept the model terms at [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) |
-| **Disk space** | Intermediate files can be large for long recordings; ensure sufficient scratch space |
-
----
-
-## Installation
+## Setup
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/arunps12/HindiBabyNet.git
 cd HindiBabyNet
-
-# 2a. Install core dependencies (VTC-only usage)
 uv sync
-
-# 2b. Install XGB-specific dependencies as well (XGB backend or both backends)
 uv sync --extra xgb
-
-# 3. Create a .env file with your HuggingFace token
-echo "HF_TOKEN=hf_your_token_here" > .env
+uv run hindibabynet-pipeline-check
 ```
 
-`uv sync` is enough for VTC-only workflows. Use `uv sync --extra xgb` when you need the XGB backend.
+Use `uv` throughout the repository:
 
----
+- `uv sync` for environment creation
+- `uv sync --extra xgb` for the XGB/TextGrid stack
+- `uv run pytest` for tests
+- `uv run python -c "import hindibabynet_pipeline"` for import smoke checks
 
 ## Configuration
 
-Edit **`configs/config.yaml`** before running. The subsections below explain each part.
+The pipeline reads two files:
 
-### Required Paths
+- `configs/config.yaml` for runtime paths, output locations, and backend selection
+- `configs/params.yaml` for audio-processing, model, annotation, and TextGrid parameters
 
-These three paths **must** be set for your system:
+Key runtime roots live under `paths` in `config.yaml`. Tunable audio settings such as `join_multiple_files`, `target_sr`, `convert_to_mono`, and `normalize` live in `params.yaml`.
 
-```yaml
-data_ingestion:
-  raw_audio_root: /path/to/your/raw/audio              # ← CHANGE THIS
+## Commands
 
-audio_preparation:
-  processed_audio_root: /path/to/your/audio_processed  # ← CHANGE THIS
+Primary task-based scripts:
+
+```bash
+uv run bash scripts/run_pipeline.sh --limit 2 --backend vtc
+uv run bash scripts/run_prepare_audio.sh --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+uv run bash scripts/run_prepare_audio.sh --wav /path/to/input.wav --recording-id REC001
+uv run bash scripts/run_classify_xgb.sh --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+uv run bash scripts/run_classify_vtc.sh --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
+uv run bash scripts/run_generate_textgrids.sh --backend vtc --participant-id ABAN141223
+uv run bash scripts/run_annotate_segments.sh --backend vtc --participant-id ABAN141223
+uv run bash scripts/run_evaluate_models.sh --input-csv /path/to/ManualAnnotations/ABAN141223/ABAN141223_vtc_annotations.csv
+```
+
+Legacy stage scripts remain as deprecation shims for backward compatibility.
+
+## Backends
+
+XGB backend:
+
+- Uses VAD, diarization, eGeMAPS features, and XGBoost classification.
+- Produces class streams, segment tables, summaries, and TextGrids.
+- Requires `uv sync --extra xgb`.
+
+VTC backend:
+
+- Uses the external VTC repository configured in `configs/config.yaml`.
+- Produces `rttm.csv` segment tables with `FEM`, `MAL`, `KCHI`, and `OCH` labels.
+- TextGrid generation normalizes these labels to `adult_female`, `adult_male`, `key_child`, and `other_child`.
+
+## Evaluation Workflow
+
+1. Prepare audio from raw recordings.
+2. Run either `run_classify_xgb.sh` or `run_classify_vtc.sh`.
+3. Generate TextGrids if needed for inspection.
+4. Run `run_annotate_segments.sh` to sample and label segments.
+5. Run `run_evaluate_models.sh` to produce accuracy, confusion matrix, and classwise metrics.
+
+## Repository Layout
+
+```text
+configs/
+docs/
+external_models/
+models/
+scripts/
+src/hindibabynet_pipeline/
+tests/
+```
+
+See the docs directory for protocol- and workflow-specific details.
 
 speaker_classification:
   output_root: /path/to/your/classification_outputs     # ← CHANGE THIS

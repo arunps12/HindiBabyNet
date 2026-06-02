@@ -1,4 +1,27 @@
-# HindiBabyNet Long-Form Audio Processing Pipeline
+# Pipeline Specification
+
+HindiBabyNet-Pipeline is the technical audio-processing repository within the broader HindiBabyNet project.
+
+Primary tasks:
+
+1. Data ingestion from external raw-audio roots.
+2. Configurable audio preparation.
+3. Speaker classification through XGB or VTC.
+4. TextGrid generation from normalized segment tables.
+5. Manual speaker-class annotation.
+6. Evaluation against manual labels.
+
+Primary command surface:
+
+```bash
+uv run bash scripts/run_pipeline.sh
+uv run bash scripts/run_prepare_audio.sh
+uv run bash scripts/run_classify_xgb.sh
+uv run bash scripts/run_classify_vtc.sh
+uv run bash scripts/run_generate_textgrids.sh
+uv run bash scripts/run_annotate_segments.sh
+uv run bash scripts/run_evaluate_models.sh
+```# HindiBabyNet Long-Form Audio Processing Pipeline
 
 ## Dataset Layout (Input)
 
