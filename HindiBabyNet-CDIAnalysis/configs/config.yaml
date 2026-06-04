@@ -1,0 +1,19 @@
+paths:
+  raw_data: data/raw
+  interim_data: data/interim
+  processed_data: data/processed
+  metadata: metadata
+  outputs: outputs
+
+forms:
+  consent_form_id: 539547
+  eligibility_form_id: 539591
+  background_form_id: 539576
+  cdi_8_18_form_id: 539642
+  cdi_19_36_form_id: 539644
+  contact_form_id: 540031
+
+analysis:
+  age_month_divisor: 30.44
+  younger_questionnaire: "8_18"
+  older_questionnaire: "19_36"
