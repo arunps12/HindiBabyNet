@@ -1,0 +1,8 @@
+code,label
+1,primary_school
+2,high_school
+3,some_college
+4,bachelor
+5,master
+6,other_qualifications
+99,missing

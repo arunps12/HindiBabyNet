@@ -5,11 +5,10 @@ data/personal_info/*
 outputs/figures/*
 outputs/tables/*
 outputs/reports/*
+*.xls
 *.xlsx
 *.csv
 *.tsv
-*.sav
-*.rds
 *.parquet
 *.pkl
 *.pickle
@@ -20,7 +19,10 @@ outputs/reports/*
 !data/processed/.gitkeep
 !data/personal_info/.gitkeep
 !metadata/word_mapping.csv
-!metadata/participant_tracking_template.csv
+!metadata/education_mapping.csv
+!metadata/language_mapping.csv
+!metadata/sex_mapping.csv
+!metadata/response_mapping.csv
 !outputs/figures/.gitkeep
 !outputs/tables/.gitkeep
 !outputs/reports/.gitkeep
@@ -31,3 +33,4 @@ __pycache__/
 .venv/
 *.pyc
 *.egg-info/
+notebooks/legacy/

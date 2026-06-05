@@ -5,6 +5,13 @@ paths:
   metadata: metadata
   outputs: outputs
 
+raw_files:
+  consent: data-539547-2026-06-04-1053.xlsx
+  eligibility: data-539591-2026-06-04-1058.xlsx
+  background: data-539576-2026-06-04-1113.xlsx
+  cdi_8_18: data-539642-2026-06-04-1113.xlsx
+  cdi_19_36: data-539644-2026-06-04-1114.xlsx
+
 forms:
   consent_form_id: 539547
   eligibility_form_id: 539591
@@ -14,6 +21,15 @@ forms:
   contact_form_id: 540031
 
 analysis:
-  age_month_divisor: 30.44
+  age_month_divisor: 30.4375
   younger_questionnaire: "8_18"
   older_questionnaire: "19_36"
+  younger_age_bins:
+    - "8_10"
+    - "11_13"
+    - "14_16"
+    - "17_18"
+  older_age_bins:
+    - "19_24"
+    - "25_30"
+    - "31_36"

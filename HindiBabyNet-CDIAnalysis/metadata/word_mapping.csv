@@ -1,1 +1,678 @@
-word,word_english,category,category_english,questionnaire
+item_id,word,word_clean,word_english,category,category_english,questionnaire,raw_column_8_18,raw_column_19_36,is_duplicate_raw_column,notes,in_8_18,in_19_36
+item_0001,इश/आह/उह (दर्द),इश/आह/उह (दर्द),ouch/ah/uh (pain sound),ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,इश/आह/उह (दर्द),इश/आह/उह (दर्द),False,,True,True
+item_0002,कू कू,कू कू,coo-coo,ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,कू कू ,कू कू ,False,,True,True
+item_0003,छुक-छुक (ट्रेन की आवाज़),छुक-छुक (ट्रेन की आवाज़),choo-choo (train sound),ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,छुक-छुक (ट्रेन की आवाज़),छुक-छुक(ट्रेन की आवाज़),False,,True,True
+item_0004,पिप पिप (कार के हार्न का शोर),पिप पिप (कार के हार्न का शोर),beep-beep (car horn),ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,पिप पिप (कार के हार्न का शोर),पिप पिप (कार के हार्न का शोर),False,,True,True
+item_0005,भों भों,भों भों,woof-woof,ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,भों भों  ,भों भों  ,False,,True,True
+item_0006,मियाऊँ,मियाऊँ,meow,ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,मियाऊँ,मियाऊँ,False,,True,True
+item_0007,मेह मेह (बकरी की आवाज),मेह मेह (बकरी की आवाज),baa (goat sound),ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,मेह मेह (बकरी की आवाज) ,मेह मेह (बकरी की आवाज) ,False,,True,True
+item_0008,मो (गाय की आवाज),मो (गाय की आवाज),moo (cow sound),ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,8_18;19_36,मो (गाय की आवाज) ,मो (गाय की आवाज) ,False,,True,True
+item_0009,क्रिंग क्रिंग (साइकिल का शोर घंटी),क्रिंग क्रिंग (साइकिल का शोर घंटी),ring-ring (bicycle bell),ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,19_36,,क्रिंग क्रिंग (साइकिल का शोर घंटी) ,False,,False,True
+item_0010,दररर -(कार की आवाज),दररर -(कार की आवाज),vroom/car sound,ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,19_36,,दररर -(कार की आवाज),False,,False,True
+item_0011,हा हा (हँसी),हा हा (हँसी),ha-ha/laughter,ध्वनि प्रभाव और जानवरों की आवाज़,sound effects and animal sounds,19_36,,हा हा (हँसी) ,False,,False,True
+item_0012,कबूतर,कबूतर,pigeon,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,कबूतर ,कबूतर ,False,,True,True
+item_0013,कीड़ा,कीड़ा,insect/bug,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,कीड़ा ,कीड़ा ,False,,True,True
+item_0014,कुत्ता,कुत्ता,dog,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,कुत्ता ,कुत्ता ,False,,True,True
+item_0015,खरगोश,खरगोश,rabbit,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,खरगोश ,खरगोश ,False,,True,True
+item_0016,गाय,गाय,cow,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,गाय ,गाय ,False,,True,True
+item_0017,चूहा,चूहा,mouse/rat,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,चूहा ,चूहा ,False,,True,True
+item_0018,छिपकली,छिपकली,lizard,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,छिपकली ,छिपकली ,False,,True,True
+item_0019,जानवर,जानवर,animal,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,जानवर ,जानवर ,False,,True,True
+item_0020,टेडी बियर,टेडी बियर,teddy bear,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,टेडी बियर ,टेडी बियर ,True,,True,True
+item_0021,तितली,तितली,butterfly,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,तितली,तितली,False,,True,True
+item_0022,तोता,तोता,parrot,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,तोता ,तोता ,False,,True,True
+item_0023,बंदर,बंदर,monkey,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,बंदर ,बंदर ,False,,True,True
+item_0024,बकरा,बकरा,goat,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,बकरा ,बकरा ,False,,True,True
+item_0025,बिल्ली,बिल्ली,cat,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,बिल्ली ,बिल्ली ,False,,True,True
+item_0026,बैल,बैल,bull/ox,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,बैल ,बैल ,False,,True,True
+item_0027,भैंस,भैंस,buffalo,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,भैंस ,भैंस ,False,,True,True
+item_0028,मक्खी,मक्खी,fly,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,मक्खी ,मक्खी ,False,,True,True
+item_0029,मच्छर,मच्छर,mosquito,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,मच्छर ,मच्छर ,False,,True,True
+item_0030,मछली,मछली,fish,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,मछली ,मछली ,True,,True,True
+item_0031,मुर्गा,मुर्गा,rooster,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,मुर्गा ,मुर्गा ,False,,True,True
+item_0032,शेर,शेर,lion,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,शेर ,शेर ,False,,True,True
+item_0033,हाथी,हाथी,elephant,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,हाथी ,हाथी ,False,,True,True
+item_0034,सर्प,सर्प,snake,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,सर्प ,सर्प ,False,,True,True
+item_0035,सुअर,सुअर,pig,जानवरों के नाम (असली या खिलौना जानवर),animal names,8_18;19_36,सुअर ,सुअर ,False,,True,True
+item_0036,अजगर,अजगर,python,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,अजगर ,False,,False,True
+item_0037,उल्लू,उल्लू,owl,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,उल्लू ,False,,False,True
+item_0038,कछुआ,कछुआ,turtle,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,कछुआ ,False,,False,True
+item_0039,कुत्ते का पिल्ला,कुत्ते का पिल्ला,puppy,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,कुत्ते का पिल्ला ,False,,False,True
+item_0040,कोयल,कोयल,cuckoo,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,कोयल ,False,,False,True
+item_0041,कौवा,कौवा,crow,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,कौवा ,False,,False,True
+item_0042,गधा,गधा,donkey,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,गधा ,False,,False,True
+item_0043,गिलहरी,गिलहरी,squirrel,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,गिलहरी ,False,,False,True
+item_0044,गैंडा,गैंडा,rhinoceros,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,गैंडा ,False,,False,True
+item_0045,घोड़ा,घोड़ा,horse,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,घोड़ा ,False,,False,True
+item_0046,चमगादड़,चमगादड़,bat,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,चमगादड़ ,False,,False,True
+item_0047,चीता,चीता,cheetah,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,चीता ,False,,False,True
+item_0048,ज़ेबरा,ज़ेबरा,zebra,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,ज़ेबरा ,False,,False,True
+item_0049,जिराफ़,जिराफ़,giraffe,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,जिराफ़ ,False,,False,True
+item_0050,जूँ,जूँ,louse,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,जूँ ,False,,False,True
+item_0051,टिड्डा,टिड्डा,grasshopper,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,टिड्डा ,False,,False,True
+item_0052,डायनासोर,डायनासोर,dinosaur,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,डायनासोर ,False,,False,True
+item_0053,पेंगुइन,पेंगुइन,penguin,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,पेंगुइन ,False,,False,True
+item_0054,बगुला,बगुला,heron,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,बगुला ,False,,False,True
+item_0055,बत्तख,बत्तख,duck,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,बत्तख ,False,,False,True
+item_0056,बुलबुल,बुलबुल,bulbul,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,बुलबुल,False,,False,True
+item_0057,भालू,भालू,bear,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,भालू ,False,,False,True
+item_0058,भेड़,भेड़,sheep,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,भेड़ ,False,,False,True
+item_0059,मकड़ी,मकड़ी,spider,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,मकड़ी ,False,,False,True
+item_0060,मगरमच्छ,मगरमच्छ,crocodile,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,मगरमच्छ ,False,,False,True
+item_0061,मधु मक्खी,मधु मक्खी,honeybee,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,मधु मक्खी ,False,,False,True
+item_0062,मेंढक,मेंढक,frog,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,मेंढक ,False,,False,True
+item_0063,मेमना,मेमना,lamb,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,मेमना ,False,,False,True
+item_0064,मैना,मैना,myna,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,मैना,False,,False,True
+item_0065,लंगूर,लंगूर,langur,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,लंगूर ,False,,False,True
+item_0066,लोमड़ी,लोमड़ी,fox,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,लोमड़ी ,False,,False,True
+item_0067,हंस,हंस,swan/goose,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,हंस ,False,,False,True
+item_0068,हड्डा,हड्डा,large bird/kite,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,हड्डा ,False,,False,True
+item_0069,हिरन,हिरन,deer,जानवरों के नाम (असली या खिलौना जानवर),animal names,19_36,,हिरन ,False,,False,True
+item_0070,ऑटो,ऑटो,auto-rickshaw,वाहन (असली या खिलौना),vehicles,8_18;19_36,ऑटो,ऑटो,False,,True,True
+item_0071,कार,कार,car,वाहन (असली या खिलौना),vehicles,8_18;19_36,कार ,कार ,False,,True,True
+item_0072,गाड़ी,गाड़ी,vehicle/car,वाहन (असली या खिलौना),vehicles,8_18;19_36,गाड़ी,गाड़ी,False,,True,True
+item_0073,जहाज,जहाज,airplane/ship,वाहन (असली या खिलौना),vehicles,8_18;19_36,जहाज ,जहाज,False,,True,True
+item_0074,ट्रेन,ट्रेन,train,वाहन (असली या खिलौना),vehicles,8_18;19_36,ट्रेन ,ट्रेन ,False,,True,True
+item_0075,बस,बस,bus,वाहन (असली या खिलौना),vehicles,8_18;19_36,बस ,बस ,False,,True,True
+item_0076,मोटरसाइकिल,मोटरसाइकिल,motorcycle,वाहन (असली या खिलौना),vehicles,8_18;19_36,मोटरसाइकिल,मोटरसाइकिल,False,,True,True
+item_0077,रिक्शा,रिक्शा,rickshaw,वाहन (असली या खिलौना),vehicles,8_18;19_36,रिक्शा ,रिक्शा ,False,,True,True
+item_0078,साइकिल,साइकिल,bicycle,वाहन (असली या खिलौना),vehicles,8_18;19_36,साइकिल ,साइकिल ,False,,True,True
+item_0079,जिप,जिप,jeep,वाहन (असली या खिलौना),vehicles,19_36,,जिप ,False,,False,True
+item_0080,टेम्पू,टेम्पू,tempo,वाहन (असली या खिलौना),vehicles,19_36,,टेम्पू ,False,,False,True
+item_0081,ट्रक,ट्रक,truck,वाहन (असली या खिलौना),vehicles,19_36,,ट्रक ,False,,False,True
+item_0082,नाव,नाव,boat,वाहन (असली या खिलौना),vehicles,19_36,,नाव ,False,,False,True
+item_0083,बाइक,बाइक,bike,वाहन (असली या खिलौना),vehicles,19_36,,बाइक ,False,,False,True
+item_0084,वैन,वैन,van,वाहन (असली या खिलौना),vehicles,19_36,,वैन ,False,,False,True
+item_0085,हेलीकॉप्टर,हेलीकॉप्टर,helicopter,वाहन (असली या खिलौना),vehicles,19_36,,हेलीकॉप्टर ,False,,False,True
+item_0086,कैरम,कैरम,carrom,खिलौने,toys,8_18;19_36,कैरम ,कैरम ,False,,True,True
+item_0087,खिलौना कार,खिलौना कार,toy car,खिलौने,toys,8_18,खिलौना कार ,,False,,True,False
+item_0088,खिलौना ट्रक,खिलौना ट्रक,toy truck,खिलौने,toys,8_18,खिलौना ट्रक ,,False,,True,False
+item_0089,गुड़िया,गुड़िया,doll,खिलौने,toys,8_18;19_36,गुड़िया ,गुड़िया ,False,,True,True
+item_0090,गेंद,गेंद,ball,खिलौने,toys,8_18;19_36,गेंद ,गेंद ,False,,True,True
+item_0091,झुनझुना,झुनझुना,rattle,खिलौने,toys,8_18;19_36,झुनझुना ,झुनझुना ,False,,True,True
+item_0092,टेडी बियर,टेडी बियर,teddy bear,खिलौने,toys,8_18;19_36,टेडी बियर .1,टेडी बियर .1,True,,True,True
+item_0093,ड्रम,ड्रम,drum,खिलौने,toys,8_18,ड्रम ,,False,,True,False
+item_0094,पेन,पेन,pen,खिलौने,toys,8_18,पेन ,,False,,True,False
+item_0095,बल्ला,बल्ला,bat,खिलौने,toys,8_18;19_36,बल्ला ,बल्ला ,False,,True,True
+item_0096,पजल,पजल,puzzle,खिलौने,toys,19_36,,पजल ,False,,False,True
+item_0097,रिबन,रिबन,ribbon,खिलौने,toys,19_36,,रिबन ,False,,False,True
+item_0098,लटू,लटू,spinning top,खिलौने,toys,19_36,,लटू ,False,,False,True
+item_0099,लुकाछिपी,लुकाछिपी,hide and seek,खिलौने,toys,19_36,,लुकाछिपी ,False,,False,True
+item_0100,लूडो,लूडो,ludo,खिलौने,toys,19_36,,लूडो,False,,False,True
+item_0101,स्टिकर,स्टिकर,sticker,खिलौने,toys,19_36,,स्टिकर ,False,,False,True
+item_0102,अंगूर,अंगूर,grapes,खाद्य और पेय,food and drink,8_18;19_36,अंगूर ,अंगूर ,False,,True,True
+item_0103,अंडा,अंडा,egg,खाद्य और पेय,food and drink,8_18;19_36,अंडा ,अंडा ,False,,True,True
+item_0104,अनार,अनार,pomegranate,खाद्य और पेय,food and drink,8_18;19_36,अनार ,अनार ,False,,True,True
+item_0105,अन्न/ खाना,अन्न/ खाना,food,खाद्य और पेय,food and drink,8_18;19_36,अन्न/ खाना ,अन्न/ खाना ,False,,True,True
+item_0106,अमरूद,अमरूद,guava,खाद्य और पेय,food and drink,8_18;19_36,अमरूद ,अमरूद ,False,,True,True
+item_0107,आइसक्रीम,आइसक्रीम,ice cream,खाद्य और पेय,food and drink,8_18;19_36,आइसक्रीम ,आइसक्रीम ,False,,True,True
+item_0108,आटा,आटा,flour,खाद्य और पेय,food and drink,8_18;19_36,आटा ,आटा ,False,,True,True
+item_0109,आम,आम,mango,खाद्य और पेय,food and drink,8_18;19_36,आम ,आम ,False,,True,True
+item_0110,आलू,आलू,potato,खाद्य और पेय,food and drink,8_18;19_36,आलू,आलू,False,,True,True
+item_0111,औषधि,औषधि,medicine,खाद्य और पेय,food and drink,8_18;19_36,औषधि ,औषधि ,False,,True,True
+item_0112,केला,केला,banana,खाद्य और पेय,food and drink,8_18;19_36,केला ,केला ,False,,True,True
+item_0113,खिचड़ी,खिचड़ी,khichdi,खाद्य और पेय,food and drink,8_18;19_36,खिचड़ी ,खिचड़ी ,False,,True,True
+item_0114,खीर,खीर,kheer/rice pudding,खाद्य और पेय,food and drink,8_18;19_36,खीर ,खीर ,False,,True,True
+item_0115,खीरा,खीरा,cucumber,खाद्य और पेय,food and drink,8_18;19_36,खीरा ,खीरा ,False,,True,True
+item_0116,गाजर,गाजर,carrot,खाद्य और पेय,food and drink,8_18;19_36,गाजर ,गाजर ,False,,True,True
+item_0117,गुड़,गुड़,jaggery,खाद्य और पेय,food and drink,8_18;19_36,गुड़ ,गुड़ ,False,,True,True
+item_0118,चाय,चाय,tea,खाद्य और पेय,food and drink,8_18;19_36,चाय ,चाय ,False,,True,True
+item_0119,घी,घी,ghee,खाद्य और पेय,food and drink,8_18;19_36,घी ,घी ,False,,True,True
+item_0120,चावल,चावल,rice,खाद्य और पेय,food and drink,8_18;19_36,चावल ,चावल ,False,,True,True
+item_0121,चिकन,चिकन,chicken,खाद्य और पेय,food and drink,8_18;19_36,चिकन ,चिकन ,False,,True,True
+item_0122,चिप्स,चिप्स,chips,खाद्य और पेय,food and drink,8_18;19_36,चिप्स ,चिप्स ,False,,True,True
+item_0123,चॉकोलेट,चॉकोलेट,chocolate,खाद्य और पेय,food and drink,8_18;19_36,चॉकोलेट ,चॉकोलेट ,False,,True,True
+item_0124,जलेबी,जलेबी,jalebi,खाद्य और पेय,food and drink,8_18;19_36,जलेबी ,जलेबी ,False,,True,True
+item_0125,जूस,जूस,juice,खाद्य और पेय,food and drink,8_18;19_36,जूस ,जूस ,False,,True,True
+item_0126,टमाटर,टमाटर,tomato,खाद्य और पेय,food and drink,8_18;19_36,टमाटर ,टमाटर ,False,,True,True
+item_0127,तरबूज,तरबूज,watermelon,खाद्य और पेय,food and drink,8_18;19_36,तरबूज ,तरबूज ,False,,True,True
+item_0128,दवा,दवा,medicine,खाद्य और पेय,food and drink,8_18;19_36,दवा ,दवा ,False,,True,True
+item_0129,दही,दही,curd/yogurt,खाद्य और पेय,food and drink,8_18;19_36,दही,दही,False,,True,True
+item_0130,दाल,दाल,lentils,खाद्य और पेय,food and drink,8_18;19_36,दाल ,दाल ,False,,True,True
+item_0131,दूध,दूध,milk,खाद्य और पेय,food and drink,8_18;19_36,दूध ,दूध ,False,,True,True
+item_0132,नमक,नमक,salt,खाद्य और पेय,food and drink,8_18;19_36,नमक ,नमक ,False,,True,True
+item_0133,नाश्ता,नाश्ता,snack/breakfast,खाद्य और पेय,food and drink,8_18;19_36,नाश्ता ,नाश्ता ,False,,True,True
+item_0134,पनीर,पनीर,paneer,खाद्य और पेय,food and drink,8_18;19_36,पनीर ,पनीर ,False,,True,True
+item_0135,पपीता,पपीता,papaya,खाद्य और पेय,food and drink,8_18;19_36,पपीता ,पपीता ,False,,True,True
+item_0136,पानी,पानी,water,खाद्य और पेय,food and drink,8_18;19_36,पानी ,पानी ,False,,True,True
+item_0137,पिज़्ज़ा,पिज़्ज़ा,pizza,खाद्य और पेय,food and drink,8_18;19_36,पिज़्ज़ा ,पिज़्ज़ा ,False,,True,True
+item_0138,पुलाव,पुलाव,pulao,खाद्य और पेय,food and drink,8_18;19_36,पुलाव ,पुलाव ,False,,True,True
+item_0139,पॉपकॉर्न,पॉपकॉर्न,popcorn,खाद्य और पेय,food and drink,8_18;19_36,पॉपकॉर्न ,पॉपकॉर्न ,False,,True,True
+item_0140,फल,फल,fruit,खाद्य और पेय,food and drink,8_18;19_36,फल ,फल ,False,,True,True
+item_0141,बिरयानी,बिरयानी,biryani,खाद्य और पेय,food and drink,8_18;19_36,बिरयानी ,बिरयानी ,False,,True,True
+item_0142,बिस्कुट,बिस्कुट,biscuit,खाद्य और पेय,food and drink,8_18;19_36,बिस्कुट ,बिस्कुट ,False,,True,True
+item_0143,ब्रेड,ब्रेड,bread,खाद्य और पेय,food and drink,8_18;19_36,ब्रेड ,ब्रेड ,False,,True,True
+item_0144,मक्खन,मक्खन,butter,खाद्य और पेय,food and drink,8_18;19_36,मक्खन ,मक्खन ,False,,True,True
+item_0145,मखाना,मखाना,fox nuts,खाद्य और पेय,food and drink,8_18;19_36,मखाना ,मखाना ,False,,True,True
+item_0146,मटर,मटर,peas,खाद्य और पेय,food and drink,8_18;19_36,मटर ,मटर ,False,,True,True
+item_0147,मांस,मांस,meat,खाद्य और पेय,food and drink,8_18;19_36,मांस ,मांस ,False,,True,True
+item_0148,मछली,मछली,fish,खाद्य और पेय,food and drink,8_18,मछली,,True,,True,False
+item_0149,मिठाई,मिठाई,sweets,खाद्य और पेय,food and drink,8_18;19_36,मिठाई ,मिठाई ,False,,True,True
+item_0150,मूंगफली,मूंगफली,peanuts,खाद्य और पेय,food and drink,8_18;19_36,मूंगफली ,मूंगफली ,False,,True,True
+item_0151,रसगुल्ला,रसगुल्ला,rasgulla,खाद्य और पेय,food and drink,8_18;19_36,रसगुल्ला ,रसगुल्ला ,False,,True,True
+item_0152,रोटी,रोटी,roti/flatbread,खाद्य और पेय,food and drink,8_18;19_36,रोटी ,रोटी ,False,,True,True
+item_0153,लड्डू,लड्डू,laddu,खाद्य और पेय,food and drink,8_18;19_36,लड्डू ,लड्डू ,False,,True,True
+item_0154,लॉलीपॉप,लॉलीपॉप,lollipop,खाद्य और पेय,food and drink,8_18;19_36,लॉलीपॉप ,लॉलीपॉप ,False,,True,True
+item_0155,सब्जी,सब्जी,vegetable/curry,खाद्य और पेय,food and drink,8_18;19_36,सब्जी ,सब्जी ,False,,True,True
+item_0156,समोसा,समोसा,samosa,खाद्य और पेय,food and drink,8_18;19_36,समोसा ,समोसा ,False,,True,True
+item_0157,सलाद,सलाद,salad,खाद्य और पेय,food and drink,8_18;19_36,सलाद ,सलाद ,False,,True,True
+item_0158,सूप,सूप,soup,खाद्य और पेय,food and drink,8_18;19_36,सूप ,सूप ,False,,True,True
+item_0159,सेब,सेब,apple,खाद्य और पेय,food and drink,8_18;19_36,सेब ,सेब ,False,,True,True
+item_0160,सेवई / वर्मिसेली,सेवई / वर्मिसेली,vermicelli,खाद्य और पेय,food and drink,8_18;19_36,सेवई / वर्मिसेली ,सेवई / वर्मिसेली ,False,,True,True
+item_0161,हरी मिर्च,हरी मिर्च,green chili,खाद्य और पेय,food and drink,8_18;19_36,हरी मिर्च ,हरी मिर्च ,False,,True,True
+item_0162,हलवा,हलवा,halwa,खाद्य और पेय,food and drink,8_18;19_36,हलवा ,हलवा ,False,,True,True
+item_0163,अचार,अचार,pickle,खाद्य और पेय,food and drink,19_36,,अचार ,False,,False,True
+item_0164,अनानास,अनानास,pineapple,खाद्य और पेय,food and drink,19_36,,अनानास ,False,,False,True
+item_0165,इमली,इमली,tamarind,खाद्य और पेय,food and drink,19_36,,इमली ,False,,False,True
+item_0166,ओट्स,ओट्स,oats,खाद्य और पेय,food and drink,19_36,,ओट्स ,False,,False,True
+item_0167,कद्दू,कद्दू,pumpkin,खाद्य और पेय,food and drink,19_36,,कद्दू ,False,,False,True
+item_0168,इडली,इडली,idli,खाद्य और पेय,food and drink,19_36,,इडली ,False,,False,True
+item_0169,चूड़ा,चूड़ा,flattened rice,खाद्य और पेय,food and drink,19_36,,चूड़ा ,False,,False,True
+item_0170,छाछ,छाछ,buttermilk,खाद्य और पेय,food and drink,19_36,,छाछ ,False,,False,True
+item_0171,ठंडा,ठंडा,cold drink/cold,खाद्य और पेय,food and drink,19_36,,ठंडा ,False,,False,True
+item_0172,नाशपाती,नाशपाती,pear,खाद्य और पेय,food and drink,19_36,,नाशपाती ,False,,False,True
+item_0173,नूडल्स,नूडल्स,noodles,खाद्य और पेय,food and drink,19_36,,नूडल्स ,False,,False,True
+item_0174,पत्ता गोभी,पत्ता गोभी,cabbage,खाद्य और पेय,food and drink,19_36,,पत्ता गोभी ,False,,False,True
+item_0175,बटर,बटर,butter,खाद्य और पेय,food and drink,19_36,,बटर ,False,,False,True
+item_0176,भाजी,भाजी,vegetable dish,खाद्य और पेय,food and drink,19_36,,भाजी ,False,,False,True
+item_0177,भिंडी,भिंडी,okra,खाद्य और पेय,food and drink,19_36,,भिंडी ,False,,False,True
+item_0178,माछली,माछली,fish,खाद्य और पेय,food and drink,19_36,,माछली,False,,False,True
+item_0179,लस्सी,लस्सी,lassi,खाद्य और पेय,food and drink,19_36,,लस्सी ,False,,False,True
+item_0180,लौकी,लौकी,bottle gourd,खाद्य और पेय,food and drink,19_36,,लौकी ,False,,False,True
+item_0181,शर्बत,शर्बत,sherbet/sweet drink,खाद्य और पेय,food and drink,19_36,,शर्बत ,False,,False,True
+item_0182,शहद,शहद,honey,खाद्य और पेय,food and drink,19_36,,शहद,False,,False,True
+item_0183,कंबल,कंबल,blanket,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,कंबल ,कंबल ,False,,True,True
+item_0184,कपड़ें,कपड़ें,clothes,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,कपड़ें ,कपड़ें ,False,,True,True
+item_0185,कुर्ता,कुर्ता,kurta,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,कुर्ता ,कुर्ता ,False,,True,True
+item_0186,चादर,चादर,sheet,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18,चादर,,False,,True,False
+item_0187,चुन्नी,चुन्नी,dupatta/scarf,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,चुन्नी ,चुन्नी ,False,,True,True
+item_0188,चूड़ियाँ,चूड़ियाँ,bangles,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,चूड़ियाँ ,चूड़ियाँ ,False,,True,True
+item_0189,जूते,जूते,shoes,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,जूते ,जूते ,False,,True,True
+item_0190,झबला,झबला,baby shirt,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,झबला ,झबला ,False,,True,True
+item_0191,टोपी,टोपी,cap/hat,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,टोपी ,टोपी ,True,,True,True
+item_0192,ड्रेस,ड्रेस,dress,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,ड्रेस ,ड्रेस ,False,,True,True
+item_0193,तौलिया,तौलिया,towel,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,तौलिया ,तौलिया ,False,,True,True
+item_0194,पर्स,पर्स,purse,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,पर्स ,पर्स ,False,,True,True
+item_0195,पायजामा,पायजामा,pajama,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,पायजामा ,पायजामा ,False,,True,True
+item_0196,बटन,बटन,button,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,बटन ,बटन ,False,,True,True
+item_0197,मोज़ा,मोज़ा,sock,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,मोज़ा ,मोज़ा ,False,,True,True
+item_0198,शर्ट,शर्ट,shirt,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,शर्ट ,शर्ट ,False,,True,True
+item_0199,शॉल,शॉल,shawl,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,शॉल ,शॉल ,False,,True,True
+item_0200,साड़ी,साड़ी,sari,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,साड़ी ,साड़ी ,False,,True,True
+item_0201,सैंडल,सैंडल,sandals,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,सैंडल ,सैंडल ,False,,True,True
+item_0202,स्वेटर,स्वेटर,sweater,कपड़ें और एक्सेसरीज़,clothing and accessories,8_18;19_36,स्वेटर ,स्वेटर ,False,,True,True
+item_0203,कमीज़,कमीज़,shirt/kameez,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,कमीज़ ,False,,False,True
+item_0204,जाकेट,जाकेट,jacket,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,जाकेट,False,,False,True
+item_0205,टॉप,टॉप,top,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,टॉप ,False,,False,True
+item_0206,दस्ताने,दस्ताने,gloves,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,दस्ताने ,False,,False,True
+item_0207,पटका,पटका,scarf/cloth band,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,पटका ,False,,False,True
+item_0208,पेंट/ट्राउजर,पेंट/ट्राउजर,pants/trousers,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,पेंट/ट्राउजर,False,,False,True
+item_0209,बंडी,बंडी,vest,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,बंडी ,False,,False,True
+item_0210,स्कर्ट,स्कर्ट,skirt,कपड़ें और एक्सेसरीज़,clothing and accessories,19_36,,स्कर्ट ,False,,False,True
+item_0211,अंगूठा,अंगूठा,thumb,शरीर के अंग,body parts,8_18;19_36,अंगूठा,अंगूठा,False,,True,True
+item_0212,आँख,आँख,eye,शरीर के अंग,body parts,8_18;19_36,आँख ,आँख ,False,,True,True
+item_0213,कंधा,कंधा,shoulder,शरीर के अंग,body parts,8_18;19_36,कंधा ,कंधा ,False,,True,True
+item_0214,कान,कान,ear,शरीर के अंग,body parts,8_18,कान,,False,,True,False
+item_0215,गला,गला,throat,शरीर के अंग,body parts,8_18;19_36,गला ,गला ,False,,True,True
+item_0216,गाल,गाल,cheek,शरीर के अंग,body parts,8_18;19_36,गाल,गाल,False,,True,True
+item_0217,चेहरा,चेहरा,face,शरीर के अंग,body parts,8_18;19_36,चेहरा ,चेहरा ,False,,True,True
+item_0218,छाती,छाती,chest,शरीर के अंग,body parts,8_18;19_36,छाती ,छाती ,False,,True,True
+item_0219,जीभ,जीभ,tongue,शरीर के अंग,body parts,8_18;19_36,जीभ ,जीभ ,False,,True,True
+item_0220,नाक,नाक,nose,शरीर के अंग,body parts,8_18;19_36,नाक ,नाक ,False,,True,True
+item_0221,नाखून,नाखून,nail,शरीर के अंग,body parts,8_18;19_36,नाखून ,नाखून ,False,,True,True
+item_0222,पेट,पेट,stomach,शरीर के अंग,body parts,8_18;19_36,पेट ,पेट ,False,,True,True
+item_0223,पैर,पैर,leg/foot,शरीर के अंग,body parts,8_18;19_36,पैर ,पैर ,False,,True,True
+item_0224,बाल,बाल,hair,शरीर के अंग,body parts,8_18;19_36,बाल ,बाल ,False,,True,True
+item_0225,मुंह,मुंह,mouth,शरीर के अंग,body parts,8_18;19_36,मुंह ,मुंह ,False,,True,True
+item_0226,लिप्स / होंठ,लिप्स / होंठ,lips,शरीर के अंग,body parts,8_18,लिप्स / होंठ,,False,,True,False
+item_0227,सिर,सिर,head,शरीर के अंग,body parts,8_18;19_36,सिर,सिर,False,,True,True
+item_0228,हाथ,हाथ,hand,शरीर के अंग,body parts,8_18;19_36,हाथ ,हाथ ,False,,True,True
+item_0229,कपाल,कपाल,forehead/skull,शरीर के अंग,body parts,19_36,,कपाल ,False,,False,True
+item_0230,कमर,कमर,waist,शरीर के अंग,body parts,19_36,,कमर ,False,,False,True
+item_0231,कूल्हा,कूल्हा,hip,शरीर के अंग,body parts,19_36,,कूल्हा,False,,False,True
+item_0232,कोहनी,कोहनी,elbow,शरीर के अंग,body parts,19_36,,कोहनी ,False,,False,True
+item_0233,गरदन,गरदन,neck,शरीर के अंग,body parts,19_36,,गरदन ,False,,False,True
+item_0234,ठोड़ी,ठोड़ी,chin,शरीर के अंग,body parts,19_36,,ठोड़ी ,False,,False,True
+item_0235,नाभि,नाभि,navel,शरीर के अंग,body parts,19_36,,नाभि ,False,,False,True
+item_0236,भौंह,भौंह,eyebrow,शरीर के अंग,body parts,19_36,,भौंह ,False,,False,True
+item_0237,लिप्स,लिप्स,lips,शरीर के अंग,body parts,19_36,,लिप्स ,False,,False,True
+item_0238,हड्डी,हड्डी,bone,शरीर के अंग,body parts,19_36,,हड्डी ,False,,False,True
+item_0239,ह्रदय,ह्रदय,heart,शरीर के अंग,body parts,19_36,,ह्रदय ,False,,False,True
+item_0240,अँगूठी,अँगूठी,ring,घर में छोटी वस्तुएं,small household objects,8_18;19_36,अँगूठी ,अँगूठी ,False,,True,True
+item_0241,आयना,आयना,mirror,घर में छोटी वस्तुएं,small household objects,8_18;19_36,आयना ,आयना ,False,,True,True
+item_0242,कंघी,कंघी,comb,घर में छोटी वस्तुएं,small household objects,8_18;19_36,कंघी ,कंघी ,False,,True,True
+item_0243,कागज,कागज,paper,घर में छोटी वस्तुएं,small household objects,8_18;19_36,कागज ,कागज ,False,,True,True
+item_0244,किताब,किताब,book,घर में छोटी वस्तुएं,small household objects,8_18;19_36,किताब ,किताब ,False,,True,True
+item_0245,कैमरा,कैमरा,camera,घर में छोटी वस्तुएं,small household objects,8_18;19_36,कैमरा ,कैमरा ,False,,True,True
+item_0246,खिलौना,खिलौना,toy,घर में छोटी वस्तुएं,small household objects,8_18;19_36,खिलौना,खिलौना,False,,True,True
+item_0247,गिलास,गिलास,glass/cup,घर में छोटी वस्तुएं,small household objects,8_18;19_36,गिलास ,गिलास ,False,,True,True
+item_0248,चटाई,चटाई,mat,घर में छोटी वस्तुएं,small household objects,8_18;19_36,चटाई ,चटाई ,False,,True,True
+item_0249,चमच,चमच,spoon,घर में छोटी वस्तुएं,small household objects,8_18;19_36,चमच ,चमच ,False,,True,True
+item_0250,चाकू,चाकू,knife,घर में छोटी वस्तुएं,small household objects,8_18;19_36,चाकू ,चाकू ,False,,True,True
+item_0251,चाबी,चाबी,key,घर में छोटी वस्तुएं,small household objects,8_18;19_36,चाबी ,चाबी ,False,,True,True
+item_0252,चार्जर,चार्जर,charger,घर में छोटी वस्तुएं,small household objects,8_18;19_36,चार्जर ,चार्जर ,False,,True,True
+item_0253,चित्र,चित्र,picture,घर में छोटी वस्तुएं,small household objects,8_18;19_36,चित्र ,चित्र ,False,,True,True
+item_0254,चूड़ी,चूड़ी,bangle,घर में छोटी वस्तुएं,small household objects,8_18,चूड़ी ,,False,,True,False
+item_0255,जूता,जूता,shoe,घर में छोटी वस्तुएं,small household objects,8_18;19_36,जूता ,जूता ,False,,True,True
+item_0256,टोपी,टोपी,cap/hat,घर में छोटी वस्तुएं,small household objects,8_18,टोपी .1,,True,,True,False
+item_0257,डिब्बा,डिब्बा,box/container,घर में छोटी वस्तुएं,small household objects,8_18;19_36,डिब्बा ,डिब्बा ,False,,True,True
+item_0258,तकिया,तकिया,pillow,घर में छोटी वस्तुएं,small household objects,8_18;19_36,तकिया ,तकिया ,False,,True,True
+item_0259,ताला,ताला,lock,घर में छोटी वस्तुएं,small household objects,8_18;19_36,ताला ,ताला ,False,,True,True
+item_0260,थर्मस,थर्मस,thermos,घर में छोटी वस्तुएं,small household objects,8_18;19_36,थर्मस ,थर्मस ,False,,True,True
+item_0261,थाली,थाली,plate/thali,घर में छोटी वस्तुएं,small household objects,8_18;19_36,थाली ,थाली ,False,,True,True
+item_0262,पंखा,पंखा,fan,घर में छोटी वस्तुएं,small household objects,8_18;19_36,पंखा ,पंखा ,False,,True,True
+item_0263,प्लेट,प्लेट,plate,घर में छोटी वस्तुएं,small household objects,8_18,प्लेट ,,False,,True,False
+item_0264,बर्तन,बर्तन,utensil,घर में छोटी वस्तुएं,small household objects,8_18;19_36,बर्तन ,बर्तन ,False,,True,True
+item_0265,बल्ब,बल्ब,bulb,घर में छोटी वस्तुएं,small household objects,8_18;19_36,बल्ब ,बल्ब ,False,,True,True
+item_0266,बोतल,बोतल,bottle,घर में छोटी वस्तुएं,small household objects,8_18;19_36,बोतल ,बोतल ,False,,True,True
+item_0267,मोटर,मोटर,motor,घर में छोटी वस्तुएं,small household objects,8_18;19_36,मोटर ,मोटर ,False,,True,True
+item_0268,मोबाइल,मोबाइल,mobile phone,घर में छोटी वस्तुएं,small household objects,8_18;19_36,मोबाइल ,मोबाइल ,False,,True,True
+item_0269,लाइट,लाइट,light,घर में छोटी वस्तुएं,small household objects,8_18;19_36,लाइट ,लाइट ,False,,True,True
+item_0270,शीशा / काँच,शीशा / काँच,mirror/glass,घर में छोटी वस्तुएं,small household objects,8_18,शीशा /काँच ,,False,,True,False
+item_0271,कढ़ाई,कढ़ाई,pan/wok,घर में छोटी वस्तुएं,small household objects,19_36,,कढ़ाई ,False,,False,True
+item_0272,काँच,काँच,glass,घर में छोटी वस्तुएं,small household objects,19_36,,काँच ,False,,False,True
+item_0273,कैलेंडर,कैलेंडर,calendar,घर में छोटी वस्तुएं,small household objects,19_36,,कैलेंडर ,False,,False,True
+item_0274,गमला,गमला,flower pot,घर में छोटी वस्तुएं,small household objects,19_36,,गमला,False,,False,True
+item_0275,चादर,चादर,sheet,घर में छोटी वस्तुएं,small household objects,19_36,,चादर ,False,,False,True
+item_0276,छड़ी,छड़ी,stick,घर में छोटी वस्तुएं,small household objects,19_36,,छड़ी ,False,,False,True
+item_0277,छतरी,छतरी,umbrella,घर में छोटी वस्तुएं,small household objects,19_36,,छतरी ,False,,False,True
+item_0278,जग,जग,jug,घर में छोटी वस्तुएं,small household objects,19_36,,जग ,False,,False,True
+item_0279,झाड़ू,झाड़ू,broom,घर में छोटी वस्तुएं,small household objects,19_36,,झाड़ू ,False,,False,True
+item_0280,टेबल फ़ैन,टेबल फ़ैन,table fan,घर में छोटी वस्तुएं,small household objects,19_36,,टेबल फ़ैन,False,,False,True
+item_0281,थैला,थैला,bag,घर में छोटी वस्तुएं,small household objects,19_36,,थैला ,False,,False,True
+item_0282,फोन,फोन,phone,घर में छोटी वस्तुएं,small household objects,19_36,,फोन ,False,,False,True
+item_0283,बेलन,बेलन,rolling pin,घर में छोटी वस्तुएं,small household objects,19_36,,बेलन ,False,,False,True
+item_0284,बॉक्स,बॉक्स,box,घर में छोटी वस्तुएं,small household objects,19_36,,बॉक्स ,False,,False,True
+item_0285,मग,मग,mug,घर में छोटी वस्तुएं,small household objects,19_36,,मग ,False,,False,True
+item_0286,रज़ाई,रज़ाई,quilt,घर में छोटी वस्तुएं,small household objects,19_36,,रज़ाई ,False,,False,True
+item_0287,रेडियो,रेडियो,radio,घर में छोटी वस्तुएं,small household objects,19_36,,रेडियो ,False,,False,True
+item_0288,लैपटॉप,लैपटॉप,laptop,घर में छोटी वस्तुएं,small household objects,19_36,,लैपटॉप ,False,,False,True
+item_0289,शीशा,शीशा,mirror/glass,घर में छोटी वस्तुएं,small household objects,19_36,,शीशा ,False,,False,True
+item_0290,सिलेंडर,सिलेंडर,cylinder,घर में छोटी वस्तुएं,small household objects,19_36,,सिलेंडर ,False,,False,True
+item_0291,स्पीकर,स्पीकर,speaker,घर में छोटी वस्तुएं,small household objects,19_36,,स्पीकर ,False,,False,True
+item_0292,हथौड़ा,हथौड़ा,hammer,घर में छोटी वस्तुएं,small household objects,19_36,,हथौड़ा ,False,,False,True
+item_0293,हैंगर,हैंगर,hanger,घर में छोटी वस्तुएं,small household objects,19_36,,हैंगर ,False,,False,True
+item_0294,हैंड बैग,हैंड बैग,handbag,घर में छोटी वस्तुएं,small household objects,19_36,,हैंड बैग ,False,,False,True
+item_0295,अलमारी,अलमारी,cupboard/wardrobe,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,अलमारी ,अलमारी ,False,,True,True
+item_0296,कुर्सी,कुर्सी,chair,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,कुर्सी,कुर्सी,False,,True,True
+item_0297,खिड़की,खिड़की,window,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,खिड़की ,खिड़की ,True,,True,True
+item_0298,छत,छत,roof/ceiling,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,छत,छत,False,,True,True
+item_0299,टीवी,टीवी,TV,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,टीवी ,टीवी ,False,,True,True
+item_0300,टेबल,टेबल,table,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,टेबल ,टेबल ,False,,True,True
+item_0301,नल,नल,tap,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,नल ,नल ,False,,True,True
+item_0302,परदा,परदा,curtain,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,परदा ,परदा ,False,,True,True
+item_0303,पलंग,पलंग,bed/cot,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,पलंग ,पलंग ,False,,True,True
+item_0304,फर्श,फर्श,floor,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,फर्श ,फर्श ,False,,True,True
+item_0305,फ्रीज़,फ्रीज़,fridge,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,फ्रीज़,फ्रीज़,False,,True,True
+item_0306,बाथटब,बाथटब,bathtub,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,बाथटब ,बाथटब ,False,,True,True
+item_0307,बिस्तर,बिस्तर,bed,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,बिस्तर ,बिस्तर ,False,,True,True
+item_0308,रैक,रैक,rack,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,रैक ,रैक ,False,,True,True
+item_0309,वॉशिंग मशीन,वॉशिंग मशीन,washing machine,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,वॉशिंग मशीन ,वॉशिंग मशीन ,False,,True,True
+item_0310,सीढ़ियाँ,सीढ़ियाँ,stairs,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,सीढ़ियाँ ,सीढ़ियाँ ,False,,True,True
+item_0311,सोफा,सोफा,sofa,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,सोफा ,सोफा ,False,,True,True
+item_0312,कमरा,कमरा,room,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,कमरा,कमरा,False,,True,True
+item_0313,दरवाजा,दरवाजा,door,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,दरवाजा ,दरवाजा ,False,,True,True
+item_0314,एयर कंडीशनर,एयर कंडीशनर,air conditioner,कमरा और फर्नीचर,rooms and furniture,8_18;19_36,एयर कंडीशनर ,एयर कंडीशनर ,False,,True,True
+item_0315,इस्त्री,इस्त्री,iron,कमरा और फर्नीचर,rooms and furniture,19_36,,इस्त्री,False,,False,True
+item_0316,कंप्यूटर,कंप्यूटर,computer,कमरा और फर्नीचर,rooms and furniture,19_36,,कंप्यूटर ,False,,False,True
+item_0317,कमोड,कमोड,commode,कमरा और फर्नीचर,rooms and furniture,19_36,,कमोड ,False,,False,True
+item_0318,कालीन,कालीन,carpet,कमरा और फर्नीचर,rooms and furniture,19_36,,कालीन  ,False,,False,True
+item_0319,बाथरूम,बाथरूम,bathroom,कमरा और फर्नीचर,rooms and furniture,19_36,,बाथरूम ,True,,False,True
+item_0320,गद्दा,गद्दा,mattress,कमरा और फर्नीचर,rooms and furniture,19_36,,गद्दा ,False,,False,True
+item_0321,ग्रिल,ग्रिल,grill,कमरा और फर्नीचर,rooms and furniture,19_36,,ग्रिल ,False,,False,True
+item_0322,चूल्हा,चूल्हा,stove,कमरा और फर्नीचर,rooms and furniture,19_36,,चूल्हा ,False,,False,True
+item_0323,प्लेट,प्लेट,plate,कमरा और फर्नीचर,rooms and furniture,19_36,,प्लेट ,False,,False,True
+item_0324,फूलदान,फूलदान,vase,कमरा और फर्नीचर,rooms and furniture,19_36,,फूलदान ,False,,False,True
+item_0325,बालकनी,बालकनी,balcony,कमरा और फर्नीचर,rooms and furniture,19_36,,बालकनी ,False,,False,True
+item_0326,बाल्टी,बाल्टी,bucket,कमरा और फर्नीचर,rooms and furniture,19_36,,बाल्टी ,False,,False,True
+item_0327,बेसिन,बेसिन,basin,कमरा और फर्नीचर,rooms and furniture,19_36,,बेसिन ,False,,False,True
+item_0328,भोजन कक्ष,भोजन कक्ष,dining room,कमरा और फर्नीचर,rooms and furniture,19_36,,भोजन कक्ष ,False,,False,True
+item_0329,लॉकर,लॉकर,locker,कमरा और फर्नीचर,rooms and furniture,19_36,,लॉकर ,False,,False,True
+item_0330,शॉवर,शॉवर,shower,कमरा और फर्नीचर,rooms and furniture,19_36,,शॉवर ,False,,False,True
+item_0331,शौचालय,शौचालय,toilet,कमरा और फर्नीचर,rooms and furniture,19_36,,शौचालय ,False,,False,True
+item_0332,आसमान,आसमान,sky,बाहर की चीज़ें,outside things,8_18;19_36,आसमान ,आसमान ,False,,True,True
+item_0333,ईट,ईट,brick,बाहर की चीज़ें,outside things,8_18;19_36,ईट,ईट,False,,True,True
+item_0334,चाँद,चाँद,moon,बाहर की चीज़ें,outside things,8_18;19_36,चाँद ,चाँद ,False,,True,True
+item_0335,झंडा,झंडा,flag,बाहर की चीज़ें,outside things,8_18;19_36,झंडा ,झंडा ,False,,True,True
+item_0336,धूप,धूप,sunlight,बाहर की चीज़ें,outside things,8_18;19_36,धूप ,धूप ,False,,True,True
+item_0337,पेड़,पेड़,tree,बाहर की चीज़ें,outside things,8_18;19_36,पेड़ ,पेड़ ,False,,True,True
+item_0338,फूल,फूल,flower,बाहर की चीज़ें,outside things,8_18;19_36,फूल ,फूल ,False,,True,True
+item_0339,बादल,बादल,cloud,बाहर की चीज़ें,outside things,8_18;19_36,बादल ,बादल ,False,,True,True
+item_0340,बारिश,बारिश,rain,बाहर की चीज़ें,outside things,8_18;19_36,बारिश ,बारिश ,False,,True,True
+item_0341,मिट्टी,मिट्टी,soil/mud,बाहर की चीज़ें,outside things,8_18;19_36,मिट्टी ,मिट्टी ,False,,True,True
+item_0342,रास्ता,रास्ता,road/path,बाहर की चीज़ें,outside things,8_18;19_36,रास्ता,रास्ता,False,,True,True
+item_0343,सूरज,सूरज,sun,बाहर की चीज़ें,outside things,8_18;19_36,सूरज ,सूरज ,False,,True,True
+item_0344,हवा,हवा,air/wind,बाहर की चीज़ें,outside things,8_18;19_36,हवा ,हवा ,False,,True,True
+item_0345,घास,घास,grass,बाहर की चीज़ें,outside things,19_36,,घास ,False,,False,True
+item_0346,धूल,धूल,dust,बाहर की चीज़ें,outside things,19_36,,धूल ,False,,False,True
+item_0347,नदी,नदी,river,बाहर की चीज़ें,outside things,19_36,,नदी ,False,,False,True
+item_0348,नाला,नाला,drain/stream,बाहर की चीज़ें,outside things,19_36,,नाला ,False,,False,True
+item_0349,पत्थर,पत्थर,stone,बाहर की चीज़ें,outside things,19_36,,पत्थर ,False,,False,True
+item_0350,बाँस,बाँस,bamboo,बाहर की चीज़ें,outside things,19_36,,बाँस ,False,,False,True
+item_0351,बागान,बागान,garden/plantation,बाहर की चीज़ें,outside things,19_36,,बागान ,False,,False,True
+item_0352,बालू,बालू,sand,बाहर की चीज़ें,outside things,19_36,,बालू ,False,,False,True
+item_0353,अस्पताल,अस्पताल,hospital,जाने लायक जगहें,places to go,8_18;19_36,अस्पताल ,अस्पताल ,False,,True,True
+item_0354,गांव,गांव,village,जाने लायक जगहें,places to go,8_18;19_36,गांव ,गांव ,False,,True,True
+item_0355,घर,घर,home/house,जाने लायक जगहें,places to go,8_18;19_36,घर ,घर ,False,,True,True
+item_0356,चिड़ियाघर,चिड़ियाघर,zoo,जाने लायक जगहें,places to go,8_18;19_36,चिड़ियाघर ,चिड़ियाघर ,False,,True,True
+item_0357,दुकान,दुकान,shop,जाने लायक जगहें,places to go,8_18;19_36,दुकान ,दुकान ,False,,True,True
+item_0358,पार्क /मैदान,पार्क /मैदान,park/playground,जाने लायक जगहें,places to go,8_18,पार्क /मैदान,,False,,True,False
+item_0359,पार्टी,पार्टी,party,जाने लायक जगहें,places to go,8_18;19_36,पार्टी ,पार्टी ,False,,True,True
+item_0360,बाजार/मार्केट,बाजार/मार्केट,market,जाने लायक जगहें,places to go,8_18;19_36,बाजार/मार्केट ,बाजार/मार्केट ,False,,True,True
+item_0361,बाहर,बाहर,outside,जाने लायक जगहें,places to go,8_18;19_36,बाहर ,बाहर ,True,,True,True
+item_0362,मंदिर,मंदिर,temple,जाने लायक जगहें,places to go,8_18;19_36,मंदिर,मंदिर,False,,True,True
+item_0363,मेला,मेला,fair,जाने लायक जगहें,places to go,8_18;19_36,मेला,मेला,False,,True,True
+item_0364,रेस्टोरेंट,रेस्टोरेंट,restaurant,जाने लायक जगहें,places to go,8_18;19_36,रेस्टोरेंट ,रेस्टोरेंट ,False,,True,True
+item_0365,शहर,शहर,city,जाने लायक जगहें,places to go,8_18;19_36,शहर ,शहर ,False,,True,True
+item_0366,गार्डन,गार्डन,garden,जाने लायक जगहें,places to go,19_36,,गार्डन ,False,,False,True
+item_0367,जंगल,जंगल,forest,जाने लायक जगहें,places to go,19_36,,जंगल ,False,,False,True
+item_0368,दफ़्तर,दफ़्तर,office,जाने लायक जगहें,places to go,19_36,,दफ़्तर ,False,,False,True
+item_0369,पार्क,पार्क,park,जाने लायक जगहें,places to go,19_36,,पार्क ,False,,False,True
+item_0370,पिकनिक,पिकनिक,picnic,जाने लायक जगहें,places to go,19_36,,पिकनिक ,False,,False,True
+item_0371,मदरसा/मक्तब,मदरसा/मक्तब,madrasa/maktab,जाने लायक जगहें,places to go,19_36,,मदरसा/मक्तब ,False,,False,True
+item_0372,मैदान,मैदान,ground/field,जाने लायक जगहें,places to go,19_36,,मैदान,False,,False,True
+item_0373,विद्यालय,विद्यालय,school,जाने लायक जगहें,places to go,19_36,,विद्यालय ,False,,False,True
+item_0374,सब्जी मंडी,सब्जी मंडी,vegetable market,जाने लायक जगहें,places to go,19_36,,सब्जी मंडी ,False,,False,True
+item_0375,स्कूल,स्कूल,school,जाने लायक जगहें,places to go,19_36,,स्कूल ,False,,False,True
+item_0376,सिनेमा हॉल,सिनेमा हॉल,cinema hall,जाने लायक जगहें,places to go,19_36,,सिनेमा हॉल ,False,,False,True
+item_0377,आदमी,आदमी,man,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,आदमी ,आदमी ,False,,True,True
+item_0378,आया,आया,nanny/helper,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,आया ,आया ,False,,True,True
+item_0379,इंसान,इंसान,human/person,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,इंसान ,इंसान ,False,,True,True
+item_0380,औरत,औरत,woman,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,औरत ,औरत ,False,,True,True
+item_0381,चाचा/चाचू/काका/अंकल,चाचा/चाचू/काका/अंकल,uncle,मानव/इंसान और रिश्ते,people and relationships,8_18,चाचा/चाचू/काका/अंकल ,,False,,True,False
+item_0382,चाची/काकी/आंटी,चाची/काकी/आंटी,aunt,मानव/इंसान और रिश्ते,people and relationships,8_18,चाची/काकी/आंटी ,,False,,True,False
+item_0383,डॉक्टर,डॉक्टर,doctor,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,डॉक्टर ,डॉक्टर ,False,,True,True
+item_0384,दादा,दादा,paternal grandfather,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,दादा ,दादा ,False,,True,True
+item_0385,दादी,दादी,paternal grandmother,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,दादी ,दादी ,False,,True,True
+item_0386,दीदी,दीदी,elder sister,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,दीदी ,दीदी ,False,,True,True
+item_0387,दुकानदार,दुकानदार,shopkeeper,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,दुकानदार ,दुकानदार ,False,,True,True
+item_0388,नाना,नाना,maternal grandfather,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,नाना ,नाना ,False,,True,True
+item_0389,नानी,नानी,maternal grandmother,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,नानी ,नानी ,False,,True,True
+item_0390,पापा,पापा,father/dad,मानव/इंसान और रिश्ते,people and relationships,8_18,पापा ,,False,,True,False
+item_0391,फूफा,फूफा,uncle,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,फूफा ,फूफा ,False,,True,True
+item_0392,बच्चा/बच्ची,बच्चा/बच्ची,child,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,बच्चा/बच्ची ,बच्चा/बच्ची ,False,,True,True
+item_0393,बच्चे का अपना नाम,बच्चे का अपना नाम,child’s own name,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,बच्चे का अपना नाम ,बच्चे का अपना नाम ,False,,True,True
+item_0394,बहन,बहन,sister,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,बहन ,बहन ,False,,True,True
+item_0395,बुआ,बुआ,aunt,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,बुआ ,बुआ,False,,True,True
+item_0396,भाई,भाई,brother,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,भाई ,भाई ,False,,True,True
+item_0397,माँ /अम्मा,माँ /अम्मा,mother/mom,मानव/इंसान और रिश्ते,people and relationships,8_18,माँ /अम्मा ,,False,,True,False
+item_0398,मामा,मामा,maternal uncle,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,मामा ,मामा ,False,,True,True
+item_0399,मामी,मामी,maternal aunt,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,मामी ,मामी ,False,,True,True
+item_0400,मौसा,मौसा,uncle,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,मौसा,मौसा,False,,True,True
+item_0401,मौसी,मौसी,aunt,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,मौसी ,मौसी ,False,,True,True
+item_0402,लड़की,लड़की,girl,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,लड़की ,लड़की ,False,,True,True
+item_0403,लोग,लोग,people,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,लोग ,लोग ,False,,True,True
+item_0404,दोस्त/मित्र,दोस्त/मित्र,friend,मानव/इंसान और रिश्ते,people and relationships,8_18;19_36,दोस्त/मित्र,दोस्त/मित्र,False,,True,True
+item_0405,अम्मा,अम्मा,mother/mom,मानव/इंसान और रिश्ते,people and relationships,19_36,,अम्मा ,False,,False,True
+item_0406,किसान/कृषक,किसान/कृषक,farmer,मानव/इंसान और रिश्ते,people and relationships,19_36,,किसान/कृषक ,False,,False,True
+item_0407,काका,काका,uncle,मानव/इंसान और रिश्ते,people and relationships,19_36,,काका,False,,False,True
+item_0408,काकी,काकी,aunt,मानव/इंसान और रिश्ते,people and relationships,19_36,,काकी,False,,False,True
+item_0409,चाचा/चाचू/अंकल,चाचा/चाचू/अंकल,uncle,मानव/इंसान और रिश्ते,people and relationships,19_36,,चाचा/चाचू/अंकल ,False,,False,True
+item_0410,चाची/आंटी,चाची/आंटी,aunt,मानव/इंसान और रिश्ते,people and relationships,19_36,,चाची/आंटी ,False,,False,True
+item_0411,पंडित / पुजारी,पंडित / पुजारी,priest,मानव/इंसान और रिश्ते,people and relationships,19_36,,पंडित / पुजारी,False,,False,True
+item_0412,पुलिस,पुलिस,police,मानव/इंसान और रिश्ते,people and relationships,19_36,,पुलिस ,False,,False,True
+item_0413,भाभी,भाभी,sister-in-law,मानव/इंसान और रिश्ते,people and relationships,19_36,,भाभी ,False,,False,True
+item_0414,रिक्शा वाला,रिक्शा वाला,rickshaw driver,मानव/इंसान और रिश्ते,people and relationships,19_36,,रिक्शा वाला ,False,,False,True
+item_0415,शिक्षक/सर/मास्टर,शिक्षक/सर/मास्टर,teacher,मानव/इंसान और रिश्ते,people and relationships,19_36,,शिक्षक/सर/मास्टर ,False,,False,True
+item_0416,हुजूर/इमाम/मौलवी,हुजूर/इमाम/मौलवी,religious teacher/imam,मानव/इंसान और रिश्ते,people and relationships,19_36,,हुजूर/इमाम/मौलवी ,False,,False,True
+item_0417,आँखें बंद करना,आँखें बंद करना,close eyes,क्रिया शब्द,action words,8_18;19_36,आँखें बंद करना ,आँखें बंद करना ,False,,True,True
+item_0418,आना,आना,come,क्रिया शब्द,action words,8_18;19_36,आना,आना,False,,True,True
+item_0419,उठना,उठना,get up,क्रिया शब्द,action words,8_18;19_36,उठना ,उठना ,False,,True,True
+item_0420,उठाना,उठाना,pick up/lift,क्रिया शब्द,action words,8_18;19_36,उठाना ,उठाना ,False,,True,True
+item_0421,उतरना,उतरना,get down,क्रिया शब्द,action words,8_18;19_36,उतरना ,उतरना ,False,,True,True
+item_0422,कपड़े पहनना,कपड़े पहनना,wear clothes,क्रिया शब्द,action words,8_18;19_36,कपड़े पहनना ,कपड़े पहनना ,False,,True,True
+item_0423,कहना,कहना,say,क्रिया शब्द,action words,8_18;19_36,कहना ,कहना ,False,,True,True
+item_0424,कहानियाँ,कहानियाँ,stories,क्रिया शब्द,action words,8_18,कहानियाँ,,False,,True,False
+item_0425,काटना,काटना,cut,क्रिया शब्द,action words,8_18;19_36,काटना ,काटना ,False,,True,True
+item_0426,काम करना,काम करना,work,क्रिया शब्द,action words,8_18;19_36,काम करना ,काम करना ,False,,True,True
+item_0427,कूदना,कूदना,jump,क्रिया शब्द,action words,8_18;19_36,कूदना,कूदना,False,,True,True
+item_0428,खड़ा होना,खड़ा होना,stand,क्रिया शब्द,action words,8_18;19_36,खड़ा होना ,खड़ा होना ,False,,True,True
+item_0429,खांसी,खांसी,cough,क्रिया शब्द,action words,8_18,खांसी,,False,,True,False
+item_0430,छींक,छींक,sneeze,क्रिया शब्द,action words,8_18,छींक ,,False,,True,False
+item_0431,खाना,खाना,eat,क्रिया शब्द,action words,8_18;19_36,खाना ,खाना ,False,,True,True
+item_0432,खींचना,खींचना,pull,क्रिया शब्द,action words,8_18;19_36,खींचना ,खींचना ,False,,True,True
+item_0433,खेलना,खेलना,play,क्रिया शब्द,action words,8_18;19_36,खेलना ,खेलना ,False,,True,True
+item_0434,खोलना,खोलना,open,क्रिया शब्द,action words,8_18;19_36,खोलना ,खोलना ,False,,True,True
+item_0435,गले लगाना,गले लगाना,hug,क्रिया शब्द,action words,8_18;19_36,गले लगाना ,गले लगाना ,False,,True,True
+item_0436,गाड़ी चलाना,गाड़ी चलाना,drive,क्रिया शब्द,action words,8_18;19_36,गाड़ी चलाना ,गाड़ी चलाना  ,False,,True,True
+item_0437,गाना,गाना,sing/song,क्रिया शब्द,action words,8_18;19_36,गाना ,गाना ,True,,True,True
+item_0438,गिरना,गिरना,fall,क्रिया शब्द,action words,8_18;19_36,गिरना ,गिरना ,False,,True,True
+item_0439,गिराना,गिराना,drop/make fall,क्रिया शब्द,action words,8_18;19_36,गिराना ,गिराना ,False,,True,True
+item_0440,चढ़ना,चढ़ना,climb,क्रिया शब्द,action words,8_18;19_36,चढ़ना ,चढ़ना ,False,,True,True
+item_0441,चलना,चलना,walk/go,क्रिया शब्द,action words,8_18;19_36,चलना ,चलना ,False,,True,True
+item_0442,चिल्लाना,चिल्लाना,shout,क्रिया शब्द,action words,8_18;19_36,चिल्लाना ,चिल्लाना ,False,,True,True
+item_0443,चुम्बन लेना,चुम्बन लेना,kiss,क्रिया शब्द,action words,8_18;19_36,चुम्बन लेना ,चुम्बन लेना ,False,,True,True
+item_0444,जाना,जाना,go,क्रिया शब्द,action words,8_18;19_36,जाना ,जाना ,False,,True,True
+item_0445,झुकना,झुकना,bend,क्रिया शब्द,action words,8_18;19_36,झुकना ,झुकना ,False,,True,True
+item_0446,ढूंढना,ढूंढना,search/find,क्रिया शब्द,action words,8_18;19_36,ढूंढना ,ढूंढना ,False,,True,True
+item_0447,ताली बजाना,ताली बजाना,clap,क्रिया शब्द,action words,8_18;19_36,ताली बजाना ,ताली बजाना ,False,,True,True
+item_0448,तोड़ना,तोड़ना,break,क्रिया शब्द,action words,8_18;19_36,तोड़ना ,तोड़ना ,False,,True,True
+item_0449,थप्पड़ मारना,थप्पड़ मारना,slap,क्रिया शब्द,action words,8_18;19_36,थप्पड़ मारना ,थप्पड़ मारना ,False,,True,True
+item_0450,दिखाना,दिखाना,show,क्रिया शब्द,action words,8_18;19_36,दिखाना ,दिखाना ,False,,True,True
+item_0451,देखना,देखना,see/look,क्रिया शब्द,action words,8_18;19_36,देखना ,देखना ,False,,True,True
+item_0452,दौड़ना,दौड़ना,run,क्रिया शब्द,action words,8_18;19_36,दौड़ना ,दौड़ना ,False,,True,True
+item_0453,नहाना,नहाना,bathe,क्रिया शब्द,action words,8_18,नहाना ,,False,,True,False
+item_0454,नाचना,नाचना,dance,क्रिया शब्द,action words,8_18;19_36,नाचना ,नाचना ,False,,True,True
+item_0455,पकड़ना,पकड़ना,catch/hold,क्रिया शब्द,action words,8_18;19_36,पकड़ना ,पकड़ना ,False,,True,True
+item_0456,पढ़ना,पढ़ना,read/study,क्रिया शब्द,action words,8_18;19_36,पढ़ना ,पढ़ना ,False,,True,True
+item_0457,पसंद करना,पसंद करना,like,क्रिया शब्द,action words,8_18;19_36,पसंद करना ,पसंद करना ,False,,True,True
+item_0458,प्यार करना,प्यार करना,love,क्रिया शब्द,action words,8_18;19_36,प्यार करना ,प्यार करना ,False,,True,True
+item_0459,प्रार्थना करना,प्रार्थना करना,pray,क्रिया शब्द,action words,8_18;19_36,प्रार्थना करना ,प्रार्थना करना ,False,,True,True
+item_0460,फूंक मारना,फूंक मारना,blow,क्रिया शब्द,action words,8_18;19_36,फूंक मारना ,फूंक मारना ,False,,True,True
+item_0461,फेंकना,फेंकना,throw,क्रिया शब्द,action words,8_18;19_36,फेंकना ,फेंकना ,False,,True,True
+item_0462,बंद करना,बंद करना,close/turn off,क्रिया शब्द,action words,8_18;19_36,बंद करना ,बंद करना ,False,,True,True
+item_0463,बाहर निकालना,बाहर निकालना,take out,क्रिया शब्द,action words,8_18;19_36,बाहर निकालना ,बाहर निकालना ,False,,True,True
+item_0464,बैठना,बैठना,sit,क्रिया शब्द,action words,8_18;19_36,बैठना ,बैठना ,False,,True,True
+item_0465,ब्रश करना,ब्रश करना,brush,क्रिया शब्द,action words,8_18;19_36,ब्रश करना ,ब्रश करना ,False,,True,True
+item_0466,मत जाना,मत जाना,do not go,क्रिया शब्द,action words,8_18;19_36,मत जाना ,मत जाना ,False,,True,True
+item_0467,मारना,मारना,hit,क्रिया शब्द,action words,8_18;19_36,मारना ,मारना ,False,,True,True
+item_0468,मिलाना,मिलाना,mix/meet,क्रिया शब्द,action words,8_18;19_36,मिलाना ,मिलाना ,False,,True,True
+item_0469,मुँह खोलना,मुँह खोलना,open mouth,क्रिया शब्द,action words,8_18;19_36,मुँह खोलना ,मुँह खोलना ,False,,True,True
+item_0470,रखना,रखना,keep/put,क्रिया शब्द,action words,8_18;19_36,रखना ,रखना ,True,,True,True
+item_0471,रुकना,रुकना,stop,क्रिया शब्द,action words,8_18;19_36,रुकना ,रुकना ,False,,True,True
+item_0472,रेंगना,रेंगना,crawl,क्रिया शब्द,action words,8_18;19_36,रेंगना ,रेंगना ,True,,True,True
+item_0473,रोना,रोना,cry,क्रिया शब्द,action words,8_18;19_36,रोना ,रोना ,False,,True,True
+item_0474,लात मारना,लात मारना,kick,क्रिया शब्द,action words,8_18;19_36,लात मारना ,लात मारना ,False,,True,True
+item_0475,लाना,लाना,bring,क्रिया शब्द,action words,8_18;19_36,लाना ,लाना ,False,,True,True
+item_0476,लिखना,लिखना,write,क्रिया शब्द,action words,8_18;19_36,लिखना ,लिखना ,False,,True,True
+item_0477,लेटना,लेटना,lie down,क्रिया शब्द,action words,8_18;19_36,लेटना ,लेटना ,False,,True,True
+item_0478,लेना,लेना,take,क्रिया शब्द,action words,8_18;19_36,लेना ,लेना ,False,,True,True
+item_0479,शैतान होना,शैतान होना,be naughty,क्रिया शब्द,action words,8_18;19_36,शैतान होना ,शैतान होना ,False,,True,True
+item_0480,शोर मचाना,शोर मचाना,make noise,क्रिया शब्द,action words,8_18;19_36,शोर मचाना ,शोर मचाना ,False,,True,True
+item_0481,समाप्त करना,समाप्त करना,finish,क्रिया शब्द,action words,8_18;19_36,समाप्त करना ,समाप्त करना ,False,,True,True
+item_0482,सवारी करना,सवारी करना,ride,क्रिया शब्द,action words,8_18;19_36,सवारी करना,सवारी करना,False,,True,True
+item_0483,साझा करना,साझा करना,share,क्रिया शब्द,action words,8_18;19_36,साझा करना ,साझा करना ,False,,True,True
+item_0484,साफ करना,साफ करना,clean,क्रिया शब्द,action words,8_18;19_36,साफ करना ,साफ करना ,False,,True,True
+item_0485,सुनना,सुनना,listen/hear,क्रिया शब्द,action words,8_18;19_36,सुनना ,सुनना ,False,,True,True
+item_0486,सोना,सोना,sleep,क्रिया शब्द,action words,8_18;19_36,सोना ,सोना ,False,,True,True
+item_0487,हंसना,हंसना,laugh,क्रिया शब्द,action words,8_18;19_36,हंसना ,हंसना ,False,,True,True
+item_0488,हाथ मिलाना,हाथ मिलाना,shake hands,क्रिया शब्द,action words,8_18;19_36,हाथ मिलाना ,हाथ मिलाना ,False,,True,True
+item_0489,इंतजार करना,इंतजार करना,wait,क्रिया शब्द,action words,19_36,,इंतजार करना ,False,,False,True
+item_0490,कविता,कविता,poem,क्रिया शब्द,action words,19_36,,कविता,False,,False,True
+item_0491,कहानियाँ सुनाना,कहानियाँ सुनाना,tell stories,क्रिया शब्द,action words,19_36,,कहानियाँ सुनाना ,False,,False,True
+item_0492,कुल्ला करना,कुल्ला करना,rinse mouth,क्रिया शब्द,action words,19_36,,कुल्ला करना ,False,,False,True
+item_0493,खांसी आना,खांसी आना,cough,क्रिया शब्द,action words,19_36,,खांसी आना ,False,,False,True
+item_0494,गुड़िया खेलना,गुड़िया खेलना,play with doll,क्रिया शब्द,action words,19_36,,गुड़िया खेलना ,False,,False,True
+item_0495,चित्र बनाना,चित्र बनाना,draw a picture,क्रिया शब्द,action words,19_36,,चित्र बनाना ,False,,False,True
+item_0496,चुटकी लेना,चुटकी लेना,pinch,क्रिया शब्द,action words,19_36,,चुटकी लेना ,False,,False,True
+item_0497,छींक आना,छींक आना,sneeze,क्रिया शब्द,action words,19_36,,छींक आना ,False,,False,True
+item_0498,देना,देना,give,क्रिया शब्द,action words,19_36,,देना ,False,,False,True
+item_0499,धमाका करना,धमाका करना,make a bang,क्रिया शब्द,action words,19_36,,धमाका करना ,False,,False,True
+item_0500,धोना,धोना,wash,क्रिया शब्द,action words,19_36,,धोना ,False,,False,True
+item_0501,पकाना,पकाना,cook,क्रिया शब्द,action words,19_36,,पकाना ,False,,False,True
+item_0502,फटना,फटना,burst/tear,क्रिया शब्द,action words,19_36,,फटना ,False,,False,True
+item_0503,बनाना,बनाना,make,क्रिया शब्द,action words,19_36,,बनाना ,False,,False,True
+item_0504,शुरू करना,शुरू करना,start,क्रिया शब्द,action words,19_36,,शुरू करना ,False,,False,True
+item_0505,सजना,सजना,get dressed/decorate,क्रिया शब्द,action words,19_36,,सजना ,False,,False,True
+item_0506,सोचना,सोचना,think,क्रिया शब्द,action words,19_36,,सोचना ,False,,False,True
+item_0507,स्नेह करना,स्नेह करना,show affection,क्रिया शब्द,action words,19_36,,स्नेह करना ,False,,False,True
+item_0508,होना,होना,be/happen,क्रिया शब्द,action words,19_36,,होना ,False,,False,True
+item_0509,अंधेरा,अंधेरा,dark,विस्तृत शब्द,descriptive words,8_18;19_36,अंधेरा ,अंधेरा ,False,,True,True
+item_0510,अच्छा,अच्छा,good,विस्तृत शब्द,descriptive words,8_18;19_36,अच्छा,अच्छा,False,,True,True
+item_0511,आरामसे,आरामसे,gently/comfortably,विस्तृत शब्द,descriptive words,8_18;19_36,आरामसे ,आरामसे ,False,,True,True
+item_0512,खट्टा,खट्टा,sour,विस्तृत शब्द,descriptive words,8_18;19_36,खट्टा ,खट्टा ,False,,True,True
+item_0513,खाली,खाली,empty,विस्तृत शब्द,descriptive words,8_18;19_36,खाली,खाली,False,,True,True
+item_0514,खुश,खुश,happy,विस्तृत शब्द,descriptive words,8_18;19_36,खुश ,खुश ,False,,True,True
+item_0515,गंदा,गंदा,dirty,विस्तृत शब्द,descriptive words,8_18;19_36,गंदा ,गंदा ,False,,True,True
+item_0516,गरम,गरम,hot,विस्तृत शब्द,descriptive words,8_18;19_36,गरम ,गरम ,False,,True,True
+item_0517,गलत,गलत,wrong,विस्तृत शब्द,descriptive words,8_18;19_36,गलत ,गलत ,False,,True,True
+item_0518,गलती,गलती,mistake,विस्तृत शब्द,descriptive words,8_18;19_36,गलती ,गलती ,False,,True,True
+item_0519,गीला,गीला,wet,विस्तृत शब्द,descriptive words,8_18;19_36,गीला ,गीला ,False,,True,True
+item_0520,गुस्से में,गुस्से में,angry,विस्तृत शब्द,descriptive words,8_18;19_36,गुस्से में ,गुस्से में ,False,,True,True
+item_0521,गोल,गोल,round,विस्तृत शब्द,descriptive words,8_18;19_36,गोल ,गोल ,False,,True,True
+item_0522,चमकीला,चमकीला,shiny,विस्तृत शब्द,descriptive words,8_18;19_36,चमकीला ,चमकीला ,False,,True,True
+item_0523,छिपा,छिपा,hidden,विस्तृत शब्द,descriptive words,8_18;19_36,छिपा ,छिपा ,False,,True,True
+item_0524,छोटा,छोटा,small,विस्तृत शब्द,descriptive words,8_18;19_36,छोटा ,छोटा ,False,,True,True
+item_0525,जल्दी,जल्दी,quickly/soon,विस्तृत शब्द,descriptive words,8_18;19_36,जल्दी ,जल्दी ,False,,True,True
+item_0526,ऊब जाना,ऊब जाना,get bored,विस्तृत शब्द,descriptive words,8_18;19_36,ऊब जाना ,ऊब जाना ,False,,True,True
+item_0527,ज़िद्दी,ज़िद्दी,stubborn,विस्तृत शब्द,descriptive words,8_18;19_36,ज़िद्दी ,ज़िद्दी ,False,,True,True
+item_0528,टिका,टिका,stuck/fixed,विस्तृत शब्द,descriptive words,8_18;19_36,टिका ,टिका ,False,,True,True
+item_0529,ठंडा,ठंडा,cold drink/cold,विस्तृत शब्द,descriptive words,8_18,ठंडा ,,False,,True,False
+item_0530,डर,डर,fear,विस्तृत शब्द,descriptive words,8_18;19_36,डर ,डर ,False,,True,True
+item_0531,डरपोक,डरपोक,scared/cowardly,विस्तृत शब्द,descriptive words,8_18;19_36,डरपोक ,डरपोक ,False,,True,True
+item_0532,तंग,तंग,tight/narrow,विस्तृत शब्द,descriptive words,8_18;19_36,तंग ,तंग ,False,,True,True
+item_0533,थका,थका,tired,विस्तृत शब्द,descriptive words,8_18;19_36,थका ,थका  ,False,,True,True
+item_0534,नीचे,नीचे,down/below,विस्तृत शब्द,descriptive words,8_18;19_36,नीचे ,नीचे ,True,,True,True
+item_0535,बड़ा,बड़ा,big,विस्तृत शब्द,descriptive words,8_18;19_36,बड़ा ,बड़ा ,False,,True,True
+item_0536,बहुत,बहुत,very/much,विस्तृत शब्द,descriptive words,8_18;19_36,बहुत ,बहुत ,True,,True,True
+item_0537,भारी,भारी,heavy,विस्तृत शब्द,descriptive words,8_18;19_36,भारी ,भारी ,False,,True,True
+item_0538,मिठा,मिठा,sweet,विस्तृत शब्द,descriptive words,8_18;19_36,मिठा ,मिठा ,False,,True,True
+item_0539,शांत,शांत,quiet/calm,विस्तृत शब्द,descriptive words,8_18;19_36,शांत ,शांत ,False,,True,True
+item_0540,शैतान,शैतान,naughty,विस्तृत शब्द,descriptive words,8_18;19_36,शैतान ,शैतान ,False,,True,True
+item_0541,साफ,साफ,clean,विस्तृत शब्द,descriptive words,8_18;19_36,साफ ,साफ ,False,,True,True
+item_0542,सुंदर,सुंदर,beautiful,विस्तृत शब्द,descriptive words,8_18;19_36,सुंदर ,सुंदर ,False,,True,True
+item_0543,अधिक,अधिक,more,विस्तृत शब्द,descriptive words,19_36,,अधिक ,True,,False,True
+item_0544,उदास,उदास,sad,विस्तृत शब्द,descriptive words,19_36,,उदास ,False,,False,True
+item_0545,काला,काला,black,विस्तृत शब्द,descriptive words,19_36,,काला ,False,,False,True
+item_0546,कुछ,कुछ,some,विस्तृत शब्द,descriptive words,19_36,,कुछ ,True,,False,True
+item_0547,गुलाबी,गुलाबी,pink,विस्तृत शब्द,descriptive words,19_36,,गुलाबी ,False,,False,True
+item_0548,तला हुआ,तला हुआ,fried,विस्तृत शब्द,descriptive words,19_36,,तला हुआ ,False,,False,True
+item_0549,ताजा,ताजा,fresh,विस्तृत शब्द,descriptive words,19_36,,ताजा ,False,,False,True
+item_0550,तेज़,तेज़,fast/sharp,विस्तृत शब्द,descriptive words,19_36,,तेज़ ,False,,False,True
+item_0551,धीमा,धीमा,slow,विस्तृत शब्द,descriptive words,19_36,,धीमा ,False,,False,True
+item_0552,नया,नया,new,विस्तृत शब्द,descriptive words,19_36,,नया  ,False,,False,True
+item_0553,नरम,नरम,soft,विस्तृत शब्द,descriptive words,19_36,,नरम ,False,,False,True
+item_0554,नीचा,नीचा,low,विस्तृत शब्द,descriptive words,19_36,,नीचा ,False,,False,True
+item_0555,नीला,नीला,blue,विस्तृत शब्द,descriptive words,19_36,,नीला ,False,,False,True
+item_0556,पीला,पीला,yellow,विस्तृत शब्द,descriptive words,19_36,,पीला ,False,,False,True
+item_0557,पुराना,पुराना,old,विस्तृत शब्द,descriptive words,19_36,,पुराना ,False,,False,True
+item_0558,पूरा,पूरा,whole/full,विस्तृत शब्द,descriptive words,19_36,,पूरा ,False,,False,True
+item_0559,बड़ी,बड़ी,big/feminine,विस्तृत शब्द,descriptive words,19_36,,बड़ी ,False,,False,True
+item_0560,बहादुर,बहादुर,brave,विस्तृत शब्द,descriptive words,19_36,,बहादुर ,False,,False,True
+item_0561,बुरा,बुरा,bad,विस्तृत शब्द,descriptive words,19_36,,बुरा ,False,,False,True
+item_0562,भरता,भरता,filling/full,विस्तृत शब्द,descriptive words,19_36,,भरता ,False,,False,True
+item_0563,महंगा,महंगा,expensive,विस्तृत शब्द,descriptive words,19_36,,महंगा,False,,False,True
+item_0564,मुलायम,मुलायम,soft,विस्तृत शब्द,descriptive words,19_36,,मुलायम ,False,,False,True
+item_0565,मोटा,मोटा,fat/thick,विस्तृत शब्द,descriptive words,19_36,,मोटा ,False,,False,True
+item_0566,लंबा,लंबा,long/tall,विस्तृत शब्द,descriptive words,19_36,,लंबा ,False,,False,True
+item_0567,लाल,लाल,red,विस्तृत शब्द,descriptive words,19_36,,लाल ,False,,False,True
+item_0568,सच में,सच में,really,विस्तृत शब्द,descriptive words,19_36,,सच में ,False,,False,True
+item_0569,सफेद,सफेद,white,विस्तृत शब्द,descriptive words,19_36,,सफेद ,False,,False,True
+item_0570,सस्ता,सस्ता,cheap,विस्तृत शब्द,descriptive words,19_36,,सस्ता ,False,,False,True
+item_0571,सीधा,सीधा,straight,विस्तृत शब्द,descriptive words,19_36,,सीधा ,False,,False,True
+item_0572,सूखा,सूखा,dry,विस्तृत शब्द,descriptive words,19_36,,सूखा ,False,,False,True
+item_0573,हरा,हरा,green,विस्तृत शब्द,descriptive words,19_36,,हरा ,False,,False,True
+item_0574,हल्का,हल्का,light,विस्तृत शब्द,descriptive words,19_36,,हल्का ,False,,False,True
+item_0575,अब,अब,now,समय के बारे में शब्द,time words,8_18;19_36,अब ,अब ,False,,True,True
+item_0576,आज,आज,today,समय के बारे में शब्द,time words,8_18;19_36,आज,आज,False,,True,True
+item_0577,कल,कल,yesterday/tomorrow,समय के बारे में शब्द,time words,8_18;19_36,कल ,कल ,False,,True,True
+item_0578,घड़ी,घड़ी,clock/watch,समय के बारे में शब्द,time words,8_18;19_36,घड़ी ,घड़ी ,False,,True,True
+item_0579,दोपहर,दोपहर,afternoon,समय के बारे में शब्द,time words,8_18;19_36,दोपहर ,दोपहर ,False,,True,True
+item_0580,पहले,पहले,before,समय के बारे में शब्द,time words,8_18;19_36,पहले,पहले ,False,,True,True
+item_0581,बाद,बाद,after,समय के बारे में शब्द,time words,8_18,बाद ,,False,,True,False
+item_0582,रात,रात,night,समय के बारे में शब्द,time words,8_18;19_36,रात ,रात ,False,,True,True
+item_0583,शाम,शाम,evening,समय के बारे में शब्द,time words,8_18;19_36,शाम ,शाम ,False,,True,True
+item_0584,सुबह,सुबह,morning,समय के बारे में शब्द,time words,8_18;19_36,सुबह ,सुबह ,False,,True,True
+item_0585,अगला,अगला,next,समय के बारे में शब्द,time words,19_36,,अगला ,False,,False,True
+item_0586,कभी-कभी,कभी-कभी,sometimes,समय के बारे में शब्द,time words,19_36,,कभी-कभी ,False,,False,True
+item_0587,घड़ी की सुई,घड़ी की सुई,clock hand,समय के बारे में शब्द,time words,19_36,,घड़ी की सुई ,False,,False,True
+item_0588,तब,तब,then,समय के बारे में शब्द,time words,19_36,,तब ,True,,False,True
+item_0589,देर,देर,late/delay,समय के बारे में शब्द,time words,19_36,,देर ,False,,False,True
+item_0590,बार-बार,बार-बार,again and again,समय के बारे में शब्द,time words,19_36,,बार-बार,False,,False,True
+item_0591,बीच,बीच,middle/between,समय के बारे में शब्द,time words,19_36,,बीच ,False,,False,True
+item_0592,समय,समय,time,समय के बारे में शब्द,time words,19_36,,समय ,False,,False,True
+item_0593,हमेशा,हमेशा,always,समय के बारे में शब्द,time words,19_36,,हमेशा ,False,,False,True
+item_0594,आप,आप,you/respectful,सर्वनाम,pronouns,8_18;19_36,आप,आप,False,,True,True
+item_0595,उसका,उसका,his/its,सर्वनाम,pronouns,8_18;19_36,उसका ,उसका ,False,,True,True
+item_0596,उसकी,उसकी,her/its,सर्वनाम,pronouns,8_18;19_36,उसकी,उसकी,False,,True,True
+item_0597,तुम,तुम,you,सर्वनाम,pronouns,8_18;19_36,तुम,तुम,False,,True,True
+item_0598,तू,तू,you/informal,सर्वनाम,pronouns,8_18;19_36,तू,तू,False,,True,True
+item_0599,मुझे,मुझे,me/to me,सर्वनाम,pronouns,8_18;19_36,मुझे ,मुझे ,False,,True,True
+item_0600,मेरा,मेरा,my,सर्वनाम,pronouns,8_18;19_36,मेरा ,मेरा ,False,,True,True
+item_0601,मैं,मैं,I,सर्वनाम,pronouns,8_18;19_36,मैं ,मैं ,False,,True,True
+item_0602,ये,ये,these/this,सर्वनाम,pronouns,8_18;19_36,ये ,ये ,False,,True,True
+item_0603,वह,वह,that/he/she,सर्वनाम,pronouns,8_18;19_36,वह ,वह ,False,,True,True
+item_0604,सब,सब,all,सर्वनाम,pronouns,8_18;19_36,सब ,सब ,False,,True,True
+item_0605,हम,हम,we,सर्वनाम,pronouns,8_18;19_36,हम ,हम ,False,,True,True
+item_0606,उनका,उनका,their,सर्वनाम,pronouns,19_36,,उनका ,False,,False,True
+item_0607,उन्हें,उन्हें,them,सर्वनाम,pronouns,19_36,,उन्हें ,False,,False,True
+item_0608,उसे,उसे,him/her,सर्वनाम,pronouns,19_36,,उसे ,False,,False,True
+item_0609,तुम्हारा,तुम्हारा,your,सर्वनाम,pronouns,19_36,,तुम्हारा ,False,,False,True
+item_0610,तुम्हें,तुम्हें,to you,सर्वनाम,pronouns,19_36,,तुम्हें,False,,False,True
+item_0611,यह,यह,this,सर्वनाम,pronouns,19_36,,यह ,False,,False,True
+item_0612,वे,वे,they,सर्वनाम,pronouns,19_36,,वे ,False,,False,True
+item_0613,हमारा,हमारा,our,सर्वनाम,pronouns,19_36,,हमारा ,False,,False,True
+item_0614,तुम लोग,तुम लोग,you people,सर्वनाम,pronouns,19_36,,तुम लोग ,False,,False,True
+item_0615,कब,कब,when,प्रश्न शब्द,question words,8_18;19_36,कब,कब ,False,,True,True
+item_0616,कहाँ,कहाँ,where,प्रश्न शब्द,question words,8_18;19_36,कहाँ ,कहाँ ,False,,True,True
+item_0617,कौन,कौन,who,प्रश्न शब्द,question words,8_18;19_36,कौन,कौन ,False,,True,True
+item_0618,क्या,क्या,what,प्रश्न शब्द,question words,8_18;19_36,क्या ,क्या ,False,,True,True
+item_0619,क्यों,क्यों,why,प्रश्न शब्द,question words,8_18;19_36,क्यों ,क्यों ,False,,True,True
+item_0620,किसका,किसका,whose,प्रश्न शब्द,question words,19_36,,किसका ,False,,False,True
+item_0621,किससे,किससे,from whom/with whom,प्रश्न शब्द,question words,19_36,,किससे ,False,,False,True
+item_0622,कैसे,कैसे,how,प्रश्न शब्द,question words,19_36,,कैसे ,False,,False,True
+item_0623,आसपास,आसपास,nearby/around,पूर्वसर्ग,prepositions / spatial words,8_18;19_36,आसपास ,आसपास ,False,,True,True
+item_0624,उधर,उधर,there/that side,पूर्वसर्ग,prepositions / spatial words,8_18;19_36,उधर,उधर,False,,True,True
+item_0625,ऊपर,ऊपर,up/above,पूर्वसर्ग,prepositions / spatial words,8_18;19_36,ऊपर,ऊपर,False,,True,True
+item_0626,दूर,दूर,far,पूर्वसर्ग,prepositions / spatial words,8_18,दूर ,,False,,True,False
+item_0627,निकट,निकट,near,पूर्वसर्ग,prepositions / spatial words,8_18,निकट ,,False,,True,False
+item_0628,नीचे,नीचे,down/below,पूर्वसर्ग,prepositions / spatial words,8_18,नीचे .1,,True,,True,False
+item_0629,पीछे,पीछे,behind,पूर्वसर्ग,prepositions / spatial words,8_18;19_36,पीछे ,पीछे ,False,,True,True
+item_0630,बाहर,बाहर,outside,पूर्वसर्ग,prepositions / spatial words,8_18;19_36,बाहर .1,बाहर .1,True,,True,True
+item_0631,में,में,in,पूर्वसर्ग,prepositions / spatial words,8_18;19_36,में ,में ,False,,True,True
+item_0632,सामने,सामने,front,पूर्वसर्ग,prepositions / spatial words,8_18;19_36,सामने ,सामने ,False,,True,True
+item_0633,इस तरफ,इस तरफ,this side,पूर्वसर्ग,prepositions / spatial words,19_36,,इस तरफ ,False,,False,True
+item_0634,उस ओर,उस ओर,that way,पूर्वसर्ग,prepositions / spatial words,19_36,,उस ओर ,False,,False,True
+item_0635,के बारे में,के बारे में,about,पूर्वसर्ग,prepositions / spatial words,19_36,,के बारे में ,False,,False,True
+item_0636,के बीच,के बीच,between,पूर्वसर्ग,prepositions / spatial words,19_36,,के बीच ,False,,False,True
+item_0637,के साथ,के साथ,with,पूर्वसर्ग,prepositions / spatial words,19_36,,के साथ ,False,,False,True
+item_0638,के सामने,के सामने,in front of,पूर्वसर्ग,prepositions / spatial words,19_36,,के सामने ,False,,False,True
+item_0639,पर,पर,on,पूर्वसर्ग,prepositions / spatial words,19_36,,पर ,False,,False,True
+item_0640,पास,पास,near,पूर्वसर्ग,prepositions / spatial words,19_36,,पास ,False,,False,True
+item_0641,बगल में,बगल में,beside,पूर्वसर्ग,prepositions / spatial words,19_36,,बगल में ,False,,False,True
+item_0642,से,से,from/by,पूर्वसर्ग,prepositions / spatial words,19_36,,से ,False,,False,True
+item_0643,हर जगह,हर जगह,everywhere,पूर्वसर्ग,prepositions / spatial words,19_36,,हर जगह ,False,,False,True
+item_0644,अधिक,अधिक,more,परिमाणक और निर्धारक,quantifiers and determiners,8_18;19_36,अधिक ,अधिक .1,True,,True,True
+item_0645,अन्य/दूसरा,अन्य/दूसरा,other/another,परिमाणक और निर्धारक,quantifiers and determiners,8_18;19_36,अन्य/दूसरा ,अन्य/दूसरा ,False,,True,True
+item_0646,एक,एक,one,परिमाणक और निर्धारक,quantifiers and determiners,8_18;19_36,एक ,एक ,False,,True,True
+item_0647,कुछ,कुछ,some,परिमाणक और निर्धारक,quantifiers and determiners,8_18;19_36,कुछ ,कुछ .1,True,,True,True
+item_0648,कोई,कोई,someone/any,परिमाणक और निर्धारक,quantifiers and determiners,8_18;19_36,कोई ,कोई ,False,,True,True
+item_0649,थोड़ा,थोड़ा,a little,परिमाणक और निर्धारक,quantifiers and determiners,8_18;19_36,थोड़ा ,थोड़ा ,False,,True,True
+item_0650,नहीं,नहीं,no/not,परिमाणक और निर्धारक,quantifiers and determiners,8_18;19_36,नहीं ,नहीं ,False,,True,True
+item_0651,हर/सभी,हर/सभी,every/all,परिमाणक और निर्धारक,quantifiers and determiners,8_18,हर/सभी ,,False,,True,False
+item_0652,इतना,इतना,this much,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,इतना ,False,,False,True
+item_0653,कम,कम,less,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,कम ,False,,False,True
+item_0654,कितना,कितना,how much,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,कितना ,False,,False,True
+item_0655,कितने,कितने,how many,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,कितने ,False,,False,True
+item_0656,प्रत्येक,प्रत्येक,each,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,प्रत्येक ,False,,False,True
+item_0657,बहुत,बहुत,very/much,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,बहुत .1,True,,False,True
+item_0658,लगभग,लगभग,approximately,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,लगभग ,False,,False,True
+item_0659,सभी,सभी,all,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,सभी ,False,,False,True
+item_0660,समान,समान,same,परिमाणक और निर्धारक,quantifiers and determiners,19_36,,समान ,False,,False,True
+item_0661,अगर,अगर,if,शब्दों को जोड़ना,connecting words,19_36,,अगर ,False,,False,True
+item_0662,और,और,and,शब्दों को जोड़ना,connecting words,19_36,,और ,False,,False,True
+item_0663,क्योंकि,क्योंकि,because,शब्दों को जोड़ना,connecting words,19_36,,क्योंकि ,False,,False,True
+item_0664,तब,तब,then,शब्दों को जोड़ना,connecting words,19_36,,तब .1,True,,False,True
+item_0665,बिना,बिना,without,शब्दों को जोड़ना,connecting words,19_36,,बिना ,False,,False,True
+item_0666,लेकिन,लेकिन,but,शब्दों को जोड़ना,connecting words,19_36,,लेकिन ,False,,False,True
+item_0667,धन्यवाद,धन्यवाद,thank you,सामाजिक शर्तें एवं अन्य,social terms and other,8_18;19_36,धन्यवाद,धन्यवाद,False,,True,True
+item_0668,नमस्ते,नमस्ते,hello/namaste,सामाजिक शर्तें एवं अन्य,social terms and other,8_18;19_36,नमस्ते ,नमस्ते ,False,,True,True
+item_0669,बाय-बाय,बाय-बाय,bye-bye,सामाजिक शर्तें एवं अन्य,social terms and other,8_18;19_36,बाय-बाय,बाय-बाय,False,,True,True
+item_0670,एक साथ,एक साथ,together,सामाजिक शर्तें एवं अन्य,social terms and other,19_36,,एक साथ ,False,,False,True
+item_0671,स्वागत है,स्वागत है,welcome,सामाजिक शर्तें एवं अन्य,social terms and other,19_36,,स्वागत है,False,,False,True
+item_0672,रखना,रखना,,,,8_18,रखना .1,,True,,True,False
+item_0673,खिड़की,खिड़की,,,,19_36,,खिड़की .1,True,,False,True
+item_0674,बाथरूम,बाथरूम,,,,19_36,,बाथरूम .1,True,,False,True
+item_0675,गाना,गाना,,,,19_36,,गाना .1,True,,False,True
+item_0676,रेंगना,रेंगना,,,,19_36,,रेंगना .1,True,,False,True
+item_0677,हर (सभी ),हर (सभी ),,,,19_36,,हर (सभी ),False,,False,True
