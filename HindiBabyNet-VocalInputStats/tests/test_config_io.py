@@ -3,6 +3,11 @@ from pathlib import Path
 import pandas as pd
 
 from hindibabynet_vocalinputstats.config import load_config
+from hindibabynet_vocalinputstats.ids import (
+    attach_participant_ids,
+    create_participant_lookup,
+    save_participant_lookup,
+)
 from hindibabynet_vocalinputstats.io import (
     EXPECTED_VTC_FILENAME,
     ensure_directory,
@@ -80,3 +85,21 @@ def test_write_reports_are_deterministic(tmp_path: Path) -> None:
     validation = pd.read_csv(validation_path)
     assert validation["participant_id"].tolist() == ["P001", "P002"]
     assert report_path.read_text(encoding="utf-8") == "line 2\nline 1\n"
+
+
+def test_participant_id_anonymization_is_stable_and_private(tmp_path: Path) -> None:
+    metadata = pd.DataFrame({"par_id": [" BBB ", "AAA", "BBB", "CCC"]})
+
+    lookup = create_participant_lookup(metadata, participant_id_digits=3)
+    attached = attach_participant_ids(metadata, lookup)
+    output_path = tmp_path / "participant_lookup.csv"
+    save_participant_lookup(lookup, output_path)
+
+    assert lookup.to_dict("records") == [
+        {"original_par_id": "AAA", "participant_id": "P001"},
+        {"original_par_id": "BBB", "participant_id": "P002"},
+        {"original_par_id": "CCC", "participant_id": "P003"},
+    ]
+    assert attached["participant_id"].tolist() == ["P002", "P001", "P002", "P003"]
+    persisted = pd.read_csv(output_path)
+    assert list(persisted.columns) == ["original_par_id", "participant_id"]
