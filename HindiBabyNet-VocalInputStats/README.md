@@ -1,19 +1,141 @@
 # HindiBabyNet-VocalInputStats
 
-This repository builds privacy-preserving vocal input and vocal output analysis
-datasets for the HindiBabyNet project. It converts participant metadata, VTC
-speaker-classification outputs, and full recording durations into participant-
-level and long-format datasets for exploratory analysis in Python and later
-mixed-effects modelling in R.
+This repository builds the final privacy-preserving vocal input and vocal
+output analysis datasets for the HindiBabyNet study. It combines participant
+metadata, VTC speaker-classification outputs, and full recording durations to
+produce participant-level and long-format analysis files, Python-based EDA
+tables, and publication-style plots before mixed-effects modelling in R.
 
-## Setup
+## Purpose
+
+The workflow is designed for count/hour and duration/hour analyses outside the
+main HindiBabyNet pipeline repository. It uses the full recording duration as
+the denominator because the whole recording was processed by VTC.
+
+Input speakers:
+
+- `adult_female`
+- `adult_male`
+- `other_child`
+
+Output speaker:
+
+- `key_child`
+
+## Input requirements
+
+The workflow expects:
+
+1. A metadata CSV with at least `par_id`, `REC_date`, `birthdate`,
+	 `child_sex`, `mother_education`, `father_education`, and `Location`.
+2. A VTC output root containing one folder per participant with
+	 `rttm.csv` files.
+3. An audio root containing the full recording processed by VTC.
+
+VTC labels are normalized as follows:
+
+- `FEM -> adult_female`
+- `MAL -> adult_male`
+- `KCHI -> key_child`
+- `OCH -> other_child`
+
+## Privacy model
+
+- Public outputs use only anonymized `participant_id` values such as `P001`.
+- Original participant IDs are stored only in
+	`data/private/participant_lookup.csv`.
+- `data/private/`, `data/raw/`, and local audio files are excluded from Git.
+
+## Configuration
+
+Edit [configs/config.yaml](c:/Users/arunps/OneDrive/Projects/HindiBabyNet/HindiBabyNet-VocalInputStats/configs/config.yaml) to point at your local inputs.
+
+Key settings include:
+
+- `metadata_csv`
+- `vtc_output_root`
+- `audio_root`
+- `derived_data_dir`
+- `private_data_dir`
+- `figures_dir`
+- `tables_dir`
+- `results_dir`
+- `audio_extensions`
+- `participant_id_digits`
+- `age_month_denominator`
+- `ses_source`
+- `minimum_recording_hours_warning`
 
 ```bash
 uv sync
 uv run hindibabynet-vocalinputstats --help
 ```
 
+## Commands
+
+```bash
+uv run hindibabynet-vocalinputstats build-master --config configs/config.yaml
+uv run hindibabynet-vocalinputstats create-long --config configs/config.yaml
+uv run hindibabynet-vocalinputstats eda --config configs/config.yaml
+uv run hindibabynet-vocalinputstats plots --config configs/config.yaml
+uv run hindibabynet-vocalinputstats all --config configs/config.yaml
+```
+
+## Outputs
+
+Main derived datasets:
+
+- `data/derived/final_master.csv`
+- `data/derived/input_long.csv`
+- `data/derived/input_output_long.csv`
+
+Private reproducibility file:
+
+- `data/private/participant_lookup.csv`
+
+Validation and build reports:
+
+- `results/validation_report.csv`
+- `results/dataset_build_report.txt`
+
+EDA tables:
+
+- `tables/participant_summary.csv`
+- `tables/missing_values_summary.csv`
+- `tables/recording_duration_summary.csv`
+- `tables/speaker_count_summary.csv`
+- `tables/speaker_duration_summary.csv`
+- `tables/age_summary.csv`
+- `tables/sex_distribution.csv`
+- `tables/location_distribution.csv`
+- `tables/education_distribution.csv`
+
+Figures:
+
+- Age and recording-duration distributions
+- Child sex, location, and education distributions
+- Input count/hour and duration/hour boxplots
+- Age and input/output scatterplots
+- Correlation heatmap
+- Participant stacked composition plot
+- Mean input summaries with confidence intervals
+
+## Downstream R use
+
+The long-format datasets are intended for mixed-effects models such as:
+
+- `key_child_count_hour ~ input_count_hour * speaker + age_z + SES + child_sex + random effects`
+- `key_child_duration_hour ~ input_duration_hour * speaker + age_z + SES + child_sex + random effects`
+
+## Scientific notes
+
+- Recording duration is never computed from summed VTC segment durations.
+- `count_hour = count / recording_duration_hours`
+- `duration_hour = total_speaker_duration_sec / recording_duration_hours`
+- Participants with missing data are retained where possible and flagged in the
+	validation report.
+
 ## Status
 
-The package scaffold is in place. Data-building modules, EDA tables, plots, and
-tests are implemented incrementally through the repository workflow.
+The package includes reproducible dataset builders, EDA tables, plots, tests,
+and a starter notebook for exploratory work.

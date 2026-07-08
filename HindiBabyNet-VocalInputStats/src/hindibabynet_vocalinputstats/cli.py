@@ -65,6 +65,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the repository config file.",
     )
     plots_parser.set_defaults(handler=_handle_plots)
+
+    all_parser = subparsers.add_parser(
+        "all",
+        help="Run build-master, create-long, eda, and plots in sequence.",
+    )
+    all_parser.add_argument(
+        "--config",
+        default="configs/config.yaml",
+        help="Path to the repository config file.",
+    )
+    all_parser.set_defaults(handler=_handle_all)
     return parser
 
 
@@ -84,6 +95,14 @@ def _handle_eda(args: argparse.Namespace) -> int:
 
 
 def _handle_plots(args: argparse.Namespace) -> int:
+    run_plots(config_path=args.config)
+    return 0
+
+
+def _handle_all(args: argparse.Namespace) -> int:
+    run_build_master(config_path=args.config)
+    run_create_long(config_path=args.config)
+    run_eda(config_path=args.config)
     run_plots(config_path=args.config)
     return 0
 

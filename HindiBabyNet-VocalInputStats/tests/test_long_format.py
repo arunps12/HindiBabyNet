@@ -45,7 +45,7 @@ def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) ->
 
     results_dir = tmp_path / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(columns=["participant_id", "original_par_id", "issue_type", "message"]).to_csv(
+    pd.DataFrame(columns=["participant_id", "issue_type", "message"]).to_csv(
         results_dir / "validation_report.csv",
         index=False,
     )

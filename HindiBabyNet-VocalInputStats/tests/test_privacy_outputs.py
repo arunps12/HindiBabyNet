@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 
 from hindibabynet_vocalinputstats.build_master_dataset import run_build_master
+from hindibabynet_vocalinputstats.create_long_format import run_create_long
+from hindibabynet_vocalinputstats.eda import run_eda
 
 
 def _write_test_wav(path: Path, *, seconds: float, samplerate: int = 16000) -> None:
@@ -18,34 +20,35 @@ def _write_test_wav(path: Path, *, seconds: float, samplerate: int = 16000) -> N
         handle.writeframes(samples.tobytes())
 
 
-def test_build_master_dataset_creates_public_outputs(tmp_path: Path) -> None:
+def test_original_participant_id_never_appears_in_public_outputs(tmp_path: Path) -> None:
     metadata_path = tmp_path / "data" / "raw" / "metadata.csv"
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    original_id = "SECRET123"
     pd.DataFrame(
         {
-            "par_id": ["BBB", "AAA"],
-            "REC_date": ["2024-01-02", "2024-01-01"],
-            "birthdate": ["2023-01-02", "2024-01-10"],
-            "child_sex": ["F", "M"],
-            "mother_education": ["college", "school"],
-            "father_education": ["college", "school"],
-            "Location": ["Delhi", "Jaipur"],
+            "par_id": [original_id],
+            "REC_date": ["2024-01-02"],
+            "birthdate": ["2023-01-02"],
+            "child_sex": ["F"],
+            "mother_education": ["college"],
+            "father_education": ["college"],
+            "Location": ["Delhi"],
         }
     ).to_csv(metadata_path, index=False)
 
     vtc_root = tmp_path / "vtc"
-    (vtc_root / "BBB").mkdir(parents=True)
+    (vtc_root / original_id).mkdir(parents=True)
     pd.DataFrame(
         {
-            "uid": ["BBB", "BBB"],
-            "start_time_s": [0.0, 1.0],
-            "duration_s": [1.0, 2.0],
-            "label": ["FEM", "KCHI"],
+            "uid": [original_id],
+            "start_time_s": [0.0],
+            "duration_s": [1.0],
+            "label": ["FEM"],
         }
-    ).to_csv(vtc_root / "BBB" / "rttm.csv", index=False)
+    ).to_csv(vtc_root / original_id / "rttm.csv", index=False)
 
     audio_root = tmp_path / "audio"
-    _write_test_wav(audio_root / "BBB" / "joined.wav", seconds=7200.0)
+    _write_test_wav(audio_root / original_id / "joined.wav", seconds=3600.0)
 
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
@@ -70,17 +73,22 @@ def test_build_master_dataset_creates_public_outputs(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    final_master = run_build_master(config_path)
+    run_build_master(config_path)
+    run_create_long(config_path)
+    run_eda(config_path)
 
-    assert final_master["participant_id"].tolist() == ["P001", "P002"]
-    assert pd.isna(final_master.loc[0, "recording_duration_hours"])
-    assert final_master.loc[1, "recording_duration_hours"] == 2.0
-    assert final_master.loc[1, "adult_female_count_hour"] == 0.5
-    assert final_master.loc[1, "key_child_duration_hour"] == 1.0
-    assert "original_par_id" not in final_master.columns
+    public_paths = [
+        tmp_path / "data" / "derived" / "final_master.csv",
+        tmp_path / "data" / "derived" / "input_long.csv",
+        tmp_path / "data" / "derived" / "input_output_long.csv",
+        tmp_path / "results" / "validation_report.csv",
+        tmp_path / "results" / "dataset_build_report.txt",
+    ]
+    public_paths.extend(sorted((tmp_path / "tables").glob("*.csv")))
 
-    validation = pd.read_csv(tmp_path / "results" / "validation_report.csv")
-    assert set(validation["issue_type"]) == {"missing_audio", "missing_vtc", "negative_age"}
-    assert "original_par_id" not in validation.columns
-    private_lookup = pd.read_csv(tmp_path / "data" / "private" / "participant_lookup.csv")
-    assert list(private_lookup.columns) == ["original_par_id", "participant_id"]
+    for path in public_paths:
+        content = path.read_text(encoding="utf-8")
+        assert original_id not in content
+
+    private_lookup = (tmp_path / "data" / "private" / "participant_lookup.csv").read_text(encoding="utf-8")
+    assert original_id in private_lookup

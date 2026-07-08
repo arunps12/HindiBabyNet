@@ -72,7 +72,7 @@ def load_vtc_csv(path: str | Path) -> pd.DataFrame:
 
 
 def write_validation_report(records: Sequence[dict[str, object]], path: str | Path) -> Path:
-    columns = ["participant_id", "original_par_id", "issue_type", "message"]
+    columns = ["participant_id", "issue_type", "message"]
     dataframe = pd.DataFrame(records, columns=columns)
     if not dataframe.empty:
         dataframe = dataframe.sort_values(by=columns, kind="stable", na_position="last")

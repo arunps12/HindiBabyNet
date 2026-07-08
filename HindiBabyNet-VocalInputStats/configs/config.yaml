@@ -1,6 +1,6 @@
 metadata_csv: data/raw/metadata.csv
-vtc_output_root: /path/to/classification_outputs/vtc
-audio_root: /path/to/full_recordings
+vtc_output_root: data/raw/classification_outputs/vtc
+audio_root: data/raw/full_recordings
 derived_data_dir: data/derived
 private_data_dir: data/private
 figures_dir: figures
