@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+data/private/
+data/raw/
+data/processed/
+*.wav
+*.WAV
+*.flac
+*.FLAC
+*.mp3
+*.MP3
+participant_lookup.csv

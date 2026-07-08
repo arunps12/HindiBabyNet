@@ -1,3 +1,19 @@
+Metadata-Version: 2.4
+Name: hindibabynet-vocalinputstats
+Version: 0.1.0
+Summary: Vocal input and output statistics workflow for the HindiBabyNet project
+Requires-Python: <3.13,>=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: ipykernel>=7.2.0
+Requires-Dist: jupyter>=1.1.1
+Requires-Dist: matplotlib<4,>=3.7
+Requires-Dist: numpy<2,>=1.24
+Requires-Dist: pandas<3,>=2.0
+Requires-Dist: pyyaml<7,>=6
+Requires-Dist: pytest<9,>=7
+Requires-Dist: seaborn<1,>=0.12
+Requires-Dist: soundfile<1,>=0.12
+
 # HindiBabyNet-VocalInputStats
 
 This repository builds privacy-preserving vocal input and vocal output analysis

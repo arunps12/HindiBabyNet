@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+src/hindibabynet_vocalinputstats/__init__.py
+src/hindibabynet_vocalinputstats/cli.py
+src/hindibabynet_vocalinputstats.egg-info/PKG-INFO
+src/hindibabynet_vocalinputstats.egg-info/SOURCES.txt
+src/hindibabynet_vocalinputstats.egg-info/dependency_links.txt
+src/hindibabynet_vocalinputstats.egg-info/entry_points.txt
+src/hindibabynet_vocalinputstats.egg-info/requires.txt
+src/hindibabynet_vocalinputstats.egg-info/top_level.txt

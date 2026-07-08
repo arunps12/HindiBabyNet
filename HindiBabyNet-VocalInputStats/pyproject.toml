@@ -1,0 +1,37 @@
+[project]
+name = "hindibabynet-vocalinputstats"
+version = "0.1.0"
+description = "Vocal input and output statistics workflow for the HindiBabyNet project"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "ipykernel>=7.2.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.7,<4",
+    "numpy>=1.24,<2",
+    "pandas>=2.0,<3",
+    "pyyaml>=6,<7",
+    "pytest>=7,<9",
+    "seaborn>=0.12,<1",
+    "soundfile>=0.12,<1",
+]
+
+[project.scripts]
+hindibabynet-vocalinputstats = "hindibabynet_vocalinputstats.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["hindibabynet_vocalinputstats*"]
+
+[dependency-groups]
+dev = []
+
+[tool.pytest.ini_options]
+pythonpath = [".", "src"]
+
+[tool.uv]
+index-url = "https://pypi.org/simple"

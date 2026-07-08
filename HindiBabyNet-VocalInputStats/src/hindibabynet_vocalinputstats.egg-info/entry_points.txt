@@ -1,0 +1,2 @@
+[console_scripts]
+hindibabynet-vocalinputstats = hindibabynet_vocalinputstats.cli:main
