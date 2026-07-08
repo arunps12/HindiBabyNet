@@ -26,8 +26,9 @@ def create_participant_lookup(metadata: pd.DataFrame, participant_id_digits: int
 def attach_participant_ids(metadata: pd.DataFrame, lookup: pd.DataFrame) -> pd.DataFrame:
     """Attach participant IDs to metadata without dropping rows."""
     merged = metadata.copy()
-    merged["par_id"] = merged["par_id"].astype(str).str.strip()
-    return merged.merge(lookup, how="left", left_on="par_id", right_on="original_par_id", sort=False)
+    source_column = "par_id" if "par_id" in merged.columns else "original_par_id"
+    merged[source_column] = merged[source_column].astype(str).str.strip()
+    return merged.merge(lookup, how="left", left_on=source_column, right_on="original_par_id", sort=False)
 
 
 def save_participant_lookup(lookup: pd.DataFrame, path: str | Path) -> Path:
