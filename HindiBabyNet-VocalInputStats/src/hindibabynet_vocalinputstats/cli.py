@@ -7,6 +7,7 @@ import argparse
 from hindibabynet_vocalinputstats.build_master_dataset import run_build_master
 from hindibabynet_vocalinputstats.create_long_format import run_create_long
 from hindibabynet_vocalinputstats.eda import run_eda
+from hindibabynet_vocalinputstats.plots import run_plots
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,6 +54,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the repository config file.",
     )
     eda_parser.set_defaults(handler=_handle_eda)
+
+    plots_parser = subparsers.add_parser(
+        "plots",
+        help="Generate publication-style plots.",
+    )
+    plots_parser.add_argument(
+        "--config",
+        default="configs/config.yaml",
+        help="Path to the repository config file.",
+    )
+    plots_parser.set_defaults(handler=_handle_plots)
     return parser
 
 
@@ -68,6 +80,11 @@ def _handle_create_long(args: argparse.Namespace) -> int:
 
 def _handle_eda(args: argparse.Namespace) -> int:
     run_eda(config_path=args.config)
+    return 0
+
+
+def _handle_plots(args: argparse.Namespace) -> int:
+    run_plots(config_path=args.config)
     return 0
 
 
