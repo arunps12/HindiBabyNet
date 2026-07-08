@@ -2,6 +2,7 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+*.egg-info/
 data/private/
 data/raw/
 data/processed/
