@@ -6,6 +6,10 @@ __pycache__/
 data/private/
 data/raw/
 data/processed/
+data/derived/*
+!data/derived/.gitkeep
+results/*
+!results/.gitkeep
 *.wav
 *.WAV
 *.flac
