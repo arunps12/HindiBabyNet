@@ -83,31 +83,41 @@ compute_monte_carlo_ci <- function(bundle, grid, nsim = analysis_options$nsim_de
   model <- bundle$model
 
   if (inherits(model, "merMod")) {
-    intervals <- merTools::predictInterval(
-      merMod = model,
-      newdata = grid,
-      level = 0.95,
-      n.sims = nsim,
-      stat = "mean",
-      which = "fixed",
-      include.resid.var = FALSE
+    response_values <- model.frame(model)[[1]]
+    inverse_transform <- if (isTRUE(bundle$transformed_response)) exp else identity
+
+    prediction_function <- function(fitted_model) {
+      raw_prediction <- stats::predict(fitted_model, newdata = grid, re.form = NA, allow.new.levels = TRUE)
+      inverse_transform(raw_prediction)
+    }
+
+    set.seed(analysis_options$seed)
+    boot_result <- lme4::bootMer(
+      x = model,
+      FUN = prediction_function,
+      nsim = nsim,
+      re.form = NA,
+      use.u = FALSE,
+      type = "parametric",
+      parallel = "no"
     )
+
+    simulated <- as.matrix(boot_result$t)
+    if (nrow(simulated) == 0) {
+      stop(sprintf("bootMer() returned no simulations for response '%s'.", bundle$response_name), call. = FALSE)
+    }
+
+    base_prediction <- inverse_transform(stats::predict(model, newdata = grid, re.form = NA, allow.new.levels = TRUE))
 
     predictions <- data.frame(
       grid,
-      predicted = intervals$fit,
-      lower = intervals$lwr,
-      upper = intervals$upr,
-      interval_method = "merTools_predictInterval",
+      predicted = as.numeric(base_prediction),
+      lower = apply(simulated, 2, stats::quantile, probs = 0.025, na.rm = TRUE),
+      upper = apply(simulated, 2, stats::quantile, probs = 0.975, na.rm = TRUE),
+      interval_method = "bootMer_parametric",
       nsim = nsim,
       stringsAsFactors = FALSE
     )
-
-    if (isTRUE(bundle$transformed_response)) {
-      predictions$predicted <- exp(predictions$predicted)
-      predictions$lower <- exp(predictions$lower)
-      predictions$upper <- exp(predictions$upper)
-    }
 
     return(predictions)
   }

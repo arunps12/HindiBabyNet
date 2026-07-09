@@ -14,10 +14,8 @@ required_packages <- c(
   "ggeffects",
   "broom.mixed",
   "parameters",
-  "merTools",
   "boot",
   "ggplot2",
-  "quarto",
   "yaml",
   "knitr"
 )
@@ -71,6 +69,15 @@ analysis_options <- list(
   speaker_order = c("adult_female", "adult_male", "other_child")
 )
 
+runtime_nsim <- Sys.getenv("HBN_NSIM", unset = "")
+if (nzchar(runtime_nsim)) {
+  parsed_nsim <- suppressWarnings(as.integer(runtime_nsim))
+  if (is.na(parsed_nsim) || parsed_nsim <= 0) {
+    stop("Environment variable HBN_NSIM must be a positive integer.", call. = FALSE)
+  }
+  analysis_options$nsim_default <- parsed_nsim
+}
+
 analysis_runtime$age_days_mean <- analysis_options$age_days_mean
 analysis_runtime$age_days_sd <- analysis_options$age_days_sd
 
@@ -108,5 +115,41 @@ read_research_questions <- function(paths = analysis_paths) {
   yaml::read_yaml(yaml_path)
 }
 
+resolve_quarto_command <- function() {
+  env_quarto <- Sys.getenv("QUARTO_PATH", unset = "")
+  if (nzchar(env_quarto) && file.exists(env_quarto)) {
+    return(normalizePath(env_quarto, winslash = "/", mustWork = TRUE))
+  }
+
+  discovered <- Sys.which("quarto")
+  if (nzchar(discovered)) {
+    return(discovered)
+  }
+
+  common_candidates <- c(
+    "C:/Program Files/Quarto/bin/quarto.exe",
+    "C:/Program Files/Quarto/bin/quarto.cmd",
+    "C:/Users/arunps/AppData/Local/Programs/Quarto/bin/quarto.exe"
+  )
+
+  existing <- common_candidates[file.exists(common_candidates)]
+  if (length(existing) > 0) {
+    return(normalizePath(existing[[1]], winslash = "/", mustWork = TRUE))
+  }
+
+  ""
+}
+
+configure_quarto_runtime <- function() {
+  quarto_command <- resolve_quarto_command()
+  if (nzchar(quarto_command)) {
+    Sys.setenv(QUARTO_PATH = quarto_command)
+  }
+  quarto_command
+}
+
 message("HindiBabyNet R analysis scaffold loaded.")
 message(sprintf("Repository root: %s", repo_root))
+if (Sys.getenv("HBN_NSIM", unset = "") != "") {
+  message(sprintf("Runtime nsim override active: %s", analysis_options$nsim_default))
+}

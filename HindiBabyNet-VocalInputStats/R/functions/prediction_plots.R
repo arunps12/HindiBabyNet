@@ -27,7 +27,7 @@ plot_prediction_with_ci <- function(prediction_data, x_var, y_var, output_stub, 
   aesthetics <- ggplot2::aes_string(x = x_var, y = y_var, color = color_var %||% NULL, fill = color_var %||% NULL, group = color_var %||% NULL)
   plot_object <- ggplot2::ggplot(prediction_data, aesthetics) +
     ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper), alpha = 0.18, color = NA, show.legend = !is.null(color_var)) +
-    ggplot2::geom_line(linewidth = 1.0) +
+    ggplot2::geom_line(size = 1.0) +
     ggplot2::labs(
       title = title,
       x = x_label %||% x_var,

@@ -1,12 +1,24 @@
 research_questions:
   - id: rq1
-    title: Vocal input varies by speaker and child age
+    title: Input count varies by speaker and child age
     preregistered_family: model_family_1
-    hypothesis: Input count and input duration rates differ across adult_female, adult_male, and other_child speakers, and these differences vary with child age.
+    response_key: input_count_hour
+    hypothesis: Input count rates differ across adult_female, adult_male, and other_child speakers, and these differences vary with child age.
   - id: rq2
-    title: Vocal input predicts key child output
+    title: Input duration varies by speaker and child age
+    preregistered_family: model_family_1
+    response_key: input_duration_min_hour
+    hypothesis: Input duration rates differ across adult_female, adult_male, and other_child speakers, and these differences vary with child age.
+  - id: rq3
+    title: Speaker-specific input count predicts key child count
     preregistered_family: model_family_2
-    hypothesis: Key child vocal output covaries with speaker-specific input rates after adjusting for age, SES, child sex, and location.
+    response_key: key_child_count_hour
+    hypothesis: Key child vocal count covaries with speaker-specific input count rates after adjusting for age, SES, child sex, and location.
+  - id: rq4
+    title: Speaker-specific input duration predicts key child duration
+    preregistered_family: model_family_2
+    response_key: key_child_duration_min_hour
+    hypothesis: Key child vocal duration covaries with speaker-specific input duration rates after adjusting for age, SES, child sex, and location.
 reporting_principles:
   use_effect_direction: true
   use_monte_carlo_ci: true

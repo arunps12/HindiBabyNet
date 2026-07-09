@@ -75,14 +75,18 @@ summarise_model_evidence <- function(bundle) {
 link_research_questions <- function(evidence_table, questions_yaml) {
   questions <- questions_yaml$research_questions
   rows <- lapply(questions, function(question) {
-    family_key <- switch(
-      question$preregistered_family,
-      model_family_1 = "family_1",
-      model_family_2 = c("family_2_count", "family_2_duration"),
-      question$preregistered_family
-    )
+    if (!is.null(question$response_key)) {
+      matching <- evidence_table[evidence_table$response %in% question$response_key, , drop = FALSE]
+    } else {
+      family_key <- switch(
+        question$preregistered_family,
+        model_family_1 = "family_1",
+        model_family_2 = c("family_2_count", "family_2_duration"),
+        question$preregistered_family
+      )
+      matching <- evidence_table[evidence_table$model_family %in% family_key, , drop = FALSE]
+    }
 
-    matching <- evidence_table[evidence_table$model_family %in% family_key, , drop = FALSE]
     data.frame(
       research_question_id = question$id,
       title = question$title,

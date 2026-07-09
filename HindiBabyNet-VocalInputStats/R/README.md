@@ -27,9 +27,11 @@ If you are not using `renv`, install the required packages manually:
 install.packages(c(
 	"tidyverse", "lme4", "lmerTest", "glmmTMB", "performance",
 	"DHARMa", "emmeans", "ggeffects", "broom.mixed", "parameters",
-	"merTools", "boot", "ggplot2", "quarto", "yaml", "knitr"
+	"boot", "ggplot2", "yaml", "knitr"
 ))
 ```
+
+If `renv.lock` is not present, `renv::restore()` cannot fully reconstruct the package set by itself. In that case, install the required packages manually into your active library.
 
 ## Running In VS Code
 
@@ -90,6 +92,16 @@ source("R/03_model_tables_and_plots.R")
 - `results/r_predictions/`: plot-ready prediction grids and interval tables
 - `results/r_plots/`: publication-style PNG figures
 - `results/final_report/`: rendered PDF and HTML reports
+
+## Report Rendering
+
+The workflow uses the Quarto CLI, not the R package `quarto`.
+
+If Quarto is not on `PATH`, set `QUARTO_PATH` to the executable location before running `R/04_final_report.R`.
+
+HTML rendering should work first.
+
+PDF rendering additionally requires a LaTeX engine such as TinyTeX, MiKTeX, or TeX Live. If that dependency is missing, the workflow keeps PDF support but falls back to HTML-only output for smoke testing.
 
 ## Reporting Principles
 
