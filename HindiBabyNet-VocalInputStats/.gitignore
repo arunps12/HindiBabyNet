@@ -10,6 +10,10 @@ data/derived/*
 !data/derived/.gitkeep
 results/*
 !results/.gitkeep
+tables/*
+!tables/.gitkeep
+figures/*
+!figures/.gitkeep
 *.wav
 *.WAV
 *.flac
