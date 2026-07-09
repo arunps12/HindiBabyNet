@@ -26,7 +26,7 @@ Output speaker:
 
 The workflow expects:
 
-1. A metadata CSV with at least `par_id`, `REC_date`, `birthdate`,
+1. A metadata table in `.csv`, `.xlsx`, or `.xls` format with at least `par_id`, `REC_date`, `birthdate`,
 	 `child_sex`, `mother_education`, `father_education`, and `Location`.
 2. A VTC output root containing one folder per participant with
 	 `rttm.csv` files.
@@ -52,7 +52,8 @@ Edit [configs/config.yaml](c:/Users/arunps/OneDrive/Projects/HindiBabyNet/HindiB
 
 Key settings include:
 
-- `metadata_csv`
+- `metadata_path` or `metadata_csv`
+- `metadata_id_column`
 - `vtc_output_root`
 - `audio_root`
 - `derived_data_dir`
@@ -60,7 +61,8 @@ Key settings include:
 - `figures_dir`
 - `tables_dir`
 - `results_dir`
-- `audio_extensions`
+- `audio_layout`
+- `vtc_layout`
 - `participant_id_digits`
 - `age_month_denominator`
 - `ses_source`
@@ -69,6 +71,24 @@ Key settings include:
 ```bash
 uv sync
 uv run hindibabynet-vocalinputstats --help
+```
+
+## Using network/UNC paths on Windows
+
+Prefer forward-slash UNC paths in [configs/config.yaml](c:/Users/arunps/OneDrive/Projects/HindiBabyNet/HindiBabyNet-VocalInputStats/configs/config.yaml), for example `//server/share/folder`, rather than raw backslash strings. This avoids YAML escaping issues and works with Windows UNC shares.
+
+Example HindiNet structure:
+
+- Metadata Excel: `//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Audio_metadata/metadata_cleaned.xlsx`
+- Audio root: `//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Audio_data_processing`
+- Audio participant folders: `//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Audio_data_processing/ABAN141223/*.wav`
+- VTC root: `//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Classification_outputs/VTC`
+- VTC participant folders: `//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Classification_outputs/VTC/ABAN141223/rttm.csv`
+
+The `build-master` command prints the metadata path, audio root, and VTC root with existence checks at startup. If a UNC path is unavailable, first check VPN or network-share access.
+
+```bash
+uv run hindibabynet-vocalinputstats build-master --config configs/config.yaml
 ```
 
 ## Commands

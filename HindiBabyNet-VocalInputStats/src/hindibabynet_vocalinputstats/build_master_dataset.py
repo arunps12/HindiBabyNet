@@ -15,7 +15,7 @@ from hindibabynet_vocalinputstats.io import (
     find_audio_file,
     find_vtc_csv,
     load_vtc_csv,
-    read_csv,
+    read_table,
     write_csv,
     write_dataset_build_report,
     write_validation_report,
@@ -57,7 +57,6 @@ PUBLIC_COLUMNS = [
 
 SPEAKERS = ["adult_female", "adult_male", "other_child", "key_child"]
 REQUIRED_METADATA_COLUMNS = [
-    "par_id",
     "REC_date",
     "birthdate",
     "child_sex",
@@ -65,6 +64,46 @@ REQUIRED_METADATA_COLUMNS = [
     "father_education",
     "Location",
 ]
+
+
+def _required_metadata_columns(config: ProjectConfig) -> list[str]:
+    return [config.metadata_id_column, *REQUIRED_METADATA_COLUMNS]
+
+
+def _print_input_path_status(config: ProjectConfig) -> None:
+    metadata_exists = config.metadata_path.exists()
+    audio_exists = config.audio_root.exists()
+    vtc_exists = config.vtc_output_root.exists()
+
+    print(f"Metadata path: {config.metadata_path}")
+    print(f"Metadata exists: {metadata_exists}")
+    print(f"Audio root: {config.audio_root}")
+    print(f"Audio root exists: {audio_exists}")
+    print(f"VTC output root: {config.vtc_output_root}")
+    print(f"VTC output root exists: {vtc_exists}")
+
+    if not metadata_exists:
+        raise FileNotFoundError(
+            "Metadata path does not exist. Check configs/config.yaml and verify UNC or network access, "
+            "including VPN if needed."
+        )
+    if not audio_exists:
+        print("Warning: audio root does not exist. Continuing, but audio matches will be missing. Check VPN/network access if using a UNC path.")
+    if not vtc_exists:
+        print("Warning: VTC output root does not exist. Continuing, but VTC matches will be missing. Check VPN/network access if using a UNC path.")
+
+
+def _load_metadata_table(config: ProjectConfig) -> pd.DataFrame:
+    metadata = read_table(config.metadata_path)
+    missing = [column for column in _required_metadata_columns(config) if column not in metadata.columns]
+    if missing:
+        found_columns = ", ".join(str(column) for column in metadata.columns)
+        missing_text = ", ".join(missing)
+        raise ValueError(f"Metadata table is missing required columns: {missing_text}. Found columns: {found_columns}")
+    if config.metadata_id_column != "par_id":
+        metadata = metadata.copy()
+        metadata["par_id"] = metadata[config.metadata_id_column]
+    return metadata
 
 
 def _parse_dates(metadata: pd.DataFrame) -> pd.DataFrame:
@@ -97,7 +136,15 @@ def _build_audio_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple
     records: list[dict[str, object]] = []
     warnings: list[dict[str, object]] = []
     for row in metadata.itertuples(index=False):
-        audio_path = find_audio_file(config.audio_root, row.original_par_id, config.audio_extensions)
+        audio_match = find_audio_file(
+            config.audio_root,
+            row.original_par_id,
+            config.audio_extensions,
+            recursive=config.audio_layout.recursive,
+            participant_folder_name=config.audio_layout.participant_folder_name,
+            prefer_largest_audio_file=config.audio_layout.prefer_largest_audio_file,
+        )
+        audio_path = audio_match.selected_path
         recording_duration_sec = np.nan
         matched_audio = False
         if audio_path is None:
@@ -111,6 +158,15 @@ def _build_audio_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple
             )
         else:
             matched_audio = True
+            if audio_match.warning_message is not None:
+                warnings.append(
+                    {
+                        "participant_id": row.participant_id,
+                        "original_par_id": row.original_par_id,
+                        "issue_type": "multiple_audio_matches",
+                        "message": audio_match.warning_message,
+                    }
+                )
             try:
                 recording_duration_sec = read_audio_duration_seconds(audio_path)
             except Exception as exc:  # pragma: no cover
@@ -155,7 +211,12 @@ def _build_vtc_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple[p
     warnings: list[dict[str, object]] = []
 
     for row in metadata.itertuples(index=False):
-        vtc_path = find_vtc_csv(config.vtc_output_root, row.original_par_id)
+        vtc_path = find_vtc_csv(
+            config.vtc_output_root,
+            row.original_par_id,
+            participant_folder_name=config.vtc_layout.participant_folder_name,
+            rttm_csv_name=config.vtc_layout.rttm_csv_name,
+        )
         matched_vtc = vtc_path is not None
         matched_records.append(
             {
@@ -252,9 +313,10 @@ def _compute_rate_columns(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 def _finalize_public_metadata(metadata: pd.DataFrame, config: ProjectConfig) -> pd.DataFrame:
     base = metadata.copy()
-    for column in REQUIRED_METADATA_COLUMNS:
+    for column in _required_metadata_columns(config):
         if column not in base.columns:
-            raise ValueError(f"Metadata CSV is missing required column: {column}")
+            found_columns = ", ".join(str(item) for item in base.columns)
+            raise ValueError(f"Metadata table is missing required column: {column}. Found columns: {found_columns}")
     base["par_id"] = base["par_id"].astype(str).str.strip()
     base = _parse_dates(base)
     base = _compute_age_fields(base, age_month_denominator=config.age_month_denominator)
@@ -292,7 +354,8 @@ def _build_dataset_report_lines(config: ProjectConfig, final_master: pd.DataFram
 
 
 def build_master_dataset(config: ProjectConfig) -> pd.DataFrame:
-    metadata = read_csv(config.metadata_csv)
+    _print_input_path_status(config)
+    metadata = _load_metadata_table(config)
     lookup = create_participant_lookup(metadata, participant_id_digits=config.participant_id_digits)
     save_participant_lookup(lookup, config.private_data_dir / "participant_lookup.csv")
 

@@ -1,18 +1,25 @@
-metadata_csv: data/raw/metadata.csv
-vtc_output_root: data/raw/classification_outputs/vtc
-audio_root: data/raw/full_recordings
-derived_data_dir: data/derived
-private_data_dir: data/private
-figures_dir: figures
-tables_dir: tables
-results_dir: results
-audio_extensions:
-  - .wav
-  - .WAV
-  - .flac
-  - .FLAC
+metadata_path: "//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Audio_metadata/metadata_cleaned.xlsx"
+audio_root: "//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Audio_data_processing"
+vtc_output_root: "//hypatia.uio.no/lh-hf-iln-sociocognitivelab/Research/HindiNet/Classification_outputs/VTC"
+derived_data_dir: "data/derived"
+private_data_dir: "data/private"
+figures_dir: "figures"
+tables_dir: "tables"
+results_dir: "results"
+metadata_id_column: "par_id"
+audio_layout:
+  type: "participant_folder"
+  participant_folder_name: "{par_id}"
+  recursive: true
+  audio_extensions: [".wav", ".WAV", ".flac", ".FLAC"]
+  expected_audio_files: "auto"
+  prefer_largest_audio_file: true
+vtc_layout:
+  type: "participant_folder"
+  participant_folder_name: "{par_id}"
+  rttm_csv_name: "rttm.csv"
 participant_id_digits: 3
 age_month_denominator: 30.44
-ses_source: mother_education
+ses_source: "mother_education"
 minimum_recording_hours_warning: 1.0
 manual_mapping_csv:

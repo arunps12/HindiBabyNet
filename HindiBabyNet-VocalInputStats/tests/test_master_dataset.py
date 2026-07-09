@@ -51,7 +51,7 @@ def test_build_master_dataset_creates_public_outputs(tmp_path: Path) -> None:
     config_path.write_text(
         "\n".join(
             [
-                f"metadata_csv: {metadata_path.as_posix()}",
+                f"metadata_path: {metadata_path.as_posix()}",
                 f"vtc_output_root: {vtc_root.as_posix()}",
                 f"audio_root: {audio_root.as_posix()}",
                 f"derived_data_dir: {(tmp_path / 'data' / 'derived').as_posix()}",
@@ -59,7 +59,18 @@ def test_build_master_dataset_creates_public_outputs(tmp_path: Path) -> None:
                 f"figures_dir: {(tmp_path / 'figures').as_posix()}",
                 f"tables_dir: {(tmp_path / 'tables').as_posix()}",
                 f"results_dir: {(tmp_path / 'results').as_posix()}",
-                "audio_extensions: ['.wav', '.WAV']",
+                "metadata_id_column: par_id",
+                "audio_layout:",
+                "  type: participant_folder",
+                "  participant_folder_name: '{par_id}'",
+                "  recursive: true",
+                "  audio_extensions: ['.wav', '.WAV']",
+                "  expected_audio_files: auto",
+                "  prefer_largest_audio_file: true",
+                "vtc_layout:",
+                "  type: participant_folder",
+                "  participant_folder_name: '{par_id}'",
+                "  rttm_csv_name: rttm.csv",
                 "participant_id_digits: 3",
                 "age_month_denominator: 30.44",
                 "ses_source: mother_education",
