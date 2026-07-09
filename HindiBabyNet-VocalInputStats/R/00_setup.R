@@ -17,7 +17,9 @@ required_packages <- c(
   "merTools",
   "boot",
   "ggplot2",
-  "quarto"
+  "quarto",
+  "yaml",
+  "knitr"
 )
 
 analysis_runtime <- new.env(parent = emptyenv())

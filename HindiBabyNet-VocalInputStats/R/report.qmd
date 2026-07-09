@@ -1,5 +1,7 @@
 ---
 title: "HindiBabyNet Preregistered Statistical Report"
+params:
+  reporting_bundle: "results/r_tables/reporting_bundle.rds"
 format:
   pdf: default
   html: default
@@ -9,9 +11,59 @@ execute:
   message: false
 ---
 
-# Report Status
+```{r}
+bundle_path <- params$reporting_bundle
+reporting_bundle <- readRDS(bundle_path)
 
-This Quarto source is part of the Phase 1 scaffold. Later phases will populate
-it with dataset summaries, model-selection rationale, diagnostics, Monte Carlo
-confidence intervals, publication-quality figures, and evidence-based
-hypothesis evaluation.
+render_image <- function(path) {
+  if (is.na(path) || !file.exists(path)) {
+    return(invisible(NULL))
+  }
+  cat(sprintf("![](%s)\n\n", normalizePath(path, winslash = "/", mustWork = FALSE)))
+}
+```
+
+# Dataset Summary
+
+```{r}
+knitr::kable(reporting_bundle$dataset_summary)
+```
+
+# Model Selection Rationale
+
+```{r}
+knitr::kable(reporting_bundle$selection_table)
+```
+
+# Diagnostics
+
+```{r}
+knitr::kable(reporting_bundle$diagnostics_table)
+```
+
+# Fixed Effects
+
+```{r}
+knitr::kable(reporting_bundle$fixed_effects)
+```
+
+# Research Questions
+
+```{r}
+knitr::kable(reporting_bundle$question_summary)
+```
+
+# Evidence Summary
+
+```{r}
+knitr::kable(reporting_bundle$evidence_table)
+```
+
+# Figures
+
+```{r, results='asis'}
+apply(reporting_bundle$prediction_manifest, 1, function(row) {
+  cat(sprintf("## %s\n\n", row[["response"]]))
+  render_image(row[["plot_path"]])
+})
+```
