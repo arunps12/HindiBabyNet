@@ -46,6 +46,34 @@ VTC labels are normalized as follows:
 	`data/private/participant_lookup.csv`.
 - `data/private/`, `data/raw/`, and local audio files are excluded from Git.
 
+## Setup with uv
+
+This project is packaged and run with `uv`.
+
+Install `uv` first:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Open a terminal in the project folder:
+
+```powershell
+Set-Location "C:/Users/arunps/OneDrive/Projects/HindiBabyNet/HindiBabyNet-VocalInputStats"
+```
+
+Then create or sync the local environment and install the package dependencies:
+
+```bash
+uv sync
+```
+
+You can confirm the package CLI is available with:
+
+```bash
+uv run hindibabynet-vocalinputstats --help
+```
+
 ## Configuration
 
 Edit [configs/config.yaml](c:/Users/arunps/OneDrive/Projects/HindiBabyNet/HindiBabyNet-VocalInputStats/configs/config.yaml) to point at your local inputs.
@@ -67,11 +95,6 @@ Key settings include:
 - `age_month_denominator`
 - `ses_source`
 - `minimum_recording_hours_warning`
-
-```bash
-uv sync
-uv run hindibabynet-vocalinputstats --help
-```
 
 ## Using network/UNC paths on Windows
 
