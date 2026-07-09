@@ -1,0 +1,17 @@
+---
+title: "HindiBabyNet Preregistered Statistical Report"
+format:
+  pdf: default
+  html: default
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+# Report Status
+
+This Quarto source is part of the Phase 1 scaffold. Later phases will populate
+it with dataset summaries, model-selection rationale, diagnostics, Monte Carlo
+confidence intervals, publication-quality figures, and evidence-based
+hypothesis evaluation.
