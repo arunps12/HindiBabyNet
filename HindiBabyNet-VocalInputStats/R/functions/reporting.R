@@ -1,10 +1,68 @@
 # Reporting helpers for the HindiBabyNet R workflow.
 
+bind_rows_safe <- function(items) {
+  non_empty <- Filter(Negate(is.null), items)
+  if (length(non_empty) == 0) {
+    return(data.frame())
+  }
+
+  all_columns <- unique(unlist(lapply(non_empty, names), use.names = FALSE))
+  aligned <- lapply(non_empty, function(item) {
+    missing_columns <- setdiff(all_columns, names(item))
+    for (column in missing_columns) {
+      item[[column]] <- NA
+    }
+    item[all_columns]
+  })
+
+  do.call(rbind, aligned)
+}
+
+extract_term_level_statistics <- function(model) {
+  if (inherits(model, "glmmTMB")) {
+    coefficient_matrix <- summary(model)$coefficients$cond
+  } else {
+    coefficient_matrix <- coef(summary(model))
+  }
+
+  stats_table <- as.data.frame(coefficient_matrix, stringsAsFactors = FALSE)
+  stats_table$term <- rownames(stats_table)
+  rownames(stats_table) <- NULL
+
+  p_value_column <- grep("Pr\\(|p.value|p-value", names(stats_table), ignore.case = TRUE, value = TRUE)[1]
+  df_column <- grep("^df$|df", names(stats_table), ignore.case = TRUE, value = TRUE)[1]
+
+  data.frame(
+    term = stats_table$term,
+    df = if (!is.na(df_column) && nzchar(df_column)) as.numeric(stats_table[[df_column]]) else NA_real_,
+    p.value = if (!is.na(p_value_column) && nzchar(p_value_column)) as.numeric(stats_table[[p_value_column]]) else NA_real_,
+    stringsAsFactors = FALSE
+  )
+}
+
 extract_fixed_effects <- function(bundle) {
-  effects <- broom.mixed::tidy(bundle$model, effects = "fixed", conf.int = TRUE)
+  effects <- tidy_model_fixed_effects(bundle$model, conf.int = TRUE)
+  term_stats <- extract_term_level_statistics(bundle$model)
+  effects <- merge(effects, term_stats, by = "term", all.x = TRUE, sort = FALSE, suffixes = c("", ".term"))
+
+  if (!"df" %in% names(effects) && "df.term" %in% names(effects)) {
+    effects$df <- effects$df.term
+  } else if ("df.term" %in% names(effects)) {
+    effects$df <- ifelse(is.na(effects$df), effects$df.term, effects$df)
+  }
+
+  if (!"p.value" %in% names(effects) && "p.value.term" %in% names(effects)) {
+    effects$p.value <- effects$p.value.term
+  } else if ("p.value.term" %in% names(effects)) {
+    effects$p.value <- ifelse(is.na(effects$p.value), effects$p.value.term, effects$p.value)
+  }
+
+  effects$df.term <- NULL
+  effects$p.value.term <- NULL
   effects$response <- bundle$response_name
   effects$model_family <- bundle$model_family
   effects$model_type <- bundle$selection$model_type[[1]]
+  effects$fit_engine <- bundle$fit_engine %||% NA_character_
   effects
 }
 
@@ -102,11 +160,11 @@ link_research_questions <- function(evidence_table, questions_yaml) {
 
 build_reporting_bundle <- function(model_bundles, diagnostics, predictions, dataset_summary, questions_yaml = read_research_questions()) {
   selection_table <- selection_table_from_bundles(model_bundles)
-  fixed_effects <- do.call(rbind, lapply(model_bundles, extract_fixed_effects))
-  evidence_table <- do.call(rbind, lapply(model_bundles, summarise_model_evidence))
+  fixed_effects <- bind_rows_safe(lapply(model_bundles, extract_fixed_effects))
+  evidence_table <- bind_rows_safe(lapply(model_bundles, summarise_model_evidence))
   question_summary <- link_research_questions(evidence_table, questions_yaml)
-  diagnostics_table <- do.call(rbind, lapply(diagnostics, function(item) item$summary))
-  prediction_manifest <- do.call(rbind, lapply(names(predictions), function(name) {
+  diagnostics_table <- bind_rows_safe(lapply(diagnostics, function(item) item$summary))
+  prediction_manifest <- bind_rows_safe(lapply(names(predictions), function(name) {
     item <- predictions[[name]]
     data.frame(
       response = name,

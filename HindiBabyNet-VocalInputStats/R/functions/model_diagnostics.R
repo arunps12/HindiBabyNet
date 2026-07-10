@@ -2,8 +2,18 @@
 
 save_diagnostic_plot <- function(plot_object, output_path, width = 7, height = 5, dpi = 300) {
   dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
-  ggplot2::ggsave(output_path, plot_object, width = width, height = height, dpi = dpi, limitsize = FALSE)
+  ggplot2::ggsave(output_path, plot_object, width = width, height = height, dpi = dpi, limitsize = FALSE, bg = "white")
   invisible(output_path)
+}
+
+apply_white_diagnostic_theme <- function(plot_object) {
+  plot_object +
+    ggplot2::theme(
+      plot.background = ggplot2::element_rect(fill = "white", color = NA),
+      panel.background = ggplot2::element_rect(fill = "white", color = NA),
+      legend.background = ggplot2::element_rect(fill = "white", color = NA),
+      legend.key = ggplot2::element_rect(fill = "white", color = NA)
+    )
 }
 
 collect_model_flags <- function(model) {
@@ -24,6 +34,15 @@ collect_model_flags <- function(model) {
       singular_fit = NA,
       converged = pd_hess,
       convergence_messages = if (pd_hess) NA_character_ else "glmmTMB Hessian is not positive definite"
+    ))
+  }
+
+  if (inherits(model, c("lm", "glm"))) {
+    return(list(
+      model_class = class(model)[1],
+      singular_fit = NA,
+      converged = TRUE,
+      convergence_messages = NA_character_
     ))
   }
 
@@ -79,6 +98,7 @@ run_model_diagnostics <- function(bundle, output_dir = analysis_paths$results_di
       y = "Residuals"
     ) +
     ggplot2::theme_minimal(base_size = 12)
+  residual_plot <- apply_white_diagnostic_theme(residual_plot)
 
   qq_plot <- ggplot2::ggplot(residual_data, ggplot2::aes(sample = residual)) +
     ggplot2::stat_qq(alpha = 0.7, size = 1.8) +
@@ -89,6 +109,7 @@ run_model_diagnostics <- function(bundle, output_dir = analysis_paths$results_di
       y = "Sample quantiles"
     ) +
     ggplot2::theme_minimal(base_size = 12)
+  qq_plot <- apply_white_diagnostic_theme(qq_plot)
 
   residual_path <- file.path(output_dir, sprintf("%s_residual_vs_fitted.png", response_stub))
   qq_path <- file.path(output_dir, sprintf("%s_qq.png", response_stub))
@@ -103,7 +124,7 @@ run_model_diagnostics <- function(bundle, output_dir = analysis_paths$results_di
   if (inherits(bundle$model, "glmmTMB")) {
     dharma_path <- file.path(output_dir, sprintf("%s_dharma.png", response_stub))
     tryCatch({
-      png(filename = dharma_path, width = 1400, height = 1000, res = 180)
+      png(filename = dharma_path, width = 1400, height = 1000, res = 180, bg = "white")
       simulation <- DHARMa::simulateResiduals(bundle$model)
       plot(simulation)
       dev.off()

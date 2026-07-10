@@ -3,8 +3,9 @@ title: "HindiBabyNet Preregistered Statistical Report"
 params:
   reporting_bundle: "results/r_tables/reporting_bundle.rds"
 format:
-  pdf: default
-  html: default
+  html:
+    toc: true
+    toc-depth: 3
 execute:
   echo: false
   warning: false
@@ -12,58 +13,316 @@ execute:
 ---
 
 ```{r}
-bundle_path <- params$reporting_bundle
-reporting_bundle <- readRDS(bundle_path)
+find_report_repo_root <- function(start = getwd()) {
+  current <- normalizePath(start, winslash = "/", mustWork = FALSE)
+  repeat {
+    if (dir.exists(file.path(current, "data", "derived"))) {
+      return(current)
+    }
+    parent <- dirname(current)
+    if (identical(parent, current)) {
+      stop("Could not locate repository root while rendering the report.", call. = FALSE)
+    }
+    current <- parent
+  }
+}
 
-render_image <- function(path) {
+resolve_bundle_path <- function(path) {
+  if (!is.null(path) && file.exists(path)) {
+    return(normalizePath(path, winslash = "/", mustWork = TRUE))
+  }
+
+  repo_root <- find_report_repo_root()
+  candidate <- file.path(repo_root, path)
+  if (file.exists(candidate)) {
+    return(normalizePath(candidate, winslash = "/", mustWork = TRUE))
+  }
+
+  stop(sprintf("Reporting bundle not found during report render: %s", path), call. = FALSE)
+}
+
+bundle_path <- resolve_bundle_path(params$reporting_bundle)
+reporting_bundle <- readRDS(bundle_path)
+repo_root <- find_report_repo_root()
+
+question_specs <- reporting_bundle$questions[["research_questions"]]
+question_summary <- reporting_bundle$question_summary
+selection_table <- reporting_bundle$selection_table
+fixed_effects <- reporting_bundle$fixed_effects
+prediction_manifest <- reporting_bundle$prediction_manifest
+diagnostics_table <- reporting_bundle$diagnostics_table
+
+render_table <- function(data, caption = NULL) {
+  print(knitr::kable(data, caption = caption))
+}
+
+render_image <- function(path, width = "88%") {
   if (is.na(path) || !file.exists(path)) {
     return(invisible(NULL))
   }
-  cat(sprintf("![](%s)\n\n", normalizePath(path, winslash = "/", mustWork = FALSE)))
+  cat(sprintf("![](%s){width=%s fig-align='center'}\n\n", normalizePath(path, winslash = "/", mustWork = FALSE), width))
+}
+
+format_number <- function(values, digits = 3) {
+  ifelse(is.na(values), "NA", formatC(values, format = "f", digits = digits))
+}
+
+format_p_value <- function(values) {
+  ifelse(is.na(values), "NA", ifelse(values < 0.001, "< 0.001", formatC(values, format = "f", digits = 3)))
+}
+
+label_response <- function(response) {
+  response <- as.character(response)[[1]]
+  switch(
+    response,
+    input_count_hour = "Input count per hour",
+    input_duration_min_hour = "Input duration (minutes per hour)",
+    key_child_count_hour = "Key child count per hour",
+    key_child_duration_min_hour = "Key child duration (minutes per hour)",
+    response
+  )
+}
+
+label_term <- function(term) {
+  switch(
+    term,
+    speakeradult_male = "Speaker: adult male vs adult female",
+    speakerother_child = "Speaker: other child vs adult female",
+    age_z = "Child age (z-scored)",
+    SEShigh_school = "SES: high school vs reference",
+    SESIntermediate = "SES: intermediate vs reference",
+    SESmaster = "SES: master vs reference",
+    SESprimary_school = "SES: primary school vs reference",
+    child_sexmale = "Child sex: male vs female",
+    "speakeradult_male:age_z" = "Adult male by age interaction",
+    "speakerother_child:age_z" = "Other child by age interaction",
+    input_count_hour = "Input count per hour",
+    "input_count_hour:speakeradult_male" = "Input count by adult male interaction",
+    "input_count_hour:speakerother_child" = "Input count by other child interaction",
+    input_duration_min_hour = "Input duration (minutes per hour)",
+    "input_duration_min_hour:speakeradult_male" = "Input duration by adult male interaction",
+    "input_duration_min_hour:speakerother_child" = "Input duration by other child interaction",
+    term
+  )
+}
+
+response_vector <- function(question_spec) {
+  as.character(question_spec$response_key)
+}
+
+prediction_plot_path <- function(response) {
+  manifest_row <- prediction_manifest[prediction_manifest$response == response, , drop = FALSE]
+  if (nrow(manifest_row) == 0) {
+    return(NA_character_)
+  }
+  manifest_row$plot_path[[1]]
+}
+
+prediction_csv_path <- function(response) {
+  manifest_row <- prediction_manifest[prediction_manifest$response == response, , drop = FALSE]
+  if (nrow(manifest_row) == 0) {
+    return(NA_character_)
+  }
+  manifest_row$prediction_csv[[1]]
+}
+
+forest_plot_path <- function(response) {
+  file.path(repo_root, "results", "r_plots", sprintf("%s_forest.png", response))
+}
+
+focal_terms_for_question <- function(question_id, response) {
+  if (identical(question_id, "rq1")) {
+    return(c("speakeradult_male", "speakerother_child"))
+  }
+  if (identical(question_id, "rq2")) {
+    return(c("age_z", "SEShigh_school", "SESIntermediate", "SESmaster", "SESprimary_school", "child_sexmale", "speakeradult_male:age_z", "speakerother_child:age_z"))
+  }
+  if (identical(question_id, "rq3")) {
+    if (identical(response, "key_child_count_hour")) {
+      return(c("input_count_hour", "speakeradult_male", "speakerother_child", "input_count_hour:speakeradult_male", "input_count_hour:speakerother_child"))
+    }
+    return(c("input_duration_min_hour", "speakeradult_male", "speakerother_child", "input_duration_min_hour:speakeradult_male", "input_duration_min_hour:speakerother_child"))
+  }
+  if (identical(question_id, "rq4")) {
+    return(c("age_z", "SEShigh_school", "SESIntermediate", "SESmaster", "SESprimary_school", "child_sexmale"))
+  }
+  character(0)
+}
+
+subset_effects <- function(question_id, response) {
+  focal_terms <- focal_terms_for_question(question_id, response)
+  response_effects <- fixed_effects[fixed_effects$response == response, , drop = FALSE]
+  response_effects[response_effects$term %in% focal_terms, , drop = FALSE]
+}
+
+prediction_summary_table <- function(response) {
+  csv_path <- prediction_csv_path(response)
+  if (is.na(csv_path) || !file.exists(csv_path)) {
+    return(data.frame())
+  }
+
+  prediction_data <- utils::read.csv(csv_path, stringsAsFactors = FALSE)
+  predictor_name <- if ("input_count_hour" %in% names(prediction_data)) {
+    "input_count_hour"
+  } else if ("input_duration_min_hour" %in% names(prediction_data)) {
+    "input_duration_min_hour"
+  } else {
+    "age_days"
+  }
+
+  speakers <- unique(prediction_data$speaker)
+  rows <- lapply(speakers, function(current_speaker) {
+    subset <- prediction_data[prediction_data$speaker == current_speaker, , drop = FALSE]
+    subset <- subset[order(subset[[predictor_name]]), , drop = FALSE]
+    start_predicted <- subset$predicted[[1]]
+    end_predicted <- subset$predicted[[nrow(subset)]]
+    delta <- end_predicted - start_predicted
+    trend <- if (abs(delta) < 1e-8) "flat" else if (delta > 0) "increasing" else "decreasing"
+
+    data.frame(
+      speaker = gsub("_", " ", current_speaker, fixed = TRUE),
+      predictor = gsub("_", " ", predictor_name, fixed = TRUE),
+      start_predicted = format_number(start_predicted),
+      end_predicted = format_number(end_predicted),
+      delta = format_number(delta),
+      trend = trend,
+      stringsAsFactors = FALSE
+    )
+  })
+
+  do.call(rbind, rows)
+}
+
+effect_display_table <- function(effects_subset) {
+  if (nrow(effects_subset) == 0) {
+    return(data.frame(note = "No focal effects available for this question-response pairing."))
+  }
+
+  data.frame(
+    term = vapply(effects_subset$term, label_term, character(1)),
+    estimate = format_number(effects_subset$estimate),
+    std_error = format_number(effects_subset$std.error),
+    statistic = format_number(effects_subset$statistic),
+    df = ifelse(is.na(effects_subset$df), "NA", format_number(effects_subset$df)),
+    p_value = format_p_value(effects_subset$p.value),
+    conf_low = format_number(effects_subset$conf.low),
+    conf_high = format_number(effects_subset$conf.high),
+    stringsAsFactors = FALSE
+  )
+}
+
+render_effect_bullets <- function(effects_subset) {
+  if (nrow(effects_subset) == 0) {
+    cat("No focal fixed effects were available for this response under the current question.\n\n")
+    return(invisible(NULL))
+  }
+
+  apply(effects_subset, 1, function(row) {
+    direction <- if (is.na(row[["estimate"]])) {
+      "estimate unavailable"
+    } else if (!is.na(row[["conf.low"]]) && !is.na(row[["conf.high"]]) && row[["conf.low"]] > 0) {
+      "positive effect with a confidence interval entirely above zero"
+    } else if (!is.na(row[["conf.low"]]) && !is.na(row[["conf.high"]]) && row[["conf.high"]] < 0) {
+      "negative effect with a confidence interval entirely below zero"
+    } else if (row[["estimate"]] > 0) {
+      "positive estimate with uncertainty overlapping zero"
+    } else if (row[["estimate"]] < 0) {
+      "negative estimate with uncertainty overlapping zero"
+    } else {
+      "near-zero estimate"
+    }
+
+    cat(sprintf(
+      "- %s: estimate = %s, 95%% CI [%s, %s], p = %s. This indicates a %s.\n",
+      label_term(row[["term"]]),
+      format_number(row[["estimate"]]),
+      format_number(row[["conf.low"]]),
+      format_number(row[["conf.high"]]),
+      format_p_value(row[["p.value"]]),
+      direction
+    ))
+  })
+  cat("\n")
+}
+
+render_question_section <- function(question_spec) {
+  question_row <- question_summary[question_summary$research_question_id == question_spec$id, , drop = FALSE]
+
+  cat(sprintf("## %s\n\n", question_spec$title))
+  cat(sprintf("**Research question.** %s\n\n", question_spec$hypothesis))
+  cat(sprintf("**%s.** %s\n\n", question_spec$hypothesis_id, question_spec$expected_pattern))
+
+  if (nrow(question_row) > 0) {
+    cat(sprintf("**Overall evidence category.** %s\n\n", question_row$evidence_category[[1]]))
+  }
+
+  if (question_spec$id %in% c("rq3", "rq4")) {
+    cat("### Modeling Note for Family 2\n\n")
+    cat("The Family 2 dataset contains three speaker-specific rows per participant while repeating the same child-output outcome on each of those rows. Including a participant random intercept in that structure absorbed nearly all between-participant variation in the repeated child-output measure, which produced flat input-output prediction curves and unstable diagnostics. The final Family 2 models therefore retain a location random intercept but omit the participant random intercept so that the fixed input and input-by-speaker effects remain identifiable and the fitted curves reflect the actual long-format data structure.\n\n")
+  }
+
+  for (response in response_vector(question_spec)) {
+    cat(sprintf("### %s\n\n", label_response(response)))
+
+    summary_row <- selection_table[selection_table$response == response, c("model_family", "model_type", "n_complete_cases", "rationale"), drop = FALSE]
+    if (nrow(summary_row) > 0) {
+      summary_row$response <- label_response(response)
+      summary_row <- summary_row[, c("response", "model_family", "model_type", "n_complete_cases", "rationale")]
+      render_table(summary_row, caption = paste("Model summary for", label_response(response)))
+      cat("\n")
+    }
+
+    prediction_table <- prediction_summary_table(response)
+    if (nrow(prediction_table) > 0) {
+      render_table(prediction_table, caption = paste("Prediction summary for", label_response(response)))
+      cat("\n")
+    }
+
+    render_image(prediction_plot_path(response), width = "88%")
+    render_image(forest_plot_path(response), width = "82%")
+
+    effects_subset <- subset_effects(question_spec$id, response)
+    render_table(effect_display_table(effects_subset), caption = paste("Focal fixed effects for", label_response(response), "under", question_spec$hypothesis_id))
+    cat("\n")
+    render_effect_bullets(effects_subset)
+  }
 }
 ```
 
 # Dataset Summary
 
 ```{r}
-knitr::kable(reporting_bundle$dataset_summary)
+dataset_summary <- reporting_bundle$dataset_summary
+numeric_columns <- vapply(dataset_summary, is.numeric, logical(1))
+dataset_summary[numeric_columns] <- lapply(dataset_summary[numeric_columns], format_number)
+render_table(dataset_summary, caption = "Dataset summary")
 ```
 
-# Model Selection Rationale
+# Research Question Overview
 
 ```{r}
-knitr::kable(reporting_bundle$selection_table)
+overview_table <- question_summary[, c("research_question_id", "title", "evidence_category", "responses")]
+render_table(overview_table, caption = "Research question evidence overview")
 ```
 
-# Diagnostics
+# Model Selection Overview
 
 ```{r}
-knitr::kable(reporting_bundle$diagnostics_table)
+selection_overview <- selection_table[, c("response", "model_family", "model_type", "n_complete_cases", "rationale")]
+selection_overview$response <- vapply(selection_overview$response, label_response, character(1))
+render_table(selection_overview, caption = "Selected models and rationale")
 ```
 
-# Fixed Effects
-
-```{r}
-knitr::kable(reporting_bundle$fixed_effects)
-```
-
-# Research Questions
-
-```{r}
-knitr::kable(reporting_bundle$question_summary)
-```
-
-# Evidence Summary
-
-```{r}
-knitr::kable(reporting_bundle$evidence_table)
-```
-
-# Figures
+# Research Questions and Hypotheses
 
 ```{r, results='asis'}
-apply(reporting_bundle$prediction_manifest, 1, function(row) {
-  cat(sprintf("## %s\n\n", row[["response"]]))
-  render_image(row[["plot_path"]])
-})
+invisible(lapply(question_specs, render_question_section))
+```
+
+# Appendix: Diagnostics Summary
+
+```{r}
+diagnostics_display <- diagnostics_table
+diagnostics_display$heteroscedasticity_p <- format_p_value(diagnostics_display$heteroscedasticity_p)
+render_table(diagnostics_display, caption = "Diagnostics summary across all fitted models")
 ```

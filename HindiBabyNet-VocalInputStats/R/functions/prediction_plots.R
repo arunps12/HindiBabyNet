@@ -4,6 +4,17 @@
   if (is.null(x)) y else x
 }
 
+apply_white_plot_theme <- function(plot_object) {
+  plot_object +
+    ggplot2::theme(
+      plot.background = ggplot2::element_rect(fill = "white", color = NA),
+      panel.background = ggplot2::element_rect(fill = "white", color = NA),
+      legend.background = ggplot2::element_rect(fill = "white", color = NA),
+      legend.key = ggplot2::element_rect(fill = "white", color = NA),
+      strip.background = ggplot2::element_rect(fill = "white", color = NA)
+    )
+}
+
 validate_age_plot_data <- function(prediction_data, tolerance = 1e-8) {
   if (!("age_days" %in% names(prediction_data)) || !("age_z" %in% names(prediction_data))) {
     stop("Prediction data must include both age_days and age_z.", call. = FALSE)
@@ -19,11 +30,11 @@ validate_age_plot_data <- function(prediction_data, tolerance = 1e-8) {
 
 save_prediction_plot <- function(plot_object, output_path, width = 8, height = 5.5, dpi = 300) {
   dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
-  ggplot2::ggsave(output_path, plot_object, width = width, height = height, dpi = dpi, limitsize = FALSE)
+  ggplot2::ggsave(output_path, plot_object, width = width, height = height, dpi = dpi, limitsize = FALSE, bg = "white")
   invisible(output_path)
 }
 
-plot_prediction_with_ci <- function(prediction_data, x_var, y_var, output_stub, color_var = NULL, x_label = NULL, y_label = NULL, title = NULL) {
+plot_prediction_with_ci <- function(prediction_data, x_var, y_var, output_stub, color_var = NULL, x_label = NULL, y_label = NULL, title = NULL, facet_var = NULL, width = 8, height = 5.5) {
   aesthetics <- ggplot2::aes_string(x = x_var, y = y_var, color = color_var %||% NULL, fill = color_var %||% NULL, group = color_var %||% NULL)
   plot_object <- ggplot2::ggplot(prediction_data, aesthetics) +
     ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper), alpha = 0.18, color = NA, show.legend = !is.null(color_var)) +
@@ -37,8 +48,14 @@ plot_prediction_with_ci <- function(prediction_data, x_var, y_var, output_stub, 
     ) +
     ggplot2::theme_minimal(base_size = 12)
 
+  if (!is.null(facet_var)) {
+    plot_object <- plot_object + ggplot2::facet_wrap(stats::as.formula(paste("~", facet_var)))
+  }
+
+  plot_object <- apply_white_plot_theme(plot_object)
+
   output_path <- file.path(analysis_paths$results_plots, sprintf("%s.png", output_stub))
-  save_prediction_plot(plot_object, output_path)
+  save_prediction_plot(plot_object, output_path, width = width, height = height)
   list(plot = plot_object, path = output_path)
 }
 
@@ -87,14 +104,17 @@ plot_input_output_predictions <- function(bundle, data, predictor_name, x_label,
     color_var = "speaker",
     x_label = x_label,
     y_label = y_label,
-    title = sprintf("%s vs %s", bundle$response_name, predictor_name)
+    title = sprintf("%s vs %s", bundle$response_name, predictor_name),
+    facet_var = "speaker",
+    width = 10,
+    height = 4.8
   )
 
   list(data = prediction_data, csv_path = csv_path, plot_path = plot_result$path)
 }
 
 plot_fixed_effects_forest <- function(bundle, output_stub) {
-  effects_table <- broom.mixed::tidy(bundle$model, effects = "fixed", conf.int = TRUE)
+  effects_table <- tidy_model_fixed_effects(bundle$model, conf.int = TRUE)
   plot_object <- ggplot2::ggplot(effects_table, ggplot2::aes(x = estimate, y = stats::reorder(term, estimate))) +
     ggplot2::geom_vline(xintercept = 0, linetype = "dashed") +
     ggplot2::geom_errorbarh(ggplot2::aes(xmin = conf.low, xmax = conf.high), height = 0.15) +
@@ -105,6 +125,8 @@ plot_fixed_effects_forest <- function(bundle, output_stub) {
       y = NULL
     ) +
     ggplot2::theme_minimal(base_size = 12)
+
+  plot_object <- apply_white_plot_theme(plot_object)
 
   output_path <- file.path(analysis_paths$results_plots, sprintf("%s_forest.png", output_stub))
   save_prediction_plot(plot_object, output_path, width = 8, height = 4.8)

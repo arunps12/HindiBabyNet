@@ -1,14 +1,40 @@
+# Python environments and caches
 .venv/
 __pycache__/
-.pytest_cache/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
 *.egg-info/
+
+# R local environment and session files
 .r-library/
+.Rhistory
+.RData
+.Ruserdata
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Local config if it contains machine-specific paths
+# Keep a template instead
+configs/config.yaml
+!configs/config.example.yaml
+
+# Private, raw, processed, and derived data
 data/private/
 data/raw/
 data/processed/
 data/derived/*
 !data/derived/.gitkeep
+
+# Generated tables and figures
+tables/*
+!tables/.gitkeep
+figures/*
+!figures/.gitkeep
+
+# Generated analysis results
 results/*
 !results/.gitkeep
 !results/r_models/
@@ -29,16 +55,30 @@ results/r_plots/*
 !results/final_report/
 results/final_report/*
 !results/final_report/.gitkeep
-tables/*
+
+# Rendered report outputs and cache
+HindiBabyNet_stat_model_report.html
+HindiBabyNet_stat_model_report.pdf
+HindiBabyNet_stat_model_report_cache/
+
+# Notebook exports
+*.nb.html
+
+# Docs outputs if generated locally
 Docs/*
 !Docs/.gitkeep
-!tables/.gitkeep
-figures/*
-!figures/.gitkeep
+
+# Audio files
 *.wav
 *.WAV
 *.flac
 *.FLAC
 *.mp3
 *.MP3
+
+# Private lookup files
 participant_lookup.csv
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

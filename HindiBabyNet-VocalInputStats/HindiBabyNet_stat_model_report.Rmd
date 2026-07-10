@@ -1,0 +1,759 @@
+---
+title: "HindiBabyNet Vocal Input and Child Output Model Report"
+author: "Arun Prakash Singh"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+    code_folding: show
+    df_print: paged
+  pdf_document:
+    toc: yes
+params:
+  refit_models: yes
+  nsim: 100
+  model_robustness_mode: "strict" #"strict" or "auto"
+  family1_participant_intercept: "without" # "with" or "without"
+  family1_location_intercept: "with"
+  family1_drop_fixed_terms: !r character(0) # ["fixed_effect1", fixed_effect2]
+  family1_extra_fixed_terms: !r character(0)
+  family1_random_slope_terms: !r character(0)
+  family2_participant_intercept: "without"
+  family2_location_intercept: "with"
+  family2_drop_fixed_terms: !r character(0)
+  family2_extra_fixed_terms: !r character(0)
+  family2_random_slope_terms: !r character(0) # ["speaker|participant_id"]
+  show_code: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = params$show_code,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 9,
+  fig.height = 5.5,
+  dpi = 120
+)
+
+options(width = 120, scipen = 999)
+
+collapse_param_values <- function(values) {
+  if (is.null(values) || length(values) == 0) {
+    return("")
+  }
+
+  values <- trimws(as.character(unlist(values, use.names = FALSE)))
+  values <- values[nzchar(values)]
+  if (length(values) == 0) {
+    return("")
+  }
+
+  paste(values, collapse = ";")
+}
+
+apply_report_environment_overrides <- function() {
+  Sys.setenv(
+    HBN_NSIM = as.character(params$nsim),
+    HBN_MODEL_ROBUSTNESS_MODE = as.character(params$model_robustness_mode),
+    HBN_FAMILY1_PARTICIPANT_INTERCEPT = as.character(params$family1_participant_intercept),
+    HBN_FAMILY1_LOCATION_INTERCEPT = as.character(params$family1_location_intercept),
+    HBN_FAMILY1_DROP_FIXED_TERMS = collapse_param_values(params$family1_drop_fixed_terms),
+    HBN_FAMILY1_EXTRA_FIXED_TERMS = collapse_param_values(params$family1_extra_fixed_terms),
+    HBN_FAMILY1_RANDOM_SLOPES = collapse_param_values(params$family1_random_slope_terms),
+    HBN_FAMILY2_PARTICIPANT_INTERCEPT = as.character(params$family2_participant_intercept),
+    HBN_FAMILY2_LOCATION_INTERCEPT = as.character(params$family2_location_intercept),
+    HBN_FAMILY2_DROP_FIXED_TERMS = collapse_param_values(params$family2_drop_fixed_terms),
+    HBN_FAMILY2_EXTRA_FIXED_TERMS = collapse_param_values(params$family2_extra_fixed_terms),
+    HBN_FAMILY2_RANDOM_SLOPES = collapse_param_values(params$family2_random_slope_terms)
+  )
+}
+
+apply_report_environment_overrides()
+
+source(file.path("R", "00_setup.R"))
+source(file.path("R", "functions", "data_prep.R"))
+source(file.path("R", "functions", "model_selection.R"))
+source(file.path("R", "functions", "model_diagnostics.R"))
+source(file.path("R", "functions", "monte_carlo_ci.R"))
+source(file.path("R", "functions", "prediction_plots.R"))
+
+load_required_packages(attach = FALSE)
+ensure_analysis_directories()
+
+apply_report_analysis_overrides <- function() {
+  analysis_options$nsim_default <- params$nsim
+  analysis_options$model_robustness_mode <- params$model_robustness_mode
+  analysis_options$family_2_participant_intercept <- params$family2_participant_intercept
+  analysis_options$model_spec_overrides <- list(
+    family_1 = list(
+      participant_intercept = params$family1_participant_intercept,
+      location_intercept = params$family1_location_intercept,
+      drop_fixed_terms = as.character(unlist(params$family1_drop_fixed_terms, use.names = FALSE)),
+      extra_fixed_terms = as.character(unlist(params$family1_extra_fixed_terms, use.names = FALSE)),
+      random_slopes = as.character(unlist(params$family1_random_slope_terms, use.names = FALSE))
+    ),
+    family_2 = list(
+      participant_intercept = params$family2_participant_intercept,
+      location_intercept = params$family2_location_intercept,
+      drop_fixed_terms = as.character(unlist(params$family2_drop_fixed_terms, use.names = FALSE)),
+      extra_fixed_terms = as.character(unlist(params$family2_extra_fixed_terms, use.names = FALSE)),
+      random_slopes = as.character(unlist(params$family2_random_slope_terms, use.names = FALSE))
+    )
+  )
+}
+
+apply_dataset_runtime_state <- function(datasets_bundle) {
+  analysis_options$age_days_mean <- datasets_bundle$age_days_mean
+  analysis_options$age_days_sd <- datasets_bundle$age_days_sd
+  analysis_runtime$age_days_mean <- datasets_bundle$age_days_mean
+  analysis_runtime$age_days_sd <- datasets_bundle$age_days_sd
+}
+
+apply_report_analysis_overrides()
+
+# Packages used only for rendering readable report tables.
+if (!requireNamespace("knitr", quietly = TRUE)) {
+  stop("Package 'knitr' is required to render this report.")
+}
+
+show_table <- function(x, digits = 3, caption = NULL) {
+  if (is.null(x) || nrow(as.data.frame(x)) == 0) return(invisible(NULL))
+  print(knitr::kable(as.data.frame(x), digits = digits, caption = caption))
+  invisible(x)
+}
+
+bind_rows_safe <- function(items) {
+  non_empty <- Filter(Negate(is.null), items)
+  if (length(non_empty) == 0) {
+    return(data.frame())
+  }
+
+  all_columns <- unique(unlist(lapply(non_empty, names), use.names = FALSE))
+  aligned <- lapply(non_empty, function(item) {
+    missing_columns <- setdiff(all_columns, names(item))
+    for (column in missing_columns) {
+      item[[column]] <- NA
+    }
+    item[all_columns]
+  })
+
+  do.call(rbind, aligned)
+}
+
+fixed_effects_table <- function(bundle) {
+  tidy_model_fixed_effects(bundle$model, conf.int = TRUE)
+}
+
+random_effects_table <- function(bundle) {
+  tryCatch(
+    tidy_model_random_effects(bundle$model, conf.int = TRUE),
+    error = function(e) data.frame(note = conditionMessage(e))
+  )
+}
+
+model_fit_table <- function(bundle) {
+  data.frame(
+    response = bundle$response_name,
+    model_family = bundle$model_family,
+    selected_model = bundle$selection$model_type[[1]],
+    n_complete_cases = bundle$n_complete_cases,
+    AIC = AIC(bundle$model),
+    BIC = BIC(bundle$model),
+    logLik = as.numeric(logLik(bundle$model)),
+    transformed_response = bundle$transformed_response,
+    formula = paste(deparse(bundle$fitted_formula), collapse = " "),
+    stringsAsFactors = FALSE
+  )
+}
+
+print_model_summary <- function(bundle) {
+  cat("\n### Full model summary\n\n")
+  print(summary(bundle$model))
+}
+
+show_saved_image <- function(path, caption = NULL) {
+  if (!is.null(path) && length(path) == 1 && !is.na(path) && file.exists(path)) {
+    print(knitr::include_graphics(path))
+  } else {
+    cat("Plot was not produced.\n")
+  }
+}
+```
+
+# 1. Purpose and execution order
+
+This report runs the complete R modelling workflow in the following order:
+
+1.  load and validate the public analysis datasets;
+2.  inspect each response and select its model type;
+3.  fit or load the four preregistered model bundles;
+4.  display model-selection decisions and model summaries;
+5.  display fixed and random effects tables;
+6.  generate prediction intervals and publication figures;
+7.  run and display model diagnostics;
+8.  save the same model, table, prediction, plot, and diagnostic files used by the scripted workflow.
+
+Set `params$refit_models` to `false` when the `.rds` model bundles already exist and you only want to rebuild the report. `params$nsim` controls the number of parametric bootstrap simulations for LMM prediction intervals. A larger value gives more stable intervals but takes longer.
+
+Use the parameter block at the top of this file to control fixed effects, random intercepts, and random slopes for both Family 1 and Family 2. `params$model_robustness_mode` accepts `"auto"` or `"strict"`. In `"auto"` mode, the workflow tries your requested specification first and then simplifies it if needed so the report still completes. In `"strict"` mode, it uses only the exact requested specification and stops if that model cannot be fit.
+
+# 1.1 What to change in this .Rmd file
+
+Edit the `params:` block at the top of this file.
+
+- `family1_participant_intercept` and `family2_participant_intercept`: set to `"with"`, `"without"`, or `"auto"`.
+- `family1_location_intercept` and `family2_location_intercept`: set to `"with"`, `"without"`, or `"auto"`.
+- `family1_drop_fixed_terms` and `family2_drop_fixed_terms`: list the fixed-effect terms you want removed.
+- `family1_extra_fixed_terms` and `family2_extra_fixed_terms`: list extra fixed-effect terms you want added.
+- `family1_random_slope_terms` and `family2_random_slope_terms`: list random slope terms using `term|group`, `term||group`, or full lme4 syntax such as `(1 + speaker | participant_id)`.
+- `model_robustness_mode`: use `"auto"` for safe experimentation or `"strict"` for exact-spec fitting only.
+
+Examples of direct edits in the YAML block:
+
+```yaml
+params:
+  model_robustness_mode: "auto"
+  family1_participant_intercept: "without"
+  family1_location_intercept: "without"
+  family1_drop_fixed_terms: ["SES", "child_sex"]
+  family1_random_slope_terms: []
+  family2_participant_intercept: "with"
+  family2_location_intercept: "with"
+  family2_drop_fixed_terms: []
+  family2_extra_fixed_terms: []
+  family2_random_slope_terms: ["speaker|participant_id"]
+```
+
+Interpretation of the most common terms:
+
+- Family 1 fixed terms usually include `speaker`, `age_z`, `speaker:age_z`, `SES`, and `child_sex`.
+- Family 2 count usually starts from `input_count_hour`, `speaker`, `input_count_hour:speaker`, `age_z`, `SES`, and `child_sex`.
+- Family 2 duration usually starts from `input_duration_min_hour`, `speaker`, `input_duration_min_hour:speaker`, `age_z`, `SES`, and `child_sex`.
+
+After you edit the parameter block, rerender the report. If `refit_models: yes`, the saved model bundles, prediction files, diagnostics, and summary tables will be regenerated using the new specification.
+
+# 2. Load and inspect datasets
+
+```{r load-data}
+datasets_bundle <- load_analysis_datasets(write_summary = TRUE)
+apply_dataset_runtime_state(datasets_bundle)
+
+final_master <- datasets_bundle$datasets$final_master
+input_data <- datasets_bundle$datasets$input_long
+input_output_data <- datasets_bundle$datasets$input_output_long
+
+show_table(
+  datasets_bundle$dataset_summary,
+  digits = 0,
+  caption = "Analysis datasets"
+)
+```
+
+## Age standardisation used by the models
+
+```{r age-standardisation}
+age_standardisation <- data.frame(
+  quantity = c("Mean age in days", "SD of age in days"),
+  value = c(datasets_bundle$age_days_mean, datasets_bundle$age_days_sd)
+)
+show_table(age_standardisation, digits = 3)
+```
+
+
+## Speaker and participant overview
+
+```{r sample-overview}
+sample_overview <- data.frame(
+  dataset = c("final_master", "input_long", "input_output_long"),
+  participants = c(
+    length(unique(final_master$participant_id)),
+    length(unique(input_data$participant_id)),
+    length(unique(input_output_data$participant_id))
+  ),
+  locations = c(
+    length(unique(final_master$Location)),
+    length(unique(input_data$Location)),
+    length(unique(input_output_data$Location))
+  ),
+  rows = c(nrow(final_master), nrow(input_data), nrow(input_output_data))
+)
+show_table(sample_overview, digits = 0)
+
+speaker_counts <- as.data.frame(table(input_data$speaker, useNA = "ifany"))
+names(speaker_counts) <- c("speaker", "n_rows")
+show_table(speaker_counts, digits = 0, caption = "Rows by input-speaker category")
+```
+
+# 3. Fit or load all models
+
+# Load setup
+
+```{r load-setup}
+apply_report_environment_overrides()
+source(file.path("R", "00_setup.R"))
+load_required_packages(attach = FALSE)
+ensure_analysis_directories()
+
+apply_report_analysis_overrides()
+apply_dataset_runtime_state(datasets_bundle)
+```
+
+# Run model scripts
+
+```{r run-model-scripts, eval=params$refit_models}
+source(file.path("R", "01_input_models.R"))
+source(file.path("R", "02_input_output_models.R"))
+source(file.path("R", "03_model_tables_and_plots.R"))
+```
+
+
+```{r fit-or-load-models}
+apply_report_environment_overrides()
+apply_report_analysis_overrides()
+apply_dataset_runtime_state(datasets_bundle)
+
+model_paths <- c(
+  input_count_hour = file.path(analysis_paths$results_models, "input_count_hour.rds"),
+  input_duration_min_hour = file.path(analysis_paths$results_models, "input_duration_min_hour.rds"),
+  key_child_count_hour = file.path(analysis_paths$results_models, "key_child_count_hour.rds"),
+  key_child_duration_min_hour = file.path(analysis_paths$results_models, "key_child_duration_min_hour.rds")
+)
+
+if (isTRUE(params$refit_models)) {
+  input_model_bundles <- list(
+    input_count_hour = fit_preregistered_model(
+      input_data, "input_count_hour", "family_1", allow_gamma = TRUE
+    ),
+    input_duration_min_hour = fit_preregistered_model(
+      input_data, "input_duration_min_hour", "family_1", allow_gamma = TRUE
+    )
+  )
+
+  input_output_model_bundles <- list(
+    key_child_count_hour = fit_preregistered_model(
+      input_output_data, "key_child_count_hour", "family_2_count", allow_gamma = TRUE
+    ),
+    key_child_duration_min_hour = fit_preregistered_model(
+      input_output_data, "key_child_duration_min_hour", "family_2_duration", allow_gamma = TRUE
+    )
+  )
+
+  model_bundles <- c(input_model_bundles, input_output_model_bundles)
+
+  invisible(Map(
+    function(bundle, path) save_model_bundle(bundle, path),
+    model_bundles,
+    model_paths
+  ))
+} else {
+  missing_models <- model_paths[!file.exists(model_paths)]
+  if (length(missing_models) > 0) {
+    stop(
+      paste0(
+        "The following saved models are missing. Render with params$refit_models = true: ",
+        paste(basename(missing_models), collapse = ", ")
+      )
+    )
+  }
+  model_bundles <- lapply(model_paths, load_model_bundle)
+}
+
+selection_table <- selection_table_from_bundles(model_bundles)
+utils::write.csv(
+  selection_table,
+  file.path(analysis_paths$results_tables, "all_model_selection.csv"),
+  row.names = FALSE
+)
+
+show_table(selection_table, digits = 3, caption = "Model-selection decisions")
+```
+
+# 4. Model Family 1: Vocal input by age and speaker
+
+## 4.1 Input count per hour
+
+### Response inspection and selected model
+
+```{r input-count-selection}
+input_count_bundle <- model_bundles$input_count_hour
+show_table(input_count_bundle$selection, digits = 3)
+show_table(model_fit_table(input_count_bundle), digits = 3)
+```
+
+### Model summary
+
+```{r input-count-summary, results='asis'}
+print_model_summary(input_count_bundle)
+```
+
+### Fixed effects
+
+```{r input-count-fixed}
+input_count_fixed <- fixed_effects_table(input_count_bundle)
+show_table(input_count_fixed, digits = 4, caption = "Fixed effects: input count per hour")
+```
+
+### Random effects
+
+```{r input-count-random}
+show_table(random_effects_table(input_count_bundle), digits = 4)
+```
+
+### Fixed-effects forest plot
+
+```{r input-count-forest, results='asis'}
+input_count_forest <- plot_fixed_effects_forest(input_count_bundle, "input_count_hour")
+show_saved_image(input_count_forest$path)
+```
+
+### Predicted input count across age and speaker
+
+```{r input-count-prediction, results='asis', cache=TRUE}
+input_count_prediction <- plot_age_speaker_predictions(
+  input_count_bundle,
+  input_data,
+  output_stub = "input_count_by_age_speaker",
+  y_label = "Predicted input count per hour",
+  nsim = params$nsim
+)
+show_saved_image(input_count_prediction$plot_path)
+```
+
+### Prediction table preview
+
+```{r input-count-prediction-table}
+show_table(utils::head(input_count_prediction$data, 12), digits = 3)
+```
+
+### Diagnostics
+
+```{r input-count-diagnostics, results='asis'}
+input_count_diagnostics <- run_model_diagnostics(input_count_bundle)
+show_table(input_count_diagnostics$summary, digits = 4)
+
+cat("\n#### Residuals versus fitted values\n\n")
+show_saved_image(input_count_diagnostics$paths$residual_plot)
+
+cat("\n#### Residual Q-Q plot\n\n")
+show_saved_image(input_count_diagnostics$paths$qq_plot)
+
+if (!is.na(input_count_diagnostics$paths$dharma_plot)) {
+  cat("\n#### DHARMa simulated residual diagnostics\n\n")
+  show_saved_image(input_count_diagnostics$paths$dharma_plot)
+}
+```
+
+## 4.2 Input duration in minutes per hour
+
+### Response inspection and selected model
+
+```{r input-duration-selection}
+input_duration_bundle <- model_bundles$input_duration_min_hour
+show_table(input_duration_bundle$selection, digits = 3)
+show_table(model_fit_table(input_duration_bundle), digits = 3)
+```
+
+### Model summary
+
+```{r input-duration-summary, results='asis'}
+print_model_summary(input_duration_bundle)
+```
+
+### Fixed effects
+
+```{r input-duration-fixed}
+input_duration_fixed <- fixed_effects_table(input_duration_bundle)
+show_table(input_duration_fixed, digits = 4, caption = "Fixed effects: input duration")
+```
+
+### Random effects
+
+```{r input-duration-random}
+show_table(random_effects_table(input_duration_bundle), digits = 4)
+```
+
+### Fixed-effects forest plot
+
+```{r input-duration-forest, results='asis'}
+input_duration_forest <- plot_fixed_effects_forest(input_duration_bundle, "input_duration_min_hour")
+show_saved_image(input_duration_forest$path)
+```
+
+### Predicted input duration across age and speaker
+
+```{r input-duration-prediction, results='asis', cache=TRUE}
+input_duration_prediction <- plot_age_speaker_predictions(
+  input_duration_bundle,
+  input_data,
+  output_stub = "input_duration_by_age_speaker",
+  y_label = "Predicted input duration (min/hour)",
+  nsim = params$nsim
+)
+show_saved_image(input_duration_prediction$plot_path)
+```
+
+### Prediction table preview
+
+```{r input-duration-prediction-table}
+show_table(utils::head(input_duration_prediction$data, 12), digits = 3)
+```
+
+### Diagnostics
+
+```{r input-duration-diagnostics, results='asis'}
+input_duration_diagnostics <- run_model_diagnostics(input_duration_bundle)
+show_table(input_duration_diagnostics$summary, digits = 4)
+
+cat("\n#### Residuals versus fitted values\n\n")
+show_saved_image(input_duration_diagnostics$paths$residual_plot)
+
+cat("\n#### Residual Q-Q plot\n\n")
+show_saved_image(input_duration_diagnostics$paths$qq_plot)
+
+if (!is.na(input_duration_diagnostics$paths$dharma_plot)) {
+  cat("\n#### DHARMa simulated residual diagnostics\n\n")
+  show_saved_image(input_duration_diagnostics$paths$dharma_plot)
+}
+```
+
+# 5. Model Family 2: Child output predicted by vocal input
+
+The Family 2 formulas always include a location random intercept. The participant random intercept is controlled by `params$family2_participant_intercept`: `"with"` forces `(1|participant_id)`, `"without"` removes it, and `"auto"` tries the participant-intercept version first and falls back only if that fit fails with a hard optimisation error.
+
+## 5.1 Key-child count per hour predicted by input count
+
+### Response inspection and selected model
+
+```{r child-count-selection}
+child_count_bundle <- model_bundles$key_child_count_hour
+show_table(child_count_bundle$selection, digits = 3)
+show_table(model_fit_table(child_count_bundle), digits = 3)
+```
+
+### Model summary
+
+```{r child-count-summary, results='asis'}
+print_model_summary(child_count_bundle)
+```
+
+### Fixed effects
+
+```{r child-count-fixed}
+child_count_fixed <- fixed_effects_table(child_count_bundle)
+show_table(child_count_fixed, digits = 4, caption = "Fixed effects: key-child count")
+```
+
+### Random effects
+
+```{r child-count-random}
+show_table(random_effects_table(child_count_bundle), digits = 4)
+```
+
+### Fixed-effects forest plot
+
+```{r child-count-forest, results='asis'}
+child_count_forest <- plot_fixed_effects_forest(child_count_bundle, "key_child_count_hour")
+show_saved_image(child_count_forest$path)
+```
+
+### Predicted child count across input count and speaker
+
+```{r child-count-prediction, results='asis', cache=TRUE}
+child_count_prediction <- plot_input_output_predictions(
+  child_count_bundle,
+  input_output_data,
+  predictor_name = "input_count_hour",
+  x_label = "Input count per hour",
+  y_label = "Predicted key-child count per hour",
+  output_stub = "key_child_count_by_input",
+  nsim = params$nsim
+)
+show_saved_image(child_count_prediction$plot_path)
+```
+
+### Prediction table preview
+
+```{r child-count-prediction-table}
+show_table(utils::head(child_count_prediction$data, 12), digits = 3)
+```
+
+### Diagnostics
+
+```{r child-count-diagnostics, results='asis'}
+child_count_diagnostics <- run_model_diagnostics(child_count_bundle)
+show_table(child_count_diagnostics$summary, digits = 4)
+
+cat("\n#### Residuals versus fitted values\n\n")
+show_saved_image(child_count_diagnostics$paths$residual_plot)
+
+cat("\n#### Residual Q-Q plot\n\n")
+show_saved_image(child_count_diagnostics$paths$qq_plot)
+
+if (!is.na(child_count_diagnostics$paths$dharma_plot)) {
+  cat("\n#### DHARMa simulated residual diagnostics\n\n")
+  show_saved_image(child_count_diagnostics$paths$dharma_plot)
+}
+```
+
+## 5.2 Key-child duration predicted by input duration
+
+### Response inspection and selected model
+
+```{r child-duration-selection}
+child_duration_bundle <- model_bundles$key_child_duration_min_hour
+show_table(child_duration_bundle$selection, digits = 3)
+show_table(model_fit_table(child_duration_bundle), digits = 3)
+```
+
+### Model summary
+
+```{r child-duration-summary, results='asis'}
+print_model_summary(child_duration_bundle)
+```
+
+### Fixed effects
+
+```{r child-duration-fixed}
+child_duration_fixed <- fixed_effects_table(child_duration_bundle)
+show_table(child_duration_fixed, digits = 4, caption = "Fixed effects: key-child duration")
+```
+
+### Random effects
+
+```{r child-duration-random}
+show_table(random_effects_table(child_duration_bundle), digits = 4)
+```
+
+### Fixed-effects forest plot
+
+```{r child-duration-forest, results='asis'}
+child_duration_forest <- plot_fixed_effects_forest(child_duration_bundle, "key_child_duration_min_hour")
+show_saved_image(child_duration_forest$path)
+```
+
+### Predicted child duration across input duration and speaker
+
+```{r child-duration-prediction, results='asis', cache=TRUE}
+child_duration_prediction <- plot_input_output_predictions(
+  child_duration_bundle,
+  input_output_data,
+  predictor_name = "input_duration_min_hour",
+  x_label = "Input duration (min/hour)",
+  y_label = "Predicted key-child duration (min/hour)",
+  output_stub = "key_child_duration_by_input",
+  nsim = params$nsim
+)
+show_saved_image(child_duration_prediction$plot_path)
+```
+
+### Prediction table preview
+
+```{r child-duration-prediction-table}
+show_table(utils::head(child_duration_prediction$data, 12), digits = 3)
+```
+
+### Diagnostics
+
+```{r child-duration-diagnostics, results='asis'}
+child_duration_diagnostics <- run_model_diagnostics(child_duration_bundle)
+show_table(child_duration_diagnostics$summary, digits = 4)
+
+cat("\n#### Residuals versus fitted values\n\n")
+show_saved_image(child_duration_diagnostics$paths$residual_plot)
+
+cat("\n#### Residual Q-Q plot\n\n")
+show_saved_image(child_duration_diagnostics$paths$qq_plot)
+
+if (!is.na(child_duration_diagnostics$paths$dharma_plot)) {
+  cat("\n#### DHARMa simulated residual diagnostics\n\n")
+  show_saved_image(child_duration_diagnostics$paths$dharma_plot)
+}
+```
+
+# 6. Combined result tables
+
+## Model fit statistics
+
+```{r combined-fit-statistics}
+combined_fit <- bind_rows_safe(lapply(model_bundles, model_fit_table))
+rownames(combined_fit) <- NULL
+utils::write.csv(
+  combined_fit,
+  file.path(analysis_paths$results_tables, "combined_model_fit_statistics.csv"),
+  row.names = FALSE
+)
+show_table(combined_fit, digits = 3)
+```
+
+## Fixed effects from all models
+
+```{r combined-fixed-effects}
+combined_fixed_effects <- bind_rows_safe(lapply(names(model_bundles), function(model_name) {
+  table <- fixed_effects_table(model_bundles[[model_name]])
+  table$response <- model_name
+  table
+}))
+rownames(combined_fixed_effects) <- NULL
+combined_fixed_effects <- combined_fixed_effects[, c("response", setdiff(names(combined_fixed_effects), "response"))]
+
+utils::write.csv(
+  combined_fixed_effects,
+  file.path(analysis_paths$results_tables, "combined_fixed_effects.csv"),
+  row.names = FALSE
+)
+show_table(combined_fixed_effects, digits = 4)
+```
+
+## Diagnostics summary
+
+```{r combined-diagnostics}
+diagnostics <- list(
+  input_count_hour = input_count_diagnostics,
+  input_duration_min_hour = input_duration_diagnostics,
+  key_child_count_hour = child_count_diagnostics,
+  key_child_duration_min_hour = child_duration_diagnostics
+)
+
+combined_diagnostics <- bind_rows_safe(lapply(diagnostics, function(x) x$summary))
+rownames(combined_diagnostics) <- NULL
+utils::write.csv(
+  combined_diagnostics,
+  file.path(analysis_paths$results_tables, "combined_diagnostics_summary.csv"),
+  row.names = FALSE
+)
+show_table(combined_diagnostics, digits = 4)
+```
+
+# 7. Files generated by this report
+
+```{r generated-files}
+generated_files <- data.frame(
+  output_type = c(
+    "Saved model bundles",
+    "Tables",
+    "Prediction data",
+    "Prediction and forest plots",
+    "Diagnostic plots and summaries"
+  ),
+  directory = c(
+    analysis_paths$results_models,
+    analysis_paths$results_tables,
+    analysis_paths$results_predictions,
+    analysis_paths$results_plots,
+    analysis_paths$results_diagnostics
+  ),
+  stringsAsFactors = FALSE
+)
+show_table(generated_files)
+```
+
+# 8. Reproducibility information
+
+```{r session-info}
+sessionInfo()
+```

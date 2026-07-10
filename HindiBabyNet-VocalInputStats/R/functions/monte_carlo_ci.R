@@ -122,6 +122,38 @@ compute_monte_carlo_ci <- function(bundle, grid, nsim = analysis_options$nsim_de
     return(predictions)
   }
 
+  if (inherits(model, "lm")) {
+    inverse_transform <- if (isTRUE(bundle$transformed_response)) exp else identity
+    fitted_values <- stats::predict(model, newdata = grid, se.fit = TRUE)
+
+    predictions <- data.frame(
+      grid,
+      predicted = as.numeric(inverse_transform(fitted_values$fit)),
+      lower = as.numeric(inverse_transform(fitted_values$fit - 1.96 * fitted_values$se.fit)),
+      upper = as.numeric(inverse_transform(fitted_values$fit + 1.96 * fitted_values$se.fit)),
+      interval_method = "lm_normal_approx",
+      nsim = nsim,
+      stringsAsFactors = FALSE
+    )
+
+    return(predictions)
+  }
+
+  if (inherits(model, "glm")) {
+    link_values <- stats::predict(model, newdata = grid, type = "link", se.fit = TRUE)
+    inverse_link <- model$family$linkinv
+
+    return(data.frame(
+      grid,
+      predicted = as.numeric(inverse_link(link_values$fit)),
+      lower = as.numeric(inverse_link(link_values$fit - 1.96 * link_values$se.fit)),
+      upper = as.numeric(inverse_link(link_values$fit + 1.96 * link_values$se.fit)),
+      interval_method = "glm_link_normal_approx",
+      nsim = nsim,
+      stringsAsFactors = FALSE
+    ))
+  }
+
   if (inherits(model, "glmmTMB")) {
     fitted_values <- stats::predict(model, newdata = grid, type = "response", se.fit = TRUE, re.form = NA)
     return(data.frame(

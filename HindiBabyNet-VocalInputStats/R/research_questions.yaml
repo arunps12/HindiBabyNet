@@ -1,24 +1,40 @@
 research_questions:
   - id: rq1
-    title: Input count varies by speaker and child age
+    title: RQ1. Input Quantity and Composition
     preregistered_family: model_family_1
-    response_key: input_count_hour
-    hypothesis: Input count rates differ across adult_female, adult_male, and other_child speakers, and these differences vary with child age.
+    response_key:
+      - input_count_hour
+      - input_duration_min_hour
+    hypothesis: How does infants' vocal input, measured as vocalization count per hour and vocalization duration per hour, vary across input speaker types (adult female, adult male, and other child)?
+    hypothesis_id: H1
+    expected_pattern: For both vocalization count per hour and vocalization duration per hour, adult female speech and other child speech are expected to contribute more to infants' vocal input than adult male speech, based on Cristia et al. (2023).
   - id: rq2
-    title: Input duration varies by speaker and child age
+    title: RQ2. Role of Individual Factors on Input
     preregistered_family: model_family_1
-    response_key: input_duration_min_hour
-    hypothesis: Input duration rates differ across adult_female, adult_male, and other_child speakers, and these differences vary with child age.
+    response_key:
+      - input_count_hour
+      - input_duration_min_hour
+    hypothesis: Does infants' vocal input, measured as vocalization count per hour and vocalization duration per hour, vary with infants' age, socioeconomic status (SES) of the family, and infants' gender?
+    hypothesis_id: H2
+    expected_pattern: Infants' vocal input is expected to increase with age for both count-per-hour and duration-per-hour measures. Input from other children is also expected to increase with age, based on Cristia et al. (2023). Higher SES, measured primarily using maternal education, may be associated with greater adult speech input. No strong gender differences are expected for input measures, although gender effects will also be explored.
   - id: rq3
-    title: Speaker-specific input count predicts key child count
+    title: RQ3. Input-Output Relationship
     preregistered_family: model_family_2
-    response_key: key_child_count_hour
-    hypothesis: Key child vocal count covaries with speaker-specific input count rates after adjusting for age, SES, child sex, and location.
+    response_key:
+      - key_child_count_hour
+      - key_child_duration_min_hour
+    hypothesis: Is infants' vocal output, measured as vocalization count per hour and vocalization duration per hour, associated with the amount and composition (speaker type) of the vocal input they receive?
+    hypothesis_id: H3
+    expected_pattern: Infants' vocal output is expected to be positively associated with vocal input. This association is expected to be strongest for input from other children, based on Cristia et al. (2023).
   - id: rq4
-    title: Speaker-specific input duration predicts key child duration
+    title: RQ4. Role of Individual Factors on Infants' Output
     preregistered_family: model_family_2
-    response_key: key_child_duration_min_hour
-    hypothesis: Key child vocal duration covaries with speaker-specific input duration rates after adjusting for age, SES, child sex, and location.
+    response_key:
+      - key_child_count_hour
+      - key_child_duration_min_hour
+    hypothesis: Does infants' vocal production, measured as vocalization count per hour and vocalization duration per hour, vary with infants' age, family SES, and gender?
+    hypothesis_id: H4
+    expected_pattern: Infants' vocal output is expected to increase with age for both count-per-hour and duration-per-hour measures. Higher SES, measured primarily using maternal education, may also be associated with greater infant vocal output. Based on previous literature suggesting small gender differences in early vocal and language development, female infants may show slightly higher vocal output measures than male infants, although findings across studies are mixed and effects are expected to be relatively small (Rinaldi et al., 2023).
 reporting_principles:
   use_effect_direction: true
   use_monte_carlo_ci: true

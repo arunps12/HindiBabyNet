@@ -66,8 +66,65 @@ analysis_options <- list(
   nsim_testing = 100,
   age_days_mean = NA_real_,
   age_days_sd = NA_real_,
+  model_robustness_mode = "auto",
+  family_2_participant_intercept = "auto",
+  model_spec_overrides = list(),
   speaker_order = c("adult_female", "adult_male", "other_child")
 )
+
+parse_env_vector <- function(value, split_pattern = "[;,]") {
+  if (!nzchar(value)) {
+    return(character(0))
+  }
+
+  parts <- trimws(unlist(strsplit(value, split_pattern)))
+  unique(parts[nzchar(parts)])
+}
+
+parse_env_toggle <- function(value, default = "with", allowed = c("with", "without", "auto")) {
+  if (!nzchar(value)) {
+    return(default)
+  }
+
+  parsed <- trimws(tolower(value))
+  if (!(parsed %in% allowed)) {
+    stop(
+      sprintf(
+        "Expected one of %s but received '%s'.",
+        paste(allowed, collapse = ", "),
+        value
+      ),
+      call. = FALSE
+    )
+  }
+
+  parsed
+}
+
+build_model_spec_override <- function(prefix, participant_default) {
+  list(
+    participant_intercept = parse_env_toggle(
+      Sys.getenv(sprintf("%s_PARTICIPANT_INTERCEPT", prefix), unset = ""),
+      default = participant_default
+    ),
+    location_intercept = parse_env_toggle(
+      Sys.getenv(sprintf("%s_LOCATION_INTERCEPT", prefix), unset = ""),
+      default = "with"
+    ),
+    drop_fixed_terms = parse_env_vector(Sys.getenv(sprintf("%s_DROP_FIXED_TERMS", prefix), unset = "")),
+    extra_fixed_terms = parse_env_vector(Sys.getenv(sprintf("%s_EXTRA_FIXED_TERMS", prefix), unset = "")),
+    random_slopes = parse_env_vector(Sys.getenv(sprintf("%s_RANDOM_SLOPES", prefix), unset = ""))
+  )
+}
+
+runtime_model_robustness <- Sys.getenv("HBN_MODEL_ROBUSTNESS_MODE", unset = "")
+if (nzchar(runtime_model_robustness)) {
+  analysis_options$model_robustness_mode <- parse_env_toggle(
+    runtime_model_robustness,
+    default = analysis_options$model_robustness_mode,
+    allowed = c("auto", "strict")
+  )
+}
 
 runtime_nsim <- Sys.getenv("HBN_NSIM", unset = "")
 if (nzchar(runtime_nsim)) {
@@ -77,6 +134,30 @@ if (nzchar(runtime_nsim)) {
   }
   analysis_options$nsim_default <- parsed_nsim
 }
+
+runtime_family_2_intercept <- Sys.getenv("HBN_FAMILY2_PARTICIPANT_INTERCEPT", unset = "")
+if (nzchar(runtime_family_2_intercept)) {
+  allowed_modes <- c("auto", "with", "without")
+  parsed_mode <- trimws(tolower(runtime_family_2_intercept))
+  if (!(parsed_mode %in% allowed_modes)) {
+    stop(
+      sprintf(
+        "Environment variable HBN_FAMILY2_PARTICIPANT_INTERCEPT must be one of: %s.",
+        paste(allowed_modes, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+  analysis_options$family_2_participant_intercept <- parsed_mode
+}
+
+analysis_options$model_spec_overrides <- list(
+  family_1 = build_model_spec_override("HBN_FAMILY1", participant_default = "with"),
+  family_2 = build_model_spec_override(
+    "HBN_FAMILY2",
+    participant_default = analysis_options$family_2_participant_intercept
+  )
+)
 
 analysis_runtime$age_days_mean <- analysis_options$age_days_mean
 analysis_runtime$age_days_sd <- analysis_options$age_days_sd
@@ -152,4 +233,10 @@ message("HindiBabyNet R analysis scaffold loaded.")
 message(sprintf("Repository root: %s", repo_root))
 if (Sys.getenv("HBN_NSIM", unset = "") != "") {
   message(sprintf("Runtime nsim override active: %s", analysis_options$nsim_default))
+}
+if (Sys.getenv("HBN_FAMILY2_PARTICIPANT_INTERCEPT", unset = "") != "") {
+  message(sprintf("Runtime Family 2 participant intercept mode active: %s", analysis_options$family_2_participant_intercept))
+}
+if (Sys.getenv("HBN_MODEL_ROBUSTNESS_MODE", unset = "") != "") {
+  message(sprintf("Runtime model robustness mode active: %s", analysis_options$model_robustness_mode))
 }
