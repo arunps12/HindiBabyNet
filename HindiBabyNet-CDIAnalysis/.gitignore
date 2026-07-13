@@ -1,36 +1,44 @@
-data/raw/*
-data/interim/*
-data/processed/*
-data/personal_info/*
-outputs/figures/*
-outputs/tables/*
-outputs/reports/*
-*.xls
-*.xlsx
-*.csv
-*.tsv
-*.parquet
-*.pkl
-*.pickle
-.env
+# Local implementation documents
+docs/
 
+# Raw questionnaire data
+data/raw/
+
+# Personal and contact information
+data/personal_info/
+
+# Local master source item mapping
+metadata/word_mapping.csv
+
+# Sensitive and reconstructable generated files
+data/processed/protected/
+data/processed/included_participant_contacts.csv
+data/processed/*contact*
+data/processed/*personal*
+data/processed/*linkage*
+outputs/**/*contact*
+outputs/**/*personal*
+outputs/**/*linkage*
+
+# Keep placeholder directories only
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 !data/personal_info/.gitkeep
-!metadata/word_mapping.csv
-!metadata/education_mapping.csv
-!metadata/language_mapping.csv
-!metadata/sex_mapping.csv
-!metadata/response_mapping.csv
 !outputs/figures/.gitkeep
 !outputs/tables/.gitkeep
 !outputs/reports/.gitkeep
 
+# Common generated and local files
 __pycache__/
+*.py[cod]
+.ipynb_checkpoints/
 .pytest_cache/
+.mypy_cache/
 .ruff_cache/
 .venv/
-*.pyc
 *.egg-info/
+.env
+.DS_Store
+Thumbs.db
 notebooks/legacy/
