@@ -20,14 +20,35 @@ outputs/**/*contact*
 outputs/**/*personal*
 outputs/**/*linkage*
 
-# Keep placeholder directories only
-!data/raw/.gitkeep
+# Generated analysis artifacts
+data/interim/
+data/processed/
+outputs/
+examples/figures/
+examples/tables/
 !data/interim/.gitkeep
 !data/processed/.gitkeep
-!data/personal_info/.gitkeep
 !outputs/figures/.gitkeep
 !outputs/tables/.gitkeep
-!outputs/reports/.gitkeep
+
+# Local documentation folders
+docs/
+Docs/
+
+# Large audio and media files
+*.wav
+*.WAV
+*.mp3
+*.MP3
+*.flac
+*.FLAC
+*.m4a
+*.M4A
+*.ogg
+*.OGG
+
+# Keep notebooks shareable
+!*.ipynb
 
 # Common generated and local files
 __pycache__/

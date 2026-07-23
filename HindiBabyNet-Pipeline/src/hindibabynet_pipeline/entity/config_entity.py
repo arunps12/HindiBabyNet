@@ -8,6 +8,7 @@ from typing import List, Optional
 class DataIngestionConfig:
     raw_audio_root: Path
     allowed_ext: List[str]
+    session_selection: str
     artifacts_dir: Path                # artifacts/runs/<run_id>/data_ingestion
     recordings_parquet_path: Path      # .../recordings.parquet
 

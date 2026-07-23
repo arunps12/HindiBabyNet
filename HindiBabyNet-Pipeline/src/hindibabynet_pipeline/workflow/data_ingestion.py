@@ -1,6 +1,8 @@
 """Data ingestion workflow: scan raw audio root, produce recordings manifest."""
 from __future__ import annotations
 
+from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
@@ -26,6 +28,104 @@ class DataIngestion:
 
     def __init__(self, config: DataIngestionConfig):
         self.config = config
+
+    @staticmethod
+    def _parse_session_date(session_name: str | None) -> datetime | None:
+        if not session_name:
+            return None
+        try:
+            return datetime.strptime(session_name, "%Y%m%d")
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _format_file_list(rows: List[Dict]) -> str:
+        if not rows:
+            return "none"
+        return ", ".join(Path(row["path"]).name for row in rows)
+
+    def _log_session_selection(
+        self,
+        participant_id: str | None,
+        available_dates: List[str],
+        selected_date: str,
+        retained_rows: List[Dict],
+        excluded_rows: List[Dict],
+    ) -> None:
+        pid = participant_id or "<unknown>"
+        available = ", ".join(available_dates) if available_dates else "none"
+        logger.info(
+            f"[session-selection] participant_id={pid} | available_dates={available} "
+            f"| selected={selected_date} | retained_files={self._format_file_list(retained_rows)} "
+            f"| excluded_files={self._format_file_list(excluded_rows)}"
+        )
+
+    def _filter_rows_by_session(self, rows: List[Dict]) -> List[Dict]:
+        rows_by_participant: Dict[str | None, List[Dict]] = defaultdict(list)
+        for row in rows:
+            rows_by_participant[row.get("participant_id")].append(row)
+
+        if self.config.session_selection == "all":
+            for participant_id, participant_rows in rows_by_participant.items():
+                available_dates = sorted(
+                    {
+                        row["session_date"]
+                        for row in participant_rows
+                        if self._parse_session_date(row.get("session_date")) is not None
+                    }
+                )
+                self._log_session_selection(
+                    participant_id=participant_id,
+                    available_dates=available_dates,
+                    selected_date="all",
+                    retained_rows=participant_rows,
+                    excluded_rows=[],
+                )
+            return rows
+
+        filtered_rows: List[Dict] = []
+        for participant_id, participant_rows in rows_by_participant.items():
+            valid_dates = sorted(
+                {
+                    row["session_date"]
+                    for row in participant_rows
+                    if self._parse_session_date(row.get("session_date")) is not None
+                }
+            )
+
+            if not valid_dates:
+                pid = participant_id or "<unknown>"
+                logger.warning(
+                    f"[session-selection] participant_id={pid} | no valid YYYYMMDD "
+                    "session folders found; preserving all recordings"
+                )
+                self._log_session_selection(
+                    participant_id=participant_id,
+                    available_dates=[],
+                    selected_date="all",
+                    retained_rows=participant_rows,
+                    excluded_rows=[],
+                )
+                filtered_rows.extend(participant_rows)
+                continue
+
+            selected_date = valid_dates[0]
+            retained_rows = [
+                row for row in participant_rows if row.get("session_date") == selected_date
+            ]
+            excluded_rows = [
+                row for row in participant_rows if row.get("session_date") != selected_date
+            ]
+            self._log_session_selection(
+                participant_id=participant_id,
+                available_dates=valid_dates,
+                selected_date=selected_date,
+                retained_rows=retained_rows,
+                excluded_rows=excluded_rows,
+            )
+            filtered_rows.extend(retained_rows)
+
+        return filtered_rows
 
     def _iter_recordings(self) -> List[Dict]:
         root = self.config.raw_audio_root
@@ -67,7 +167,7 @@ class DataIngestion:
             except Exception as e:
                 logger.warning(f"Failed reading audio info for {wav_path.name}: {e}")
 
-        return rows
+        return self._filter_rows_by_session(rows)
 
     def initiate_data_ingestion(self) -> DataIngestionArtifact:
         try:

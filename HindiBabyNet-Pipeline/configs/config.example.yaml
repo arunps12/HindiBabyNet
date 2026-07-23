@@ -1,0 +1,36 @@
+# Runtime configuration for HindiBabyNet-Pipeline.
+# Copy to configs/config.yaml for local execution.
+
+artifacts_root: artifacts/runs
+logs_root: logs
+
+paths:
+  raw_audio_root: REPLACE_WITH_RAW_AUDIO_ROOT
+  raw_joined_audio_root: local_runs/RawJoinedAudio
+  prepared_audio_root: local_runs/PreparedAudio
+  classification_output_root: local_runs/Classification_outputs
+  textgrid_output_root: REPLACE_WITH_TEXTGRID_OUTPUT_ROOT
+  manual_annotation_root: REPLACE_WITH_MANUAL_ANNOTATION_ROOT
+  evaluation_output_root: REPLACE_WITH_EVALUATION_OUTPUT_ROOT
+
+data_ingestion:
+  allowed_ext: [".wav", ".WAV"]
+  session_selection: earliest
+  recordings_filename: recordings.parquet
+
+audio_preparation:
+  save_raw_joined_audio: true
+  save_prepared_audio: true
+
+speaker_classification:
+  backend: vtc
+  output_root: local_runs/Classification_outputs
+
+  xgb:
+    model_path: models/xgb_egemaps.pkl
+
+  vtc:
+    repo_path: REPLACE_WITH_VTC_REPO_PATH
+    device: cpu
+    batch_size: 128
+    keep_inputs: false

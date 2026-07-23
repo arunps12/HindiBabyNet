@@ -57,16 +57,16 @@ results/final_report/*
 !results/final_report/.gitkeep
 
 # Rendered report outputs and cache
-HindiBabyNet_stat_model_report.html
-HindiBabyNet_stat_model_report.pdf
+HindiBabyNet_stat_model_report*.html
+HindiBabyNet_stat_model_report*.pdf
 HindiBabyNet_stat_model_report_cache/
 
 # Notebook exports
 *.nb.html
 
 # Docs outputs if generated locally
-Docs/*
-!Docs/.gitkeep
+Docs/
+docs/
 
 # Audio files
 *.wav
@@ -75,6 +75,11 @@ Docs/*
 *.FLAC
 *.mp3
 *.MP3
+*.m4a
+*.M4A
+
+# Keep notebooks shareable
+!*.ipynb
 
 # Private lookup files
 participant_lookup.csv

@@ -17,6 +17,7 @@ COMMON_COLUMNS = [
     "age_days",
     "age_months",
     "age_z",
+    "age_z2",
     "child_sex",
     "SES",
     "mother_education",
@@ -76,7 +77,7 @@ def _refresh_dataset_build_report(config: ProjectConfig, master: pd.DataFrame, i
         f"final_master_rows: {total}",
         f"input_long_rows: {len(input_long)}",
         f"input_output_long_rows: {len(input_output_long)}",
-        "denominator_note: Full recording duration was used as the denominator for count/hour and duration/hour.",
+            f"denominator_note: Recording duration source was {config.recording_duration_source} with session_selection={config.session_selection}.",
     ]
     write_dataset_build_report(lines, config.results_dir / "dataset_build_report.txt")
 
@@ -84,6 +85,9 @@ def _refresh_dataset_build_report(config: ProjectConfig, master: pd.DataFrame, i
 def create_long_format(config: ProjectConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     master_path = config.derived_data_dir / "final_master.csv"
     master = read_csv(master_path)
+    missing_age_columns = [column for column in ("age_days", "age_z", "age_z2") if column not in master.columns]
+    if missing_age_columns:
+        raise ValueError(f"final_master.csv is missing required age columns: {', '.join(missing_age_columns)}")
     input_long = _build_input_long(master)
     input_output_long = _build_input_output_long(master)
     write_csv(input_long, config.derived_data_dir / "input_long.csv")

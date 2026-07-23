@@ -41,7 +41,9 @@ inspect_response_variable <- function(data, response_name) {
   )
 }
 
-choose_model_type <- function(metrics, allow_gamma = TRUE) {
+choose_model_type <- function(metrics, allow_gamma = TRUE, response_transform = "none") {
+  response_transform <- normalize_response_transform_name(response_transform)
+
   if (!isTRUE(metrics$positive_only)) {
     return(list(model_type = "lmm", rationale = "Response includes non-positive values; using Gaussian LMM on the original scale."))
   }
@@ -57,12 +59,29 @@ choose_model_type <- function(metrics, allow_gamma = TRUE) {
     return(list(model_type = "gamma_glmm", rationale = "Response is strongly positively skewed; using Gamma GLMM with a log link."))
   }
 
+  if (identical(response_transform, "none")) {
+    if (allow_gamma) {
+      return(list(
+        model_type = "gamma_glmm",
+        rationale = "Response is positive and moderately skewed, and response_transform is set to none; using Gamma GLMM instead of a log-transformed Gaussian model."
+      ))
+    }
+    return(list(
+      model_type = "lmm",
+      rationale = "Response is positive and moderately skewed, but response_transform is set to none and Gamma is unavailable; using Gaussian LMM on the original scale."
+    ))
+  }
+
   list(model_type = "log_lmm", rationale = "Response is positive and moderately skewed; using log-transform plus Gaussian LMM.")
 }
 
 select_model_family <- function(response_name, data, allow_gamma = TRUE) {
   metrics <- inspect_response_variable(data, response_name)
-  decision <- choose_model_type(metrics, allow_gamma = allow_gamma)
+  decision <- choose_model_type(
+    metrics,
+    allow_gamma = allow_gamma,
+    response_transform = get_response_transform_name(response_name)
+  )
 
   cbind(metrics, model_type = decision$model_type, rationale = decision$rationale, stringsAsFactors = FALSE)
 }
@@ -137,13 +156,43 @@ normalize_random_slope_terms <- function(terms) {
 }
 
 default_model_family_spec <- function(model_family, response_name) {
+  age_specification <- get_age_specification_name(response_name = response_name, model_family = model_family)
+  age_terms <- active_age_terms(
+    response_name = response_name,
+    model_family = model_family,
+    age_specification = age_specification
+  )
+
   if (identical(model_family, "family_1")) {
+    fixed_terms <- c("speaker", age_terms, "SES_num", "child_sex")
+    if (length(age_terms) > 0) {
+      fixed_terms <- c(
+        fixed_terms,
+        age_interaction_terms(
+          "speaker",
+          response_name = response_name,
+          model_family = model_family,
+          age_specification = age_specification
+        )
+      )
+    }
+    preserve_terms <- unique(c("speaker", age_terms))
+    drop_order <- c(
+      age_interaction_terms(
+        "speaker",
+        response_name = response_name,
+        model_family = model_family,
+        age_specification = age_specification
+      ),
+      "child_sex",
+      "SES_num"
+    )
     return(list(
       model_family = model_family,
       response_name = response_name,
-      fixed_terms = c("speaker", "age_z", "speaker:age_z", "SES", "child_sex"),
-      preserve_fixed_terms = c("speaker", "age_z"),
-      simplification_drop_order = c("speaker:age_z", "child_sex", "SES"),
+      fixed_terms = fixed_terms,
+      preserve_fixed_terms = preserve_terms,
+      simplification_drop_order = drop_order,
       participant_intercept_mode = "with",
       location_intercept_mode = "with",
       random_slopes = character(0)
@@ -151,12 +200,15 @@ default_model_family_spec <- function(model_family, response_name) {
   }
 
   if (identical(model_family, "family_2_count")) {
+    fixed_terms <- c("input_count_hour", "speaker", "input_count_hour:speaker", age_terms, "SES_num", "child_sex")
+    preserve_terms <- unique(c("input_count_hour", "speaker"))
+    drop_order <- c("input_count_hour:speaker", "child_sex", "SES_num", rev(age_terms))
     return(list(
       model_family = model_family,
       response_name = response_name,
-      fixed_terms = c("input_count_hour", "speaker", "input_count_hour:speaker", "age_z", "SES", "child_sex"),
-      preserve_fixed_terms = c("input_count_hour", "speaker"),
-      simplification_drop_order = c("input_count_hour:speaker", "child_sex", "SES", "age_z"),
+      fixed_terms = fixed_terms,
+      preserve_fixed_terms = preserve_terms,
+      simplification_drop_order = drop_order,
       participant_intercept_mode = analysis_options$family_2_participant_intercept,
       location_intercept_mode = "with",
       random_slopes = character(0)
@@ -164,12 +216,15 @@ default_model_family_spec <- function(model_family, response_name) {
   }
 
   if (identical(model_family, "family_2_duration")) {
+    fixed_terms <- c("input_duration_min_hour", "speaker", "input_duration_min_hour:speaker", age_terms, "SES_num", "child_sex")
+    preserve_terms <- unique(c("input_duration_min_hour", "speaker"))
+    drop_order <- c("input_duration_min_hour:speaker", "child_sex", "SES_num", rev(age_terms))
     return(list(
       model_family = model_family,
       response_name = response_name,
-      fixed_terms = c("input_duration_min_hour", "speaker", "input_duration_min_hour:speaker", "age_z", "SES", "child_sex"),
-      preserve_fixed_terms = c("input_duration_min_hour", "speaker"),
-      simplification_drop_order = c("input_duration_min_hour:speaker", "child_sex", "SES", "age_z"),
+      fixed_terms = fixed_terms,
+      preserve_fixed_terms = preserve_terms,
+      simplification_drop_order = drop_order,
       participant_intercept_mode = analysis_options$family_2_participant_intercept,
       location_intercept_mode = "with",
       random_slopes = character(0)
@@ -405,12 +460,12 @@ fit_glmmTMB_with_retries <- function(formula, model_data) {
     fit_attempt <- tryCatch(
       {
         if (is.null(control)) {
-          glmmTMB::glmmTMB(formula = formula, data = model_data, family = glmmTMB::Gamma(link = "log"))
+          glmmTMB::glmmTMB(formula = formula, data = model_data, family = stats::Gamma(link = "log"))
         } else {
           glmmTMB::glmmTMB(
             formula = formula,
             data = model_data,
-            family = glmmTMB::Gamma(link = "log"),
+            family = stats::Gamma(link = "log"),
             control = control
           )
         }
@@ -476,6 +531,7 @@ assess_model_fit <- function(model) {
 
 fit_selected_model <- function(data, response_name, formula, selection_row) {
   model_type <- selection_row$model_type[[1]]
+  response_transform <- get_response_transform_name(response_name)
   model_data <- prepare_model_data(data, formula)
   has_random_effects <- formula_has_random_effects(formula)
 
@@ -484,6 +540,7 @@ fit_selected_model <- function(data, response_name, formula, selection_row) {
   }
 
   if (identical(model_type, "lmm")) {
+    transformed_response_name <- response_name
     model <- if (has_random_effects) {
       fit_lmer_with_retries(formula = formula, model_data = model_data)
     } else {
@@ -493,30 +550,40 @@ fit_selected_model <- function(data, response_name, formula, selection_row) {
       model = model,
       fitted_formula = formula,
       model_data = model_data,
-      transformed_response = FALSE,
+      response_transform = "none",
+      transformed_response_name = transformed_response_name,
       fit_engine = if (has_random_effects) "lmer" else "lm"
     ))
   }
 
   if (identical(model_type, "log_lmm")) {
-    log_response_name <- sprintf("log_%s", response_name)
-    model_data[[log_response_name]] <- log(model_data[[response_name]])
-    log_formula <- stats::update(formula, stats::as.formula(sprintf("%s ~ .", log_response_name)))
+    transformed_response_name <- sprintf("%s_%s", response_transform, response_name)
+    model_data[[transformed_response_name]] <- transform_response_values(
+      model_data[[response_name]],
+      transform_name = response_transform,
+      response_name = response_name
+    )
+    transformed_formula <- stats::update(
+      formula,
+      stats::as.formula(sprintf("%s ~ .", transformed_response_name))
+    )
     model <- if (has_random_effects) {
-      fit_lmer_with_retries(formula = log_formula, model_data = model_data)
+      fit_lmer_with_retries(formula = transformed_formula, model_data = model_data)
     } else {
-      stats::lm(formula = log_formula, data = model_data)
+      stats::lm(formula = transformed_formula, data = model_data)
     }
     return(list(
       model = model,
-      fitted_formula = log_formula,
+      fitted_formula = transformed_formula,
       model_data = model_data,
-      transformed_response = TRUE,
+      response_transform = response_transform,
+      transformed_response_name = transformed_response_name,
       fit_engine = if (has_random_effects) "lmer" else "lm"
     ))
   }
 
   if (identical(model_type, "gamma_glmm")) {
+    transformed_response_name <- response_name
     model <- if (has_random_effects) {
       fit_glmmTMB_with_retries(formula = formula, model_data = model_data)
     } else {
@@ -526,7 +593,8 @@ fit_selected_model <- function(data, response_name, formula, selection_row) {
       model = model,
       fitted_formula = formula,
       model_data = model_data,
-      transformed_response = FALSE,
+      response_transform = "none",
+      transformed_response_name = transformed_response_name,
       fit_engine = if (has_random_effects) "glmmTMB" else "glm"
     ))
   }
@@ -536,6 +604,16 @@ fit_selected_model <- function(data, response_name, formula, selection_row) {
 
 fit_preregistered_model <- function(data, response_name, model_family, allow_gamma = TRUE) {
   selection_row <- select_model_family(response_name, data, allow_gamma = allow_gamma)
+  requested_response_transform <- get_response_transform_name(response_name)
+  if (identical(selection_row$model_type[[1]], "log_lmm") && identical(requested_response_transform, "none")) {
+    stop(
+      sprintf(
+        "Model selection requested a log-scale Gaussian model for '%s', but response_transform is 'none'. Configure this response as 'log' or 'log1p'.",
+        response_name
+      ),
+      call. = FALSE
+    )
+  }
   candidate_specs <- build_candidate_specs(model_family, response_name)
   last_error <- NULL
   fallback_result <- NULL
@@ -558,7 +636,9 @@ fit_preregistered_model <- function(data, response_name, model_family, allow_gam
         selection = selection_row,
         model = fit_attempt$model,
         fitted_formula = fit_attempt$fitted_formula,
-        transformed_response = fit_attempt$transformed_response,
+        response_transform = fit_attempt$response_transform,
+        transformed_response_name = fit_attempt$transformed_response_name,
+        age_specification = get_age_specification_name(response_name = response_name, model_family = model_family),
         n_complete_cases = nrow(fit_attempt$model_data),
         participant_intercept_mode = if (isTRUE(spec$participant_intercept)) "with" else "without",
         location_intercept_mode = if (isTRUE(spec$location_intercept)) "with" else "without",
@@ -615,7 +695,9 @@ selection_table_from_bundles <- function(model_bundles) {
       fit_issue = if (!is.null(bundle$fit_issue) && nzchar(bundle$fit_issue)) bundle$fit_issue else NA_character_,
       fitted_formula = paste(deparse(bundle$fitted_formula), collapse = " "),
       requested_formula = if (!is.null(bundle$requested_formula)) paste(deparse(bundle$requested_formula), collapse = " ") else NA_character_,
-      transformed_response = bundle$transformed_response,
+      age_specification = if (!is.null(bundle$age_specification)) bundle$age_specification else NA_character_,
+      response_transform = if (!is.null(bundle$response_transform)) bundle$response_transform else NA_character_,
+      transformed_response_name = if (!is.null(bundle$transformed_response_name)) bundle$transformed_response_name else NA_character_,
       stringsAsFactors = FALSE
     )
   })

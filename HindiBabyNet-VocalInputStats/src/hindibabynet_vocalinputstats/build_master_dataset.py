@@ -9,10 +9,9 @@ import numpy as np
 import pandas as pd
 
 from hindibabynet_vocalinputstats.config import ProjectConfig, load_config
-from hindibabynet_vocalinputstats.durations import read_audio_duration_seconds, seconds_to_hours
+from hindibabynet_vocalinputstats.durations import resolve_recording_duration, seconds_to_hours
 from hindibabynet_vocalinputstats.ids import attach_participant_ids, create_participant_lookup, save_participant_lookup
 from hindibabynet_vocalinputstats.io import (
-    find_audio_file,
     find_vtc_csv,
     load_vtc_csv,
     read_table,
@@ -35,6 +34,7 @@ PUBLIC_COLUMNS = [
     "age_days",
     "age_months",
     "age_z",
+    "age_z2",
     "recording_duration_sec",
     "recording_duration_hours",
     "adult_female_count",
@@ -119,35 +119,39 @@ def _compute_age_fields(dataframe: pd.DataFrame, age_month_denominator: float) -
     enriched["age_months"] = enriched["age_days"] / age_month_denominator
 
     valid_age = enriched["age_days"].notna() & (enriched["age_days"] >= 0)
-    age_months = enriched.loc[valid_age, "age_months"]
-    if age_months.empty:
+    age_days = enriched.loc[valid_age, "age_days"]
+    if age_days.empty:
         enriched["age_z"] = np.nan
     else:
-        std = float(age_months.std(ddof=0))
+        std = float(age_days.std(ddof=0))
         if std == 0.0:
             enriched["age_z"] = np.where(valid_age, 0.0, np.nan)
         else:
-            mean = float(age_months.mean())
-            enriched["age_z"] = (enriched["age_months"] - mean) / std
+            mean = float(age_days.mean())
+            enriched["age_z"] = (enriched["age_days"] - mean) / std
+    enriched["age_z2"] = enriched["age_z"] ** 2
     return enriched
 
 
-def _build_audio_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple[pd.DataFrame, list[dict[str, object]]]:
+def _build_audio_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple[pd.DataFrame, pd.DataFrame, list[dict[str, object]]]:
     records: list[dict[str, object]] = []
+    audit_records: list[dict[str, object]] = []
     warnings: list[dict[str, object]] = []
     for row in metadata.itertuples(index=False):
-        audio_match = find_audio_file(
+        audio_match = resolve_recording_duration(
             config.audio_root,
             row.original_par_id,
             config.audio_extensions,
-            recursive=config.audio_layout.recursive,
             participant_folder_name=config.audio_layout.participant_folder_name,
+            recursive=config.audio_layout.recursive,
             prefer_largest_audio_file=config.audio_layout.prefer_largest_audio_file,
+            recording_duration_source=config.recording_duration_source,
+            session_selection=config.session_selection,
+            session_date_format=config.session_date_format,
         )
-        audio_path = audio_match.selected_path
-        recording_duration_sec = np.nan
-        matched_audio = False
-        if audio_path is None:
+        recording_duration_sec = audio_match.duration_sec
+        matched_audio = bool(audio_match.matched_audio)
+        if not matched_audio:
             warnings.append(
                 {
                     "participant_id": row.participant_id,
@@ -156,30 +160,15 @@ def _build_audio_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple
                     "message": "No matching audio file found.",
                 }
             )
-        else:
-            matched_audio = True
-            if audio_match.warning_message is not None:
-                warnings.append(
-                    {
-                        "participant_id": row.participant_id,
-                        "original_par_id": row.original_par_id,
-                        "issue_type": "multiple_audio_matches",
-                        "message": audio_match.warning_message,
-                    }
-                )
-            try:
-                recording_duration_sec = read_audio_duration_seconds(audio_path)
-            except Exception as exc:  # pragma: no cover
-                matched_audio = False
-                warnings.append(
-                    {
-                        "participant_id": row.participant_id,
-                        "original_par_id": row.original_par_id,
-                        "issue_type": "unreadable_audio",
-                        "message": str(exc),
-                    }
-                )
-                recording_duration_sec = np.nan
+        if audio_match.warning_message is not None:
+            warnings.append(
+                {
+                    "participant_id": row.participant_id,
+                    "original_par_id": row.original_par_id,
+                    "issue_type": "audio_duration_warning",
+                    "message": audio_match.warning_message,
+                }
+            )
         recording_duration_hours = seconds_to_hours(recording_duration_sec)
         if matched_audio and pd.notna(recording_duration_hours) and recording_duration_hours < config.minimum_recording_hours_warning:
             warnings.append(
@@ -202,7 +191,50 @@ def _build_audio_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple
                 "matched_audio": matched_audio,
             }
         )
-    return pd.DataFrame.from_records(records), warnings
+        audit_records.append(
+            {
+                "participant_id": row.participant_id,
+                "selected_earliest_folder": audio_match.selected_folder,
+                "selected_date": audio_match.selected_date,
+                "audio_file_count": audio_match.audio_file_count,
+                "total_duration_sec": recording_duration_sec,
+                "total_duration_hours": recording_duration_hours,
+                "ignored_later_folders": "; ".join(audio_match.ignored_later_folders),
+                "warning_or_reason": audio_match.warning_message or audio_match.audit_reason,
+            }
+        )
+    return pd.DataFrame.from_records(records), pd.DataFrame.from_records(audit_records), warnings
+
+
+def _build_age_validation_table(final_master: pd.DataFrame) -> pd.DataFrame:
+    required_columns = ["age_days", "age_z", "age_z2"]
+    missing_columns = [column for column in required_columns if column not in final_master.columns]
+    valid_age = final_master["age_z"].notna()
+    valid_age_count = int(valid_age.sum())
+    age_z_mean = float(final_master.loc[valid_age, "age_z"].mean()) if valid_age.any() else np.nan
+    age_z_sd = float(final_master.loc[valid_age, "age_z"].std(ddof=0)) if valid_age.any() else np.nan
+    age_z2_matches = bool(np.allclose(
+        final_master.loc[valid_age, "age_z2"],
+        final_master.loc[valid_age, "age_z"] ** 2,
+        equal_nan=True,
+    )) if valid_age.any() else True
+
+    return pd.DataFrame(
+        [
+            {"check": "required_age_columns_present", "value": len(missing_columns) == 0, "detail": ", ".join(missing_columns)},
+            {
+                "check": "age_z_mean_approximately_zero",
+                "value": bool(valid_age_count < 1 or (np.isfinite(age_z_mean) and abs(age_z_mean) < 1e-9)),
+                "detail": age_z_mean if valid_age_count >= 1 else "no valid age rows",
+            },
+            {
+                "check": "age_z_sd_approximately_one",
+                "value": bool(valid_age_count < 2 or (np.isfinite(age_z_sd) and abs(age_z_sd - 1.0) < 1e-9)),
+                "detail": age_z_sd if valid_age_count >= 2 else "fewer than two valid age rows",
+            },
+            {"check": "age_z2_equals_square", "value": age_z2_matches, "detail": "age_z2 == age_z^2 for non-missing rows"},
+        ]
+    )
 
 
 def _build_vtc_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple[pd.DataFrame, pd.DataFrame, list[dict[str, object]]]:
@@ -349,7 +381,7 @@ def _build_dataset_report_lines(config: ProjectConfig, final_master: pd.DataFram
         f"final_master_rows: {len(final_master)}",
         f"input_long_rows: {input_long_rows}",
         f"input_output_long_rows: {input_output_long_rows}",
-        "denominator_note: Full recording duration was used as the denominator for count/hour and duration/hour.",
+        f"denominator_note: Recording duration source was {config.recording_duration_source} with session_selection={config.session_selection}.",
     ]
 
 
@@ -363,7 +395,7 @@ def build_master_dataset(config: ProjectConfig) -> pd.DataFrame:
     public_metadata = attach_participant_ids(public_metadata, lookup)
 
     validation_records: list[dict[str, object]] = []
-    audio_records, audio_warnings = _build_audio_records(public_metadata, config)
+    audio_records, duration_audit, audio_warnings = _build_audio_records(public_metadata, config)
     validation_records.extend(audio_warnings)
     vtc_summary, matched_vtc, vtc_warnings = _build_vtc_records(public_metadata, config)
     validation_records.extend(vtc_warnings)
@@ -394,11 +426,25 @@ def build_master_dataset(config: ProjectConfig) -> pd.DataFrame:
     final_master = _compute_rate_columns(final_master)
     final_master = final_master.sort_values("participant_id", kind="stable").reset_index(drop=True)
 
+    age_validation = _build_age_validation_table(final_master)
+    for row in age_validation.itertuples(index=False):
+        if not bool(row.value):
+            validation_records.append(
+                {
+                    "participant_id": "ALL",
+                    "original_par_id": "ALL",
+                    "issue_type": f"age_validation_failed:{row.check}",
+                    "message": str(row.detail),
+                }
+            )
+
     public_output = final_master.loc[:, PUBLIC_COLUMNS].copy()
     public_output["REC_date"] = pd.to_datetime(public_output["REC_date"], errors="coerce").dt.strftime("%Y-%m-%d")
     public_output["birthdate"] = pd.to_datetime(public_output["birthdate"], errors="coerce").dt.strftime("%Y-%m-%d")
 
     write_csv(public_output, config.derived_data_dir / "final_master.csv")
+    write_csv(duration_audit, config.results_dir / "recording_duration_audit.csv")
+    write_csv(age_validation, config.results_dir / "age_validation.csv")
     write_validation_report(validation_records, config.results_dir / "validation_report.csv")
     report_lines = _build_dataset_report_lines(config, final_master, validation_records)
     write_dataset_build_report(report_lines, config.results_dir / "dataset_build_report.txt")

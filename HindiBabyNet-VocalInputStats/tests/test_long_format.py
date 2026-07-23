@@ -21,6 +21,7 @@ def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) ->
             "age_days": [365.0, 366.0],
             "age_months": [11.99, 12.02],
             "age_z": [-1.0, 1.0],
+            "age_z2": [1.0, 1.0],
             "recording_duration_sec": [3600.0, 3600.0],
             "recording_duration_hours": [1.0, 1.0],
             "adult_female_count": [1.0, 2.0],
@@ -86,4 +87,6 @@ def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) ->
         "other_child",
     ]
     assert input_output_long["key_child_count_hour"].tolist() == [7.0, 7.0, 7.0, 8.0, 8.0, 8.0]
+    assert "age_z2" in input_long.columns
+    assert (input_long["age_z2"] == 1.0).all()
     assert "original_par_id" not in input_long.columns

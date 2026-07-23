@@ -59,6 +59,8 @@ class VTCBackend(ClassificationBackend):
         participant_id: str,
         output_dir: Path,
     ) -> dict[str, Any]:
+        wav_path = wav_path.resolve()
+        output_dir = output_dir.resolve()
         logger.info("=" * 60)
         logger.info(f"VTC Inference | participant_id={participant_id}")
         logger.info(f"  source_wav = {wav_path}")
@@ -73,7 +75,7 @@ class VTCBackend(ClassificationBackend):
         self._validate_repo()
 
         # Temporary input folder (hidden from user)
-        tmp_input_dir = output_dir.parent / "_tmp_vtc_inputs" / participant_id
+        tmp_input_dir = (output_dir.parent / "_tmp_vtc_inputs" / participant_id).resolve()
         try:
             tmp_input_dir.mkdir(parents=True, exist_ok=True)
             dest = tmp_input_dir / wav_path.name
@@ -160,7 +162,24 @@ class VTCBackend(ClassificationBackend):
                 f"Is the repo cloned with --recurse-submodules?"
             )
 
+    def _resolve_uv_executable(self) -> str:
+        configured = os.environ.get("UV_BIN")
+        candidates = [
+            configured,
+            shutil.which("uv"),
+            "/home/arunps/.local/bin/uv",
+            str(Path.home() / ".local" / "bin" / "uv"),
+        ]
+        for candidate in candidates:
+            if candidate and Path(candidate).is_file():
+                return candidate
+        raise FileNotFoundError(
+            "Could not find `uv` executable for launching VTC. "
+            "Set UV_BIN or ensure uv is installed on PATH in the WSL environment."
+        )
+
     def _run_subprocess(self, cmd: list[str]) -> subprocess.CompletedProcess:
+        cmd = [self._resolve_uv_executable(), *cmd[1:]]
         logger.info(f"VTC command: {' '.join(cmd)}")
 
         # Avoid uv warning about mismatched active env; we explicitly run in VTC repo.

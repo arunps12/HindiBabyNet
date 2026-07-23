@@ -9,7 +9,11 @@ import soundfile as sf
 
 from hindibabynet_pipeline.workflow.audio_preparation import AudioPreparation
 from hindibabynet_pipeline.config.configuration import ConfigurationManager
-from hindibabynet_pipeline.entity.config_entity import AudioPreparationConfig
+from hindibabynet_pipeline.entity.config_entity import (
+    AudioPreparationConfig,
+    DataIngestionConfig,
+)
+from hindibabynet_pipeline.workflow.data_ingestion import DataIngestion
 
 
 def _write_wav(path: Path, sr: int = 8000, seconds: float = 0.1) -> None:
@@ -129,3 +133,42 @@ def test_audio_preparation_rejects_multi_file_dataframe_when_join_disabled(tmp_p
 
     with pytest.raises(Exception):
         AudioPreparation(cfg).run(recordings_df=df, participant_id="P1", recording_id="P1")
+
+
+def test_audio_preparation_combines_only_earliest_ingested_session(tmp_path: Path):
+    raw_root = tmp_path / "RawAudioData"
+    _write_wav(raw_root / "P1" / "20250201" / "audio_1.wav")
+    _write_wav(raw_root / "P1" / "20250201" / "audio_2.wav")
+    _write_wav(raw_root / "P1" / "20250202" / "audio_3.wav")
+    _write_wav(raw_root / "P1" / "20250202" / "audio_4.wav")
+
+    ingestion_cfg = DataIngestionConfig(
+        raw_audio_root=raw_root,
+        allowed_ext=[".wav", ".WAV"],
+        session_selection="earliest",
+        artifacts_dir=tmp_path / "artifacts" / "data_ingestion",
+        recordings_parquet_path=tmp_path / "artifacts" / "data_ingestion" / "recordings.parquet",
+    )
+    ingestion_artifact = DataIngestion(ingestion_cfg).initiate_data_ingestion()
+    recordings_df = pd.read_parquet(ingestion_artifact.recordings_parquet_path)
+
+    prep_cfg = _make_audio_prep_config(
+        tmp_path,
+        recording_id="P1",
+        resample=False,
+        to_mono=False,
+        normalize=False,
+    )
+    artifact = AudioPreparation(prep_cfg).run(
+        recordings_df=recordings_df,
+        participant_id="P1",
+        recording_id="P1",
+    )
+    manifest_df = pd.read_parquet(artifact.manifest_parquet_path)
+    combined_info = sf.info(str(artifact.raw_joined_wav_path))
+
+    assert sorted(Path(path).name for path in manifest_df["source_path"].tolist()) == [
+        "audio_1.wav",
+        "audio_2.wav",
+    ]
+    assert combined_info.duration == pytest.approx(0.2, rel=0.05)

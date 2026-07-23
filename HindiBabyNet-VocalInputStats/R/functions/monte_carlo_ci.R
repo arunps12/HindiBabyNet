@@ -29,12 +29,65 @@ age_z_to_days <- function(age_z, mean_days = analysis_runtime$age_days_mean, sd_
   (age_z * sd_days) + mean_days
 }
 
+augment_age_terms <- function(dataframe) {
+  dataframe$age_z <- age_days_to_z(dataframe$age_days)
+  dataframe$age_z2 <- dataframe$age_z ^ 2
+  dataframe
+}
+
+bundle_age_terms <- function(bundle) {
+  active_age_terms(
+    response_name = bundle$response_name,
+    model_family = bundle$model_family,
+    age_specification = bundle$age_specification
+  )
+}
+
+apply_bundle_age_terms <- function(dataframe, bundle, age_days = NULL, age_z = NULL) {
+  age_terms <- bundle_age_terms(bundle)
+
+  if (!is.null(age_days)) {
+    dataframe$age_days <- age_days
+  }
+
+  if (length(age_terms) == 0) {
+    if ("age_z" %in% names(dataframe)) {
+      dataframe$age_z <- NULL
+    }
+    if ("age_z2" %in% names(dataframe)) {
+      dataframe$age_z2 <- NULL
+    }
+    return(dataframe)
+  }
+
+  if (is.null(dataframe$age_days) && is.null(age_days) && !is.null(age_z)) {
+    dataframe$age_days <- age_z_to_days(age_z)
+  }
+
+  if (is.null(age_z)) {
+    dataframe$age_z <- age_days_to_z(dataframe$age_days)
+  } else {
+    dataframe$age_z <- age_z
+    if (is.null(dataframe$age_days)) {
+      dataframe$age_days <- age_z_to_days(age_z)
+    }
+  }
+
+  if ("age_z2" %in% age_terms) {
+    dataframe$age_z2 <- dataframe$age_z ^ 2
+  } else if ("age_z2" %in% names(dataframe)) {
+    dataframe$age_z2 <- NULL
+  }
+
+  dataframe
+}
+
 build_reference_values <- function(data) {
   reference <- lapply(data, mode_or_first_level)
   as.data.frame(reference, stringsAsFactors = FALSE)
 }
 
-build_age_speaker_grid <- function(data, n_points = 60) {
+build_age_speaker_grid <- function(bundle, data, n_points = 60) {
   if (!("speaker" %in% names(data))) {
     stop("Age-by-speaker prediction grids require a speaker column.", call. = FALSE)
   }
@@ -54,11 +107,10 @@ build_age_speaker_grid <- function(data, n_points = 60) {
   reference <- build_reference_values(data)[rep(1, nrow(grid)), , drop = FALSE]
   reference$age_days <- grid$age_days
   reference$speaker <- factor(grid$speaker, levels = levels(data$speaker))
-  reference$age_z <- age_days_to_z(reference$age_days)
-  reference
+  apply_bundle_age_terms(reference, bundle = bundle, age_days = grid$age_days)
 }
 
-build_input_output_grid <- function(data, predictor_name, n_points = 60) {
+build_input_output_grid <- function(bundle, data, predictor_name, n_points = 60) {
   predictor_values <- seq(min(data[[predictor_name]], na.rm = TRUE), max(data[[predictor_name]], na.rm = TRUE), length.out = n_points)
   speakers <- levels(data$speaker)
   if (is.null(speakers)) {
@@ -74,21 +126,17 @@ build_input_output_grid <- function(data, predictor_name, n_points = 60) {
   reference <- build_reference_values(data)[rep(1, nrow(grid)), , drop = FALSE]
   reference[[predictor_name]] <- grid$predictor_value
   reference$speaker <- factor(grid$speaker, levels = levels(data$speaker))
-  reference$age_z <- 0
-  reference$age_days <- age_z_to_days(reference$age_z)
-  reference
+  apply_bundle_age_terms(reference, bundle = bundle, age_z = rep(0, nrow(reference)))
 }
 
 compute_monte_carlo_ci <- function(bundle, grid, nsim = analysis_options$nsim_default) {
   model <- bundle$model
+  response_transform <- bundle$response_transform %||% "none"
 
   if (inherits(model, "merMod")) {
-    response_values <- model.frame(model)[[1]]
-    inverse_transform <- if (isTRUE(bundle$transformed_response)) exp else identity
-
     prediction_function <- function(fitted_model) {
       raw_prediction <- stats::predict(fitted_model, newdata = grid, re.form = NA, allow.new.levels = TRUE)
-      inverse_transform(raw_prediction)
+      inverse_transform_values(raw_prediction, response_transform)
     }
 
     set.seed(analysis_options$seed)
@@ -107,7 +155,10 @@ compute_monte_carlo_ci <- function(bundle, grid, nsim = analysis_options$nsim_de
       stop(sprintf("bootMer() returned no simulations for response '%s'.", bundle$response_name), call. = FALSE)
     }
 
-    base_prediction <- inverse_transform(stats::predict(model, newdata = grid, re.form = NA, allow.new.levels = TRUE))
+    base_prediction <- inverse_transform_values(
+      stats::predict(model, newdata = grid, re.form = NA, allow.new.levels = TRUE),
+      response_transform
+    )
 
     predictions <- data.frame(
       grid,
@@ -123,14 +174,13 @@ compute_monte_carlo_ci <- function(bundle, grid, nsim = analysis_options$nsim_de
   }
 
   if (inherits(model, "lm")) {
-    inverse_transform <- if (isTRUE(bundle$transformed_response)) exp else identity
     fitted_values <- stats::predict(model, newdata = grid, se.fit = TRUE)
 
     predictions <- data.frame(
       grid,
-      predicted = as.numeric(inverse_transform(fitted_values$fit)),
-      lower = as.numeric(inverse_transform(fitted_values$fit - 1.96 * fitted_values$se.fit)),
-      upper = as.numeric(inverse_transform(fitted_values$fit + 1.96 * fitted_values$se.fit)),
+      predicted = as.numeric(inverse_transform_values(fitted_values$fit, response_transform)),
+      lower = as.numeric(inverse_transform_values(fitted_values$fit - 1.96 * fitted_values$se.fit, response_transform)),
+      upper = as.numeric(inverse_transform_values(fitted_values$fit + 1.96 * fitted_values$se.fit, response_transform)),
       interval_method = "lm_normal_approx",
       nsim = nsim,
       stringsAsFactors = FALSE

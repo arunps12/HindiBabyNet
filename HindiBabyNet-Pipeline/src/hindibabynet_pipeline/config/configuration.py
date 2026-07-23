@@ -137,6 +137,11 @@ class ConfigurationManager:
         di = self.runtime_config.get("data_ingestion", {})
 
         raw_audio_root = di.get("raw_audio_root") or str(self._require_path("raw_audio_root"))
+        session_selection = str(di.get("session_selection", "earliest")).strip().lower()
+        if session_selection not in {"earliest", "all"}:
+            raise ValueError(
+                "data_ingestion.session_selection must be one of: earliest, all"
+            )
 
         artifacts_dir = artifacts_root / run_id / "data_ingestion"
         recordings_parquet_path = artifacts_dir / di.get(
@@ -146,6 +151,7 @@ class ConfigurationManager:
         return DataIngestionConfig(
             raw_audio_root=Path(raw_audio_root),
             allowed_ext=list(di.get("allowed_ext", [".wav", ".WAV"])),
+            session_selection=session_selection,
             artifacts_dir=artifacts_dir,
             recordings_parquet_path=recordings_parquet_path,
         )

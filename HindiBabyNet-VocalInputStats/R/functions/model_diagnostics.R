@@ -65,7 +65,15 @@ build_residual_dataframe <- function(model) {
 build_diagnostic_summary <- function(bundle) {
   flags <- collect_model_flags(bundle$model)
   heteroscedasticity_p <- tryCatch(
-    performance::check_heteroscedasticity(bundle$model)$p.value[[1]],
+    {
+      result <- performance::check_heteroscedasticity(bundle$model)
+      p_value <- result$p.value
+      if (length(p_value) == 0 || all(is.na(p_value))) {
+        NA_real_
+      } else {
+        as.numeric(p_value[[1]])
+      }
+    },
     error = function(e) NA_real_
   )
 

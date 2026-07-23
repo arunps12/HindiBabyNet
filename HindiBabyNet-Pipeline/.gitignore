@@ -217,10 +217,19 @@ artifacts/**/*.jsonl
 !**/.gitkeep
 .env
 
+# Local runtime configuration
+configs/config.yaml
+!configs/config.example.yaml
+
 # Audio and generated data
 *.wav
+*.WAV
 *.mp3
+*.MP3
 *.flac
+*.FLAC
+*.m4a
+*.M4A
 Classification_outputs/
 RawAudioData/
 RawJoinedAudio/
@@ -228,6 +237,14 @@ PreparedAudio/
 TextGrids/
 ManualAnnotations/
 EvaluationOutputs/
+
+# Local documentation and scratch files
+docs/
+Docs/
+tmp_*
+
+# Keep notebooks shareable
+!*.ipynb
 
 # External model repos
 external_models/VTC/

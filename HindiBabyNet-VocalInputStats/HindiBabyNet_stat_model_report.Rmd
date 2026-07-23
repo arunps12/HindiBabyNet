@@ -3,6 +3,8 @@ title: "HindiBabyNet Vocal Input and Child Output Model Report"
 author: "Arun Prakash Singh"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 output:
+  pdf_document:
+    toc: yes
   html_document:
     theme: flatly
     toc: yes
@@ -10,20 +12,25 @@ output:
     number_sections: yes
     code_folding: show
     df_print: paged
-  pdf_document:
-    toc: yes
 params:
   refit_models: yes
   nsim: 100
   model_robustness_mode: "strict" #"strict" or "auto"
-  family1_participant_intercept: "without" # "with" or "without"
-  family1_location_intercept: "with"
-  family1_drop_fixed_terms: !r character(0) # ["fixed_effect1", fixed_effect2]
+  family1_count_age_specification: "quadratic" # "none", "linear", or "quadratic"
+  family1_duration_age_specification: "quadratic" # "none", "linear", or "quadratic"
+  family2_count_age_specification: "quadratic" # "none", "linear", or "quadratic"
+  family2_duration_age_specification: "quadratic" # "none", "linear", or "quadratic"
+  anova_type: 2 # 2 or 3
+  response_transform_global: "none"
+  response_transform_map: ""
+  family1_participant_intercept: "with" # "with" or "without"
+  family1_location_intercept: "without"
+  family1_drop_fixed_terms:  ["speaker:age_z2"] #!r character(0) # ["fixed_effect1", fixed_effect2] #["speaker:age_z", "speaker:age_z2"] #
   family1_extra_fixed_terms: !r character(0)
   family1_random_slope_terms: !r character(0)
   family2_participant_intercept: "without"
-  family2_location_intercept: "with"
-  family2_drop_fixed_terms: !r character(0)
+  family2_location_intercept: "without"
+  family2_drop_fixed_terms: !r character(0) # ["input_count_hour:speaker", "input_duration_min_hour:speaker"]#
   family2_extra_fixed_terms: !r character(0)
   family2_random_slope_terms: !r character(0) # ["speaker|participant_id"]
   show_code: yes
@@ -57,9 +64,24 @@ collapse_param_values <- function(values) {
 }
 
 apply_report_environment_overrides <- function() {
+  age_specification_map <- paste(
+    c(
+      sprintf("family1_count=%s", params$family1_count_age_specification),
+      sprintf("family1_duration=%s", params$family1_duration_age_specification),
+      sprintf("family2_count=%s", params$family2_count_age_specification),
+      sprintf("family2_duration=%s", params$family2_duration_age_specification)
+    ),
+    collapse = ","
+  )
+
   Sys.setenv(
     HBN_NSIM = as.character(params$nsim),
     HBN_MODEL_ROBUSTNESS_MODE = as.character(params$model_robustness_mode),
+    HBN_AGE_SPECIFICATION = "",
+    HBN_AGE_SPECIFICATION_MAP = age_specification_map,
+    HBN_ANOVA_TYPE = as.character(params$anova_type),
+    HBN_RESPONSE_TRANSFORM_GLOBAL = as.character(params$response_transform_global),
+    HBN_RESPONSE_TRANSFORM_MAP = as.character(params$response_transform_map),
     HBN_FAMILY1_PARTICIPANT_INTERCEPT = as.character(params$family1_participant_intercept),
     HBN_FAMILY1_LOCATION_INTERCEPT = as.character(params$family1_location_intercept),
     HBN_FAMILY1_DROP_FIXED_TERMS = collapse_param_values(params$family1_drop_fixed_terms),
@@ -81,6 +103,7 @@ source(file.path("R", "functions", "model_selection.R"))
 source(file.path("R", "functions", "model_diagnostics.R"))
 source(file.path("R", "functions", "monte_carlo_ci.R"))
 source(file.path("R", "functions", "prediction_plots.R"))
+source(file.path("R", "functions", "reporting.R"))
 
 load_required_packages(attach = FALSE)
 ensure_analysis_directories()
@@ -161,14 +184,47 @@ model_fit_table <- function(bundle) {
     response = bundle$response_name,
     model_family = bundle$model_family,
     selected_model = bundle$selection$model_type[[1]],
+    age_specification = bundle$age_specification %||% analysis_options$model_config$age_specification,
+    response_transform = bundle$response_transform %||% "none",
     n_complete_cases = bundle$n_complete_cases,
     AIC = AIC(bundle$model),
     BIC = BIC(bundle$model),
     logLik = as.numeric(logLik(bundle$model)),
-    transformed_response = bundle$transformed_response,
     formula = paste(deparse(bundle$fitted_formula), collapse = " "),
     stringsAsFactors = FALSE
   )
+}
+
+anova_display_table <- function(bundle) {
+  anova_result <- tryCatch(
+    car::Anova(bundle$model, type = analysis_options$model_config$anova_type),
+    error = function(e) e
+  )
+
+  if (inherits(anova_result, "error")) {
+    return(data.frame(note = conditionMessage(anova_result), stringsAsFactors = FALSE))
+  }
+
+  anova_frame <- as.data.frame(anova_result, stringsAsFactors = FALSE)
+  anova_frame$term <- rownames(anova_frame)
+  rownames(anova_frame) <- NULL
+  anova_frame[, c("term", setdiff(names(anova_frame), "term")), drop = FALSE]
+}
+
+vif_display_table <- function(bundle) {
+  as.data.frame(vif_table(bundle), stringsAsFactors = FALSE)
+}
+
+write_report_table <- function(table, filename) {
+  utils::write.csv(as.data.frame(table), file.path(analysis_paths$results_tables, filename), row.names = FALSE)
+  invisible(table)
+}
+
+read_optional_csv <- function(path) {
+  if (!file.exists(path)) {
+    return(NULL)
+  }
+  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
 }
 
 print_model_summary <- function(bundle) {
@@ -202,25 +258,40 @@ Set `params$refit_models` to `false` when the `.rds` model bundles already exist
 
 Use the parameter block at the top of this file to control fixed effects, random intercepts, and random slopes for both Family 1 and Family 2. `params$model_robustness_mode` accepts `"auto"` or `"strict"`. In `"auto"` mode, the workflow tries your requested specification first and then simplifies it if needed so the report still completes. In `"strict"` mode, it uses only the exact requested specification and stops if that model cannot be fit.
 
+In the statistical models, SES is treated as an ordered numeric predictor named `SES_num`, derived from the original `SES` labels using this fixed mapping: `primary_school = 1`, `high_school = 2`, `Intermediate = 3`, `bachelor = 4`, and `master = 5`.
+
+Age is configured centrally through four per-model settings: `params$family1_count_age_specification`, `params$family1_duration_age_specification`, `params$family2_count_age_specification`, and `params$family2_duration_age_specification`. `"none"` removes age from the fixed-effects structure, `"linear"` uses `age_z`, and `"quadratic"` uses both `age_z` and `age_z2`, where the z-scores are computed directly from age in days. Response-scale transforms are configured through either `params$response_transform_global` or `params$response_transform_map`. When `response_transform_global` is non-empty, it takes precedence and the per-response map is ignored.
+
 # 1.1 What to change in this .Rmd file
 
 Edit the `params:` block at the top of this file.
 
 - `family1_participant_intercept` and `family2_participant_intercept`: set to `"with"`, `"without"`, or `"auto"`.
 - `family1_location_intercept` and `family2_location_intercept`: set to `"with"`, `"without"`, or `"auto"`.
-- `family1_drop_fixed_terms` and `family2_drop_fixed_terms`: list the fixed-effect terms you want removed.
+- `family1_drop_fixed_terms` and `family2_drop_fixed_terms`: list the fixed-effect terms you want removed. Use `SES_num` if you want to remove the continuous SES term.
 - `family1_extra_fixed_terms` and `family2_extra_fixed_terms`: list extra fixed-effect terms you want added.
 - `family1_random_slope_terms` and `family2_random_slope_terms`: list random slope terms using `term|group`, `term||group`, or full lme4 syntax such as `(1 + speaker | participant_id)`.
 - `model_robustness_mode`: use `"auto"` for safe experimentation or `"strict"` for exact-spec fitting only.
+- `family1_count_age_specification`, `family1_duration_age_specification`, `family2_count_age_specification`, and `family2_duration_age_specification`: use `"none"`, `"linear"`, or `"quadratic"` to control the age terms for each model separately.
+- `response_transform_global`: set one transform for all responses using `"none"`, `"log"`, or `"log1p"`. If this is non-empty, it overrides the per-response map.
+- `response_transform_map`: override transforms per response using comma-separated assignments such as `input_count_hour=log1p,key_child_count_hour=log1p`. Leave this empty when you want one global setting.
+- `anova_type`: choose `2` or `3` for the `car::Anova()` tables reported below.
 
 Examples of direct edits in the YAML block:
 
 ```yaml
 params:
   model_robustness_mode: "auto"
+  family1_count_age_specification: "quadratic"
+  family1_duration_age_specification: "linear"
+  family2_count_age_specification: "quadratic"
+  family2_duration_age_specification: "linear"
+  anova_type: 2
+  response_transform_global: "none"
+  response_transform_map: ""
   family1_participant_intercept: "without"
   family1_location_intercept: "without"
-  family1_drop_fixed_terms: ["SES", "child_sex"]
+  family1_drop_fixed_terms: ["SES_num", "child_sex"]
   family1_random_slope_terms: []
   family2_participant_intercept: "with"
   family2_location_intercept: "with"
@@ -231,9 +302,9 @@ params:
 
 Interpretation of the most common terms:
 
-- Family 1 fixed terms usually include `speaker`, `age_z`, `speaker:age_z`, `SES`, and `child_sex`.
-- Family 2 count usually starts from `input_count_hour`, `speaker`, `input_count_hour:speaker`, `age_z`, `SES`, and `child_sex`.
-- Family 2 duration usually starts from `input_duration_min_hour`, `speaker`, `input_duration_min_hour:speaker`, `age_z`, `SES`, and `child_sex`.
+- Family 1 fixed terms usually include `speaker`, the active age terms (`age_z` or `age_z + age_z2`), the corresponding speaker-by-age interactions, `SES_num`, and `child_sex`.
+- Family 2 count usually starts from `input_count_hour`, `speaker`, `input_count_hour:speaker`, the active age terms, `SES_num`, and `child_sex`.
+- Family 2 duration usually starts from `input_duration_min_hour`, `speaker`, `input_duration_min_hour:speaker`, the active age terms, `SES_num`, and `child_sex`.
 
 After you edit the parameter block, rerender the report. If `refit_models: yes`, the saved model bundles, prediction files, diagnostics, and summary tables will be regenerated using the new specification.
 
@@ -262,6 +333,65 @@ age_standardisation <- data.frame(
   value = c(datasets_bundle$age_days_mean, datasets_bundle$age_days_sd)
 )
 show_table(age_standardisation, digits = 3)
+```
+
+```{r active-model-config}
+model_config_summary <- data.frame(
+  setting = c(
+    "family1_count age specification",
+    "family1_duration age specification",
+    "family2_count age specification",
+    "family2_duration age specification",
+    "ANOVA type",
+    "Speaker contrasts"
+  ),
+  value = c(
+    get_age_specification_name("input_count_hour", "family_1"),
+    get_age_specification_name("input_duration_min_hour", "family_1"),
+    get_age_specification_name("key_child_count_hour", "family_2_count"),
+    get_age_specification_name("key_child_duration_min_hour", "family_2_duration"),
+    analysis_options$model_config$anova_type,
+    current_contrast_label()
+  ),
+  stringsAsFactors = FALSE
+)
+
+response_transform_summary <- data.frame(
+  response = c(
+    "input_count_hour",
+    "input_duration_min_hour",
+    "key_child_count_hour",
+    "key_child_duration_min_hour"
+  ),
+  response_transform = vapply(
+    c("input_count_hour", "input_duration_min_hour", "key_child_count_hour", "key_child_duration_min_hour"),
+    get_response_transform_name,
+    character(1)
+  ),
+  stringsAsFactors = FALSE
+)
+
+show_table(model_config_summary, digits = 0, caption = "Active modelling configuration")
+show_table(response_transform_summary, digits = 0, caption = "Effective response transforms")
+```
+
+## Preprocessing audit tables
+
+```{r preprocessing-audits}
+recording_duration_audit <- read_optional_csv(file.path(analysis_paths$repo_root, "results", "recording_duration_audit.csv"))
+age_validation <- read_optional_csv(file.path(analysis_paths$repo_root, "results", "age_validation.csv"))
+
+show_table(
+  if (!is.null(recording_duration_audit)) utils::head(recording_duration_audit, 12) else NULL,
+  digits = 3,
+  caption = "Preview of the first-day recording duration audit"
+)
+
+show_table(
+  age_validation,
+  digits = 3,
+  caption = "Age validation checks written by the Python preprocessing pipeline"
+)
 ```
 
 
@@ -391,6 +521,30 @@ show_table(model_fit_table(input_count_bundle), digits = 3)
 print_model_summary(input_count_bundle)
 ```
 
+### ANOVA table
+
+```{r input-count-anova}
+input_count_anova <- anova_display_table(input_count_bundle)
+write_report_table(input_count_anova, "input_count_hour_anova.csv")
+show_table(
+  input_count_anova,
+  digits = 4,
+  caption = sprintf("Type-%s ANOVA for input count per hour.", analysis_options$model_config$anova_type)
+)
+```
+
+### Collinearity diagnostics
+
+```{r input-count-vif}
+input_count_vif <- vif_display_table(input_count_bundle)
+write_report_table(input_count_vif, "input_count_hour_vif.csv")
+show_table(
+  input_count_vif,
+  digits = 3,
+  caption = "VIF/GVIF diagnostics for input count per hour."
+)
+```
+
 ### Fixed effects
 
 ```{r input-count-fixed}
@@ -462,6 +616,30 @@ show_table(model_fit_table(input_duration_bundle), digits = 3)
 
 ```{r input-duration-summary, results='asis'}
 print_model_summary(input_duration_bundle)
+```
+
+### ANOVA table
+
+```{r input-duration-anova}
+input_duration_anova <- anova_display_table(input_duration_bundle)
+write_report_table(input_duration_anova, "input_duration_min_hour_anova.csv")
+show_table(
+  input_duration_anova,
+  digits = 4,
+  caption = sprintf("Type-%s ANOVA for input duration in minutes per hour.", analysis_options$model_config$anova_type)
+)
+```
+
+### Collinearity diagnostics
+
+```{r input-duration-vif}
+input_duration_vif <- vif_display_table(input_duration_bundle)
+write_report_table(input_duration_vif, "input_duration_min_hour_vif.csv")
+show_table(
+  input_duration_vif,
+  digits = 3,
+  caption = "VIF/GVIF diagnostics for input duration in minutes per hour."
+)
 ```
 
 ### Fixed effects
@@ -541,6 +719,30 @@ show_table(model_fit_table(child_count_bundle), digits = 3)
 print_model_summary(child_count_bundle)
 ```
 
+### ANOVA table
+
+```{r child-count-anova}
+child_count_anova <- anova_display_table(child_count_bundle)
+write_report_table(child_count_anova, "key_child_count_hour_anova.csv")
+show_table(
+  child_count_anova,
+  digits = 4,
+  caption = sprintf("Type-%s ANOVA for key-child count per hour.", analysis_options$model_config$anova_type)
+)
+```
+
+### Collinearity diagnostics
+
+```{r child-count-vif}
+child_count_vif <- vif_display_table(child_count_bundle)
+write_report_table(child_count_vif, "key_child_count_hour_vif.csv")
+show_table(
+  child_count_vif,
+  digits = 3,
+  caption = "VIF/GVIF diagnostics for key-child count per hour."
+)
+```
+
 ### Fixed effects
 
 ```{r child-count-fixed}
@@ -614,6 +816,30 @@ show_table(model_fit_table(child_duration_bundle), digits = 3)
 
 ```{r child-duration-summary, results='asis'}
 print_model_summary(child_duration_bundle)
+```
+
+### ANOVA table
+
+```{r child-duration-anova}
+child_duration_anova <- anova_display_table(child_duration_bundle)
+write_report_table(child_duration_anova, "key_child_duration_min_hour_anova.csv")
+show_table(
+  child_duration_anova,
+  digits = 4,
+  caption = sprintf("Type-%s ANOVA for key-child duration in minutes per hour.", analysis_options$model_config$anova_type)
+)
+```
+
+### Collinearity diagnostics
+
+```{r child-duration-vif}
+child_duration_vif <- vif_display_table(child_duration_bundle)
+write_report_table(child_duration_vif, "key_child_duration_min_hour_vif.csv")
+show_table(
+  child_duration_vif,
+  digits = 3,
+  caption = "VIF/GVIF diagnostics for key-child duration in minutes per hour."
+)
 ```
 
 ### Fixed effects

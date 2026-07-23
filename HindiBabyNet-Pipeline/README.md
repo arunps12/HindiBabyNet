@@ -67,7 +67,9 @@ The pipeline reads two files:
 - `configs/config.yaml` for runtime paths, output locations, and backend selection
 - `configs/params.yaml` for audio-processing, model, annotation, and TextGrid parameters
 
-Key runtime roots live under `paths` in `config.yaml`. Tunable audio settings such as `join_multiple_files`, `target_sr`, `convert_to_mono`, and `normalize` live in `params.yaml`.
+Key runtime roots live under `paths` in `config.yaml`. Tunable audio settings such as `join_multiple_files`, `target_sr`, `convert_to_mono`, and `normalize` live in `params.yaml`. Stage 01 session filtering also lives in `config.yaml` under `data_ingestion.session_selection`.
+
+By default, Stage 01 keeps only WAV files from the earliest valid `YYYYMMDD` folder per participant. Set `data_ingestion.session_selection: all` to preserve the previous behavior of combining recordings from every date folder.
 
 ## Commands
 
@@ -206,6 +208,7 @@ logs_root: logs                          # where log files are saved
 data_ingestion:
   raw_audio_root: /path/to/raw/audio     # root directory to scan for WAV files
   allowed_ext: [".wav", ".WAV"]          # accepted file extensions
+  session_selection: earliest            # earliest (default) or all
   recordings_filename: recordings.parquet
 
 # ─── Stage 02: Audio Preparation ───
@@ -269,7 +272,7 @@ uv run bash scripts/run_pipeline.sh --limit 3
 ```
 
 This runs all three stages sequentially:
-1. **Stage 01** scans `raw_audio_root` and catalogues every WAV file
+1. **Stage 01** scans `raw_audio_root` and, by default, catalogues only WAV files from the earliest valid `YYYYMMDD` folder per participant
 2. **Stage 02** combines all WAVs per participant into a single analysis-ready WAV
 3. **Stage 03** runs speaker classification on each participant using the selected backend
 

@@ -13,6 +13,7 @@ required_columns <- list(
     "age_days",
     "age_months",
     "age_z",
+    "age_z2",
     "recording_duration_hours",
     "key_child_count_hour",
     "key_child_duration_hour"
@@ -23,6 +24,7 @@ required_columns <- list(
     "age_days",
     "age_months",
     "age_z",
+    "age_z2",
     "child_sex",
     "SES",
     "mother_education",
@@ -38,6 +40,7 @@ required_columns <- list(
     "age_days",
     "age_months",
     "age_z",
+    "age_z2",
     "child_sex",
     "SES",
     "mother_education",
@@ -85,9 +88,15 @@ assert_required_columns <- function(dataframe, label, columns) {
 }
 
 coerce_common_factors <- function(dataframe) {
-  factor_columns <- c("participant_id", "child_sex", "SES", "mother_education", "father_education", "Location")
+  factor_columns <- c("participant_id", "child_sex", "mother_education", "father_education", "Location")
   for (column in intersect(factor_columns, names(dataframe))) {
     dataframe[[column]] <- factor(dataframe[[column]])
+  }
+
+  if ("SES" %in% names(dataframe)) {
+    ses_levels <- c("primary_school", "high_school", "Intermediate", "bachelor", "master")
+    dataframe[["SES"]] <- factor(dataframe[["SES"]], levels = ses_levels, ordered = TRUE)
+    dataframe[["SES_num"]] <- as.numeric(dataframe[["SES"]])
   }
 
   if ("speaker" %in% names(dataframe)) {

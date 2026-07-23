@@ -52,6 +52,9 @@ class ProjectConfig:
     ses_source: str
     minimum_recording_hours_warning: float
     manual_mapping_csv: Path | None
+    recording_duration_source: str
+    session_selection: str
+    session_date_format: str
 
     @property
     def metadata_csv(self) -> Path:
@@ -129,4 +132,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         ses_source=str(payload["ses_source"]),
         minimum_recording_hours_warning=float(payload["minimum_recording_hours_warning"]),
         manual_mapping_csv=_resolve_path(repo_root, payload.get("manual_mapping_csv")),
+        recording_duration_source=str(payload.get("recording_duration_source", "audio_file")).strip().lower(),
+        session_selection=str(payload.get("session_selection", "all")).strip().lower(),
+        session_date_format=str(payload.get("session_date_format", "%Y%m%d")),
     )

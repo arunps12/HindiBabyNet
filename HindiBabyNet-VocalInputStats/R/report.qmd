@@ -89,10 +89,7 @@ label_term <- function(term) {
     speakeradult_male = "Speaker: adult male vs adult female",
     speakerother_child = "Speaker: other child vs adult female",
     age_z = "Child age (z-scored)",
-    SEShigh_school = "SES: high school vs reference",
-    SESIntermediate = "SES: intermediate vs reference",
-    SESmaster = "SES: master vs reference",
-    SESprimary_school = "SES: primary school vs reference",
+    SES_num = "SES (ordered numeric score)",
     child_sexmale = "Child sex: male vs female",
     "speakeradult_male:age_z" = "Adult male by age interaction",
     "speakerother_child:age_z" = "Other child by age interaction",
@@ -135,7 +132,7 @@ focal_terms_for_question <- function(question_id, response) {
     return(c("speakeradult_male", "speakerother_child"))
   }
   if (identical(question_id, "rq2")) {
-    return(c("age_z", "SEShigh_school", "SESIntermediate", "SESmaster", "SESprimary_school", "child_sexmale", "speakeradult_male:age_z", "speakerother_child:age_z"))
+    return(c("age_z", "SES_num", "child_sexmale", "speakeradult_male:age_z", "speakerother_child:age_z"))
   }
   if (identical(question_id, "rq3")) {
     if (identical(response, "key_child_count_hour")) {
@@ -144,7 +141,7 @@ focal_terms_for_question <- function(question_id, response) {
     return(c("input_duration_min_hour", "speakeradult_male", "speakerother_child", "input_duration_min_hour:speakeradult_male", "input_duration_min_hour:speakerother_child"))
   }
   if (identical(question_id, "rq4")) {
-    return(c("age_z", "SEShigh_school", "SESIntermediate", "SESmaster", "SESprimary_school", "child_sexmale"))
+    return(c("age_z", "SES_num", "child_sexmale"))
   }
   character(0)
 }

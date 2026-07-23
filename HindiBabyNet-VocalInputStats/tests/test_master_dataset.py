@@ -88,10 +88,93 @@ def test_build_master_dataset_creates_public_outputs(tmp_path: Path) -> None:
     assert final_master.loc[1, "recording_duration_hours"] == 2.0
     assert final_master.loc[1, "adult_female_count_hour"] == 0.5
     assert final_master.loc[1, "key_child_duration_hour"] == 1.0
+    assert "age_z2" in final_master.columns
+    assert final_master.loc[1, "age_z2"] == final_master.loc[1, "age_z"] ** 2
     assert "original_par_id" not in final_master.columns
 
     validation = pd.read_csv(tmp_path / "results" / "validation_report.csv")
     assert set(validation["issue_type"]) == {"missing_audio", "missing_vtc", "negative_age"}
+    age_validation = pd.read_csv(tmp_path / "results" / "age_validation.csv")
+    assert age_validation["value"].all()
     assert "original_par_id" not in validation.columns
     private_lookup = pd.read_csv(tmp_path / "data" / "private" / "participant_lookup.csv")
     assert list(private_lookup.columns) == ["original_par_id", "participant_id"]
+
+
+def test_build_master_dataset_uses_earliest_session_duration_for_rates(tmp_path: Path) -> None:
+    metadata_path = tmp_path / "data" / "raw" / "metadata.csv"
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "par_id": ["AAA"],
+            "REC_date": ["2024-01-01"],
+            "birthdate": ["2023-01-01"],
+            "child_sex": ["F"],
+            "mother_education": ["college"],
+            "father_education": ["college"],
+            "Location": ["Delhi"],
+        }
+    ).to_csv(metadata_path, index=False)
+
+    vtc_root = tmp_path / "vtc"
+    (vtc_root / "AAA").mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "uid": ["AAA", "AAA"],
+            "start_time_s": [0.0, 5.0],
+            "duration_s": [60.0, 120.0],
+            "label": ["FEM", "KCHI"],
+        }
+    ).to_csv(vtc_root / "AAA" / "rttm.csv", index=False)
+
+    audio_root = tmp_path / "raw_audio"
+    _write_test_wav(audio_root / "AAA" / "20250201" / "part_1.wav", seconds=3600.0)
+    _write_test_wav(audio_root / "AAA" / "20250201" / "part_2.wav", seconds=1800.0)
+    _write_test_wav(audio_root / "AAA" / "20250202" / "part_3.wav", seconds=7200.0)
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                f"metadata_path: {metadata_path.as_posix()}",
+                f"vtc_output_root: {vtc_root.as_posix()}",
+                f"audio_root: {audio_root.as_posix()}",
+                f"derived_data_dir: {(tmp_path / 'data' / 'derived').as_posix()}",
+                f"private_data_dir: {(tmp_path / 'data' / 'private').as_posix()}",
+                f"figures_dir: {(tmp_path / 'figures').as_posix()}",
+                f"tables_dir: {(tmp_path / 'tables').as_posix()}",
+                f"results_dir: {(tmp_path / 'results').as_posix()}",
+                "metadata_id_column: par_id",
+                "audio_layout:",
+                "  type: participant_folder",
+                "  participant_folder_name: '{par_id}'",
+                "  recursive: true",
+                "  audio_extensions: ['.wav', '.WAV']",
+                "  expected_audio_files: auto",
+                "  prefer_largest_audio_file: true",
+                "vtc_layout:",
+                "  type: participant_folder",
+                "  participant_folder_name: '{par_id}'",
+                "  rttm_csv_name: rttm.csv",
+                "participant_id_digits: 3",
+                "age_month_denominator: 30.44",
+                "ses_source: mother_education",
+                "minimum_recording_hours_warning: 1.0",
+                "recording_duration_source: raw_audio_sessions",
+                "session_selection: earliest",
+                "session_date_format: '%Y%m%d'",
+                "manual_mapping_csv:",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    final_master = run_build_master(config_path)
+
+    assert final_master.loc[0, "recording_duration_hours"] == 1.5
+    assert final_master.loc[0, "adult_female_count_hour"] == 1.0 / 1.5
+    assert final_master.loc[0, "key_child_duration_hour"] == 120.0 / 1.5
+    duration_audit = pd.read_csv(tmp_path / "results" / "recording_duration_audit.csv")
+    assert duration_audit.loc[0, "selected_date"] == 20250201
+    assert duration_audit.loc[0, "audio_file_count"] == 2
+    assert str(duration_audit.loc[0, "ignored_later_folders"]) == "20250202"

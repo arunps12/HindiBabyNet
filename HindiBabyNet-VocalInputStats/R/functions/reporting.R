@@ -67,19 +67,44 @@ extract_fixed_effects <- function(bundle) {
 }
 
 principal_terms_for_bundle <- function(bundle) {
+  age_terms <- switch(
+    bundle$age_specification %||% get_age_specification_name(bundle$response_name, bundle$model_family),
+    none = character(0),
+    linear = c("age_z"),
+    quadratic = c("age_z", "age_z2"),
+    character(0)
+  )
+
   if (identical(bundle$model_family, "family_1")) {
-    return(c("age_z", "speakeradult_male", "speakerother_child", "speakeradult_male:age_z", "speakerother_child:age_z"))
+    interaction_patterns <- unlist(lapply(age_terms, function(term) {
+      c(
+        sprintf("^speaker.*:%s$", term),
+        sprintf("^%s:speaker.*$", term)
+      )
+    }), use.names = FALSE)
+    return(c(sprintf("^%s$", age_terms), "^speaker", interaction_patterns))
   }
 
   if (identical(bundle$model_family, "family_2_count")) {
-    return(c("input_count_hour", "input_count_hour:speakeradult_male", "input_count_hour:speakerother_child"))
+    return(c("^input_count_hour$", "^input_count_hour:speaker", "^speaker.*:input_count_hour$"))
   }
 
   if (identical(bundle$model_family, "family_2_duration")) {
-    return(c("input_duration_min_hour", "input_duration_min_hour:speakeradult_male", "input_duration_min_hour:speakerother_child"))
+    return(c("^input_duration_min_hour$", "^input_duration_min_hour:speaker", "^speaker.*:input_duration_min_hour$"))
   }
 
   character(0)
+}
+
+filter_focal_effects <- function(fixed_effects, principal_terms) {
+  if (length(principal_terms) == 0 || nrow(fixed_effects) == 0) {
+    return(fixed_effects[0, , drop = FALSE])
+  }
+
+  keep_index <- vapply(fixed_effects$term, function(term) {
+    any(vapply(principal_terms, function(pattern) grepl(pattern, term), logical(1)))
+  }, logical(1))
+  fixed_effects[keep_index, , drop = FALSE]
 }
 
 classify_evidence_strength <- function(effects_table, hypothesis_direction = c("positive", "mixed")) {
@@ -116,7 +141,7 @@ classify_evidence_strength <- function(effects_table, hypothesis_direction = c("
 summarise_model_evidence <- function(bundle) {
   fixed_effects <- extract_fixed_effects(bundle)
   principal_terms <- principal_terms_for_bundle(bundle)
-  focal_effects <- fixed_effects[fixed_effects$term %in% principal_terms, , drop = FALSE]
+  focal_effects <- filter_focal_effects(fixed_effects, principal_terms)
   hypothesis_direction <- if (grepl("family_2", bundle$model_family, fixed = TRUE)) "positive" else "mixed"
 
   data.frame(
@@ -164,6 +189,8 @@ build_reporting_bundle <- function(model_bundles, diagnostics, predictions, data
   evidence_table <- bind_rows_safe(lapply(model_bundles, summarise_model_evidence))
   question_summary <- link_research_questions(evidence_table, questions_yaml)
   diagnostics_table <- bind_rows_safe(lapply(diagnostics, function(item) item$summary))
+  anova_table <- bind_rows_safe(lapply(model_bundles, tidy_anova_table))
+  collinearity_table <- bind_rows_safe(lapply(model_bundles, vif_table))
   prediction_manifest <- bind_rows_safe(lapply(names(predictions), function(name) {
     item <- predictions[[name]]
     data.frame(
@@ -182,6 +209,8 @@ build_reporting_bundle <- function(model_bundles, diagnostics, predictions, data
     evidence_table = evidence_table,
     question_summary = question_summary,
     diagnostics_table = diagnostics_table,
+    anova_table = anova_table,
+    collinearity_table = collinearity_table,
     prediction_manifest = prediction_manifest
   )
 }
@@ -194,6 +223,8 @@ write_reporting_outputs <- function(reporting_bundle, output_dir = analysis_path
   utils::write.csv(reporting_bundle$evidence_table, file.path(output_dir, "evidence_summary.csv"), row.names = FALSE)
   utils::write.csv(reporting_bundle$question_summary, file.path(output_dir, "research_question_summary.csv"), row.names = FALSE)
   utils::write.csv(reporting_bundle$diagnostics_table, file.path(output_dir, "diagnostics_summary.csv"), row.names = FALSE)
+  utils::write.csv(reporting_bundle$anova_table, file.path(output_dir, "anova_summary.csv"), row.names = FALSE)
+  utils::write.csv(reporting_bundle$collinearity_table, file.path(output_dir, "collinearity_summary.csv"), row.names = FALSE)
   utils::write.csv(reporting_bundle$prediction_manifest, file.path(output_dir, "prediction_manifest.csv"), row.names = FALSE)
 
   bundle_path <- file.path(output_dir, "reporting_bundle.rds")

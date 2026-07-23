@@ -4,6 +4,7 @@ paths:
   processed_data: data/processed
   metadata: metadata
   outputs: outputs
+  personal_info: data/personal_info
 
 raw_files:
   consent: data-539547-2026-06-04-1053.xlsx
@@ -24,6 +25,8 @@ analysis:
   age_month_divisor: 30.4375
   younger_questionnaire: "8_18"
   older_questionnaire: "19_36"
+  strict_hindi_threshold: 75
+  age_discrepancy_flag_months: 2
   younger_age_bins:
     - "8_10"
     - "11_13"
@@ -33,3 +36,88 @@ analysis:
     - "19_24"
     - "25_30"
     - "31_36"
+
+eligibility:
+  consent_column: "मैं सहमति देता/देती हूँ कि मेरी गुमनाम जानकारी ऊपर वर्णित परियोजना में उपयोग की जाएगी।"
+  mother_tongue_column: "क्या आपके बच्चे की मातृभाषा हिंदी है?"
+  preterm_column: "क्या आपका बच्चा प्री-टर्म जन्मा है?"
+  impairment_column: "क्या आपके बच्चे को बोलने, सुनने या देखने से संबंधित कोई समस्या है?"
+  age_range_column: "क्या आपके बच्चे की आयु 8 से 36 महीने के बीच है?"
+  required_mother_tongue_response: true
+  allow_preterm: false
+  allow_impairment: false
+
+exposure:
+  second_language_column: "यदि लागू हो, तो आपके बच्चे की दूसरी भाषा क्या है?"
+  second_language_percent_column: "आपका बच्चा कितने प्रतिशत समय दूसरी भाषा सुनता है?"
+  third_language_column: "यदि लागू हो, तो आपके बच्चे की तीसरी भाषा क्या है?"
+  third_language_percent_column: "आपका बच्चा कितने प्रतिशत समय तीसरी भाषा सुनता है?"
+
+age:
+  reported_age_column: "बच्चे की उम्र कितने महीनों की है?"
+  birthdate_column: "birthdate"
+  child_age_label_column: "बच्चे की आयु"
+  completion_date_column: "$created"
+  cdi1_min_month: 8
+  cdi1_max_month: 18
+  cdi2_min_month: 19
+  cdi2_max_month: 36
+
+contact:
+  mobile_number_column: "<b>कृपया अपना व्हाट्सएप नंबर प्रदान करें, यदि आपके पास है, अन्यथा सामान्य फोन नंबर प्रदान करें।</b>"
+  email_column: "<b>Email address (ईमेल)</b>"
+
+education:
+  mother_education_column: "माता की वर्तमान शिक्षा स्तर:"
+  father_education_column: "पिता की वर्तमान शिक्षा स्तर:"
+  analysis_groups:
+    - "Primary"
+    - "Secondary"
+    - "College"
+    - "Graduate"
+    - "Other/unknown"
+
+completeness:
+  minimum_present_ratio: 0.8
+  maximum_trailing_blank_run: 25
+
+outputs:
+  qc_dir: outputs/tables/qc
+  cdi1_tables_dir: outputs/tables/cdi1
+  cdi2_tables_dir: outputs/tables/cdi2
+  combined_tables_dir: outputs/tables/combined
+  cdi1_comprehension_figures_dir: outputs/figures/cdi1/comprehension
+  cdi1_production_figures_dir: outputs/figures/cdi1/production
+  cdi1_items_figures_dir: outputs/figures/cdi1/items
+  cdi1_categories_figures_dir: outputs/figures/cdi1/categories
+  cdi2_production_figures_dir: outputs/figures/cdi2/production
+  cdi2_items_figures_dir: outputs/figures/cdi2/items
+  cdi2_categories_figures_dir: outputs/figures/cdi2/categories
+  combined_figures_dir: outputs/figures/combined
+  qc_figures_dir: outputs/figures/qc
+
+form_detection_rules:
+  consent:
+    - "मैं सहमति देता/देती हूँ कि मेरी गुमनाम जानकारी ऊपर वर्णित परियोजना में उपयोग की जाएगी।"
+    - "fill_date"
+  eligibility:
+    - "क्या आपके बच्चे की मातृभाषा हिंदी है?"
+    - "क्या आपका बच्चा प्री-टर्म जन्मा है?"
+    - "Reference ID"
+  background:
+    - "बच्चे की उम्र कितने महीनों की है?"
+    - "birthdate"
+    - "SUBMISSION_REFERENCE"
+    - "$forwarded_to_form"
+  cdi_8_18:
+    - "केवल समझता/समझती है"
+    - "समझता/समझती है और कहता/कहती है"
+    - "इश/आह/उह (दर्द)"
+  cdi_19_36:
+    - "कहता/कहती है"
+    - "इश/आह/उह (दर्द)"
+    - "क्रिंग क्रिंग (साइकिल का शोर घंटी)"
+  contact:
+    - "<b>कृपया अपना व्हाट्सएप नंबर प्रदान करें, यदि आपके पास है, अन्यथा सामान्य फोन नंबर प्रदान करें।</b>"
+    - "<b>Email address (ईमेल)</b>"
+    - "Reference ID"

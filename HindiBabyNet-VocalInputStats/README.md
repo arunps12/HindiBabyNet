@@ -46,7 +46,7 @@ Main R outputs:
 
 ## Purpose
 
-The workflow is designed for count-per-hour and duration-per-hour analyses outside the main HindiBabyNet pipeline repository. It uses full recording duration as the denominator because the entire recording was processed by VTC.
+The workflow is designed for count-per-hour and duration-per-hour analyses outside the main HindiBabyNet pipeline repository. It uses participant-level recording duration as the denominator, either from a single prepared audio file or by summing raw session files directly from the earliest valid recording-date folder.
 
 Input speakers:
 
@@ -71,7 +71,7 @@ The workflow expects:
 
 1. A metadata table in `.csv`, `.xlsx`, or `.xls` format with at least `par_id`, `REC_date`, `birthdate`, `child_sex`, `mother_education`, `father_education`, and `Location`.
 2. A VTC output root containing one participant folder per child with `rttm.csv` files.
-3. An audio root containing the full recording processed by VTC.
+3. An audio root containing either the full recording processed by VTC or raw participant folders with dated session subfolders.
 
 ## Privacy model
 
@@ -130,6 +130,9 @@ Key settings include:
 - `metadata_id_column`
 - `vtc_output_root`
 - `audio_root`
+- `recording_duration_source`
+- `session_selection`
+- `session_date_format`
 - `derived_data_dir`
 - `private_data_dir`
 - `figures_dir`
@@ -141,6 +144,17 @@ Key settings include:
 - `age_month_denominator`
 - `ses_source`
 - `minimum_recording_hours_warning`
+
+For faster dataset builds when you only need denominators for count/hour, duration/hour, and EDA recording-duration plots, set:
+
+```yaml
+audio_root: "//.../RawAudioData"
+recording_duration_source: "raw_audio_sessions"
+session_selection: "earliest"
+session_date_format: "%Y%m%d"
+```
+
+That mode sums the durations of all audio files inside the earliest valid dated session folder per participant, without requiring `RawJoinedAudio` or `PreparedAudio` to exist first.
 
 ## R setup in VS Code
 

@@ -4,13 +4,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from hindibabynet_vocalinputstats.durations import read_audio_duration_seconds, seconds_to_hours
+from hindibabynet_vocalinputstats.durations import (
+    read_audio_duration_seconds,
+    resolve_recording_duration,
+    seconds_to_hours,
+)
 from hindibabynet_vocalinputstats.vtc_summary import normalize_vtc_label, summarize_vtc_dataframe
 
 
 def _write_test_wav(path: Path, *, seconds: float, samplerate: int = 16000) -> None:
     frame_count = int(seconds * samplerate)
     samples = np.zeros(frame_count, dtype=np.int16)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(2)
@@ -26,6 +31,49 @@ def test_read_audio_duration_seconds_uses_full_audio_file(tmp_path: Path) -> Non
 
     assert duration_sec == 2.5
     assert seconds_to_hours(duration_sec) == 2.5 / 3600.0
+
+
+def test_resolve_recording_duration_uses_earliest_session_sum(tmp_path: Path) -> None:
+    participant_root = tmp_path / "P001"
+    _write_test_wav(participant_root / "20250201" / "a.wav", seconds=1.0)
+    _write_test_wav(participant_root / "20250201" / "b.wav", seconds=2.0)
+    _write_test_wav(participant_root / "20250202" / "c.wav", seconds=5.0)
+
+    result = resolve_recording_duration(
+        tmp_path,
+        "P001",
+        [".wav", ".WAV"],
+        participant_folder_name="{par_id}",
+        recording_duration_source="raw_audio_sessions",
+        session_selection="earliest",
+    )
+
+    assert result.matched_audio is True
+    assert result.warning_message is None
+    assert result.duration_sec == 3.0
+    assert result.selected_date == "20250201"
+    assert result.audio_file_count == 2
+    assert result.ignored_later_folders == ("20250202",)
+
+
+def test_resolve_recording_duration_falls_back_when_no_valid_session_dirs(tmp_path: Path) -> None:
+    participant_root = tmp_path / "P001"
+    _write_test_wav(participant_root / "session_a" / "a.wav", seconds=1.5)
+    _write_test_wav(participant_root / "session_b" / "b.wav", seconds=2.5)
+
+    result = resolve_recording_duration(
+        tmp_path,
+        "P001",
+        [".wav", ".WAV"],
+        participant_folder_name="{par_id}",
+        recording_duration_source="raw_audio_sessions",
+        session_selection="earliest",
+    )
+
+    assert result.matched_audio is True
+    assert result.duration_sec == 4.0
+    assert result.warning_message is not None
+    assert result.audio_file_count == 2
 
 
 def test_normalize_vtc_label_maps_expected_values() -> None:
