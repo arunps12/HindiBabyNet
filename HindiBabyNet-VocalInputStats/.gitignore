@@ -78,8 +78,8 @@ docs/
 *.m4a
 *.M4A
 
-# Keep notebooks shareable
-!*.ipynb
+# Notebook originals remain local; they may contain participant outputs.
+*.ipynb
 
 # Private lookup files
 participant_lookup.csv

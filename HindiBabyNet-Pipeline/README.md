@@ -31,7 +31,7 @@ The repository intentionally does not present ADS/IDS annotation as an active wo
 Large generated data must live outside the repository. Use `configs/config.yaml` to point at external roots such as:
 
 ```text
-/home/arunps/hindinet_data/
+/path/to/data/
 ├── RawAudioData/
 ├── RawJoinedAudio/
 ├── PreparedAudio/
@@ -81,9 +81,9 @@ uv run bash scripts/run_prepare_audio.sh --recordings-parquet artifacts/runs/<ru
 uv run bash scripts/run_prepare_audio.sh --wav /path/to/input.wav --recording-id REC001
 uv run bash scripts/run_classify_xgb.sh --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
 uv run bash scripts/run_classify_vtc.sh --recordings-parquet artifacts/runs/<run_id>/data_ingestion/recordings.parquet
-uv run bash scripts/run_generate_textgrids.sh --backend vtc --participant-id ABAN141223
-uv run bash scripts/run_annotate_segments.sh --backend vtc --participant-id ABAN141223
-uv run bash scripts/run_evaluate_models.sh --input-csv /path/to/ManualAnnotations/ABAN141223/ABAN141223_vtc_annotations.csv
+uv run bash scripts/run_generate_textgrids.sh --backend vtc --participant-id TEST000001
+uv run bash scripts/run_annotate_segments.sh --backend vtc --participant-id TEST000001
+uv run bash scripts/run_evaluate_models.sh --input-csv /path/to/ManualAnnotations/TEST000001/TEST000001_vtc_annotations.csv
 ```
 
 Legacy stage scripts remain as deprecation shims for backward compatibility.
@@ -427,7 +427,7 @@ For each participant (unchanged VTC 2.0 output):
 
 ```json
 {
-  "participant_id": "ABAN141223",
+  "participant_id": "TEST000001",
   "duration_sec": 28800.0,
   "n_classified_segments": 4523,
   "total_speech_sec": 12456.7,
@@ -476,13 +476,13 @@ uv pip install sounddevice
 python scripts/annotate_ads_ids.py --status
 
 # Annotate one participant (both speakers)
-python scripts/annotate_ads_ids.py -p ABAN141223
+python scripts/annotate_ads_ids.py -p TEST000001
 
 # Only female speaker
-python scripts/annotate_ads_ids.py -p ABAN141223 -s female
+python scripts/annotate_ads_ids.py -p TEST000001 -s female
 
 # Export WAVs from existing annotations without re-annotating
-python scripts/annotate_ads_ids.py -p ABAN141223 --export-only
+python scripts/annotate_ads_ids.py -p TEST000001 --export-only
 ```
 
 ### Controls During Annotation

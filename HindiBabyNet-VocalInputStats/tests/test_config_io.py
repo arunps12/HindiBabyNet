@@ -36,11 +36,11 @@ def test_load_config_resolves_repo_relative_paths() -> None:
 def test_normalize_path_keeps_unc_like_absolute_path() -> None:
     repo_root = Path("C:/repo")
 
-    path = normalize_path("//hypatia.uio.no/share/folder/file.xlsx", repo_root)
+    path = normalize_path("//server/share/folder/file.xlsx", repo_root)
 
     assert path is not None
     assert path.is_absolute()
-    assert path.as_posix().startswith("//hypatia.uio.no/")
+    assert path.as_posix().startswith("//server/")
 
 
 def test_load_config_accepts_metadata_csv_alias(tmp_path: Path) -> None:
@@ -71,33 +71,33 @@ def test_load_config_accepts_metadata_csv_alias(tmp_path: Path) -> None:
 
 
 def test_resolve_participant_match_uses_exact_basename() -> None:
-    match = resolve_participant_match("  ABAN141223  ")
+    match = resolve_participant_match("  TEST000001  ")
 
-    assert match.original_par_id == "ABAN141223"
-    assert match.source_id == "ABAN141223"
+    assert match.original_par_id == "TEST000001"
+    assert match.source_id == "TEST000001"
 
 
 def test_find_audio_file_prefers_recursive_participant_directory(tmp_path: Path) -> None:
-    participant_dir = tmp_path / "ABAN141223" / "2024-12-14"
+    participant_dir = tmp_path / "TEST000001" / "2024-12-14"
     ensure_directory(participant_dir)
     audio_file = participant_dir / "joined.WAV"
     audio_file.write_bytes(b"fake")
 
-    found = find_audio_file(tmp_path, "ABAN141223", [".wav", ".WAV"])
+    found = find_audio_file(tmp_path, "TEST000001", [".wav", ".WAV"])
 
     assert found.selected_path == audio_file
     assert found.warning_message is None
 
 
 def test_find_audio_file_selects_largest_when_multiple_matches(tmp_path: Path) -> None:
-    participant_dir = tmp_path / "ABAN141223"
+    participant_dir = tmp_path / "TEST000001"
     ensure_directory(participant_dir)
     small_audio = participant_dir / "small.wav"
     large_audio = participant_dir / "large.wav"
     small_audio.write_bytes(b"123")
     large_audio.write_bytes(b"123456")
 
-    found = find_audio_file(tmp_path, "ABAN141223", [".wav"], prefer_largest_audio_file=True)
+    found = find_audio_file(tmp_path, "TEST000001", [".wav"], prefer_largest_audio_file=True)
 
     assert isinstance(found, AudioDiscoveryResult)
     assert found.selected_path == large_audio
@@ -105,20 +105,20 @@ def test_find_audio_file_selects_largest_when_multiple_matches(tmp_path: Path) -
 
 
 def test_find_vtc_csv_requires_exact_participant_basename(tmp_path: Path) -> None:
-    vtc_file = tmp_path / "ABAN141223" / EXPECTED_VTC_FILENAME
+    vtc_file = tmp_path / "TEST000001" / EXPECTED_VTC_FILENAME
     ensure_directory(vtc_file.parent)
-    vtc_file.write_text("uid,start_time_s,duration_s,label\nABAN141223,0.0,1.0,FEM\n", encoding="utf-8")
+    vtc_file.write_text("uid,start_time_s,duration_s,label\nTEST000001,0.0,1.0,FEM\n", encoding="utf-8")
 
-    assert find_vtc_csv(tmp_path, "ABAN141223") == vtc_file
+    assert find_vtc_csv(tmp_path, "TEST000001") == vtc_file
     assert find_vtc_csv(tmp_path, "OTHER") is None
 
 
 def test_find_vtc_csv_falls_back_to_recursive_search(tmp_path: Path) -> None:
-    vtc_file = tmp_path / "ABAN141223" / "nested" / EXPECTED_VTC_FILENAME
+    vtc_file = tmp_path / "TEST000001" / "nested" / EXPECTED_VTC_FILENAME
     ensure_directory(vtc_file.parent)
-    vtc_file.write_text("uid,start_time_s,duration_s,label\nABAN141223,0.0,1.0,FEM\n", encoding="utf-8")
+    vtc_file.write_text("uid,start_time_s,duration_s,label\nTEST000001,0.0,1.0,FEM\n", encoding="utf-8")
 
-    assert find_vtc_csv(tmp_path, "ABAN141223") == vtc_file
+    assert find_vtc_csv(tmp_path, "TEST000001") == vtc_file
 
 
 def test_load_vtc_csv_rejects_missing_columns(tmp_path: Path) -> None:
@@ -146,7 +146,7 @@ def test_load_vtc_csv_infers_duration_from_end_time(tmp_path: Path) -> None:
 
 def test_read_table_supports_excel_metadata(tmp_path: Path) -> None:
     path = tmp_path / "metadata.xlsx"
-    expected = pd.DataFrame({"par_id": ["ABAN141223"], "REC_date": ["2024-01-01"]})
+    expected = pd.DataFrame({"par_id": ["TEST000001"], "REC_date": ["2024-01-01"]})
     expected.to_excel(path, index=False)
 
     loaded = read_table(path)

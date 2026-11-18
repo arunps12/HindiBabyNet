@@ -47,8 +47,8 @@ Docs/
 *.ogg
 *.OGG
 
-# Keep notebooks shareable
-!*.ipynb
+# Notebook originals remain local; they may contain participant outputs.
+*.ipynb
 
 # Common generated and local files
 __pycache__/
