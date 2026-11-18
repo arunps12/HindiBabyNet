@@ -285,6 +285,108 @@ def test_configure_preserves_native_snapshot_and_refuses_overwrite(sandbox, monk
     assert not (root / "absent.yaml").exists()
 
 
+@pytest.mark.parametrize("sectioned", [False, True])
+def test_configure_legacy_assets_keep_science_and_new_code_paths(sandbox, monkeypatch, sectioned):
+    root, _, settings = sandbox
+    monkeypatch.setattr(launcher, "ROOT", root)
+    originals = {}
+    expected = {}
+    for name in launcher.ORDER:
+        section = launcher.SECTIONS[name]
+        if section in expected:
+            continue
+        native = root / launcher.PROJECTS[name] / launcher.NATIVE[name]
+        legacy_root = root / launcher.LEGACY_PROJECTS[name]
+        legacy = legacy_root / launcher.NATIVE[name]
+        mapping = launcher.read_yaml(native)
+        if sectioned:
+            mapping["project_root"] = str(legacy_root / "approved scientific root")
+            payload = {section: mapping}
+        else:
+            payload = mapping
+        expected[section] = {**mapping, "project_root": mapping.get("project_root", str(legacy_root))}
+        if name == "audio":
+            params = {**settings["audio_params"], "project_root": str(legacy_root / "approved model root")}
+            expected["audio_params"] = params
+            if sectioned:
+                payload["audio_params"] = params
+            else:
+                sidecar = legacy.with_name("params.yaml")
+                write_yaml(sidecar, params)
+                originals[sidecar] = sidecar.read_bytes()
+        write_yaml(legacy, payload)
+        originals[legacy] = legacy.read_bytes()
+        native.unlink()
+    destination = root / "migration.local.yaml"
+    assert launcher.main(["configure", "--config", str(destination)]) == 0
+    snapshot = launcher.read_yaml(destination)
+    for section, mapping in expected.items():
+        assert snapshot[section] == mapping
+    for name, entry in snapshot["workflows"].items():
+        assert entry == {"enabled": False, "project": str(root / launcher.PROJECTS[name])}
+    assert all(path.read_bytes() == before for path, before in originals.items())
+
+
+def test_configure_mixed_sources_prefer_new_then_legacy_then_example(sandbox, monkeypatch):
+    root, _, settings = sandbox
+    monkeypatch.setattr(launcher, "ROOT", root)
+    template = {section: {"project_root": ".", "scientific_value": [1, 2.5, False, None]}
+                for section in set(launcher.SECTIONS.values()) | {"audio_params"}}
+    template["tools"] = {"uv": "custom-uv", "rscript": "custom-Rscript"}
+    write_yaml(root / "config.example.yaml", template)
+    # Audio exists in both places; the new native config and its sidecar win.
+    legacy_audio = root / launcher.LEGACY_PROJECTS["audio"] / launcher.NATIVE["audio"]
+    write_yaml(legacy_audio, {"speaker_classification": {"backend": "xgb"}})
+    # Prosody has only a legacy native config, with an explicit scientific root.
+    name = "prosody"
+    native = root / launcher.PROJECTS[name] / launcher.NATIVE[name]
+    legacy = root / launcher.LEGACY_PROJECTS[name] / launcher.NATIVE[name]
+    prosody = {**settings["prosody"], "project_root": str(legacy.parent / "approved")}
+    write_yaml(legacy, {"prosody": prosody})
+    native.unlink()
+    # CDI has neither; copy its example section without injecting native defaults.
+    (root / launcher.PROJECTS["cdi"] / launcher.NATIVE["cdi"]).unlink()
+    destination = root / "mixed.local.yaml"
+    launcher.configure(destination)
+    snapshot = launcher.read_yaml(destination)
+    assert snapshot["audio"] == settings["audio"]
+    assert snapshot["audio_params"] == {**settings["audio_params"], "project_root": str(root / "audio")}
+    assert snapshot["prosody"] == prosody
+    assert snapshot["cdi"] == template["cdi"]
+    assert snapshot["tools"] == template["tools"]
+    assert all(not entry["enabled"] for entry in snapshot["workflows"].values())
+
+
+def test_configure_fresh_clone_copies_example_science_exactly(tmp_path, monkeypatch):
+    # Use the shipped template, not a reconstruction of its scientific defaults.
+    template = launcher.read_yaml(launcher.ROOT / "config.example.yaml")
+    monkeypatch.setattr(launcher, "ROOT", tmp_path)
+    write_yaml(tmp_path / "config.example.yaml", template)
+    before = (tmp_path / "config.example.yaml").read_bytes()
+    destination = tmp_path / "config.local.yaml"
+    assert launcher.main(["configure", "--config", str(destination)]) == 0
+    snapshot = launcher.read_yaml(destination)
+    for section in set(launcher.SECTIONS.values()) | {"audio_params", "tools"}:
+        assert snapshot[section] == template[section]
+    assert snapshot["workflows"] == {
+        name: {"enabled": False, "project": str(tmp_path / launcher.PROJECTS[name])}
+        for name in launcher.ORDER}
+    assert (tmp_path / "config.example.yaml").read_bytes() == before
+    saved = destination.read_bytes()
+    assert launcher.main(["configure", "--config", str(destination)]) == 1
+    assert destination.read_bytes() == saved
+
+
+def test_configure_invalid_native_is_not_silently_replaced_by_example(sandbox, monkeypatch):
+    root, _, _ = sandbox
+    monkeypatch.setattr(launcher, "ROOT", root)
+    native = root / launcher.PROJECTS["audio"] / launcher.NATIVE["audio"]
+    native.write_text("audio: [unclosed", encoding="utf-8")
+    destination = root / "invalid.local.yaml"
+    assert launcher.main(["configure", "--config", str(destination)]) == 1
+    assert not destination.exists()
+
+
 def test_separate_native_configs_and_shared_relative_roots(sandbox):
     root, local, settings = select(sandbox, "prosody", "cdi", "audio")
     for name in ("prosody", "cdi", "audio"):
@@ -398,6 +500,66 @@ def test_audio_partial_success_is_not_completion(sandbox, monkeypatch, problem):
     monkeypatch.setattr(launcher.subprocess, "run", execute)
     assert launcher.main(["audio", "--config", str(local)]) == 1
     assert not records(local)
+
+
+@pytest.mark.parametrize("message", ["ok=1 skip=0 fail=1", "ok=1 fail=12", "FAIL | synthetic"])
+def test_redirected_audio_log_failures_never_record_completion(sandbox, monkeypatch, message):
+    _, local, _ = select(sandbox, "audio")
+    item = item_for(sandbox, "audio")
+    state_path, _, _ = launcher.run_state(item, local, True)
+
+    def execute(command, **kwargs):
+        assert kwargs["env"]["HBN_LOG_FILE"] == str(state_path.with_suffix(".log"))
+        produce(item)
+        Path(kwargs["env"]["HBN_LOG_FILE"]).write_text(message, encoding="utf-8")
+    monkeypatch.setattr(launcher.subprocess, "run", execute)
+    assert launcher.main(["audio", "--config", str(local)]) == 1
+    assert not records(local)
+    assert not (state_path.parent / "active.lock").exists()
+
+
+def test_redirected_audio_log_is_local_and_does_not_change_identity_or_resume(sandbox, monkeypatch):
+    _, local, _ = select(sandbox, "audio")
+    item = item_for(sandbox, "audio")
+    state_path, before, _ = launcher.run_state(item, local, True)
+    inherited = local.parent / "outer.log"
+    monkeypatch.setenv("HBN_LOG_FILE", str(inherited))
+    assert launcher.identity(item) == before
+    calls = []
+
+    def execute(command, **kwargs):
+        calls.append(command)
+        log = Path(kwargs["env"]["HBN_LOG_FILE"])
+        assert log == state_path.with_suffix(".log")
+        assert not any(launcher.overlaps(log, output) for output in item["outputs"])
+        produce(item)
+        log.write_text("ok=1 skip=0 fail=0", encoding="utf-8")
+    monkeypatch.setattr(launcher.subprocess, "run", execute)
+    assert launcher.main(["audio", "--config", str(local)]) == 0
+    assert os.environ["HBN_LOG_FILE"] == str(inherited)
+    assert not inherited.exists()
+    record = json.loads(state_path.read_text(encoding="utf-8"))
+    assert str(item["log_file"]) not in record["outputs"]
+    assert "HBN_LOG_FILE" not in record["inputs"]["scientific_env"]
+    with item["log_file"].open("a", encoding="utf-8") as handle:
+        handle.write("\nAdditional successful log message")
+    assert launcher.main(["audio", "--config", str(local)]) == 0
+    assert len(calls) == 1
+    # A failure discovered on a subsequent check must not be skipped as success.
+    item["log_file"].write_text("fail=2", encoding="utf-8")
+    assert launcher.main(["audio", "--config", str(local)]) == 1
+    assert len(calls) == 1
+
+
+def test_assigned_audio_log_is_excluded_even_inside_output_root(sandbox):
+    item = item_for(sandbox, "audio")
+    produce(item)
+    item["log_file"] = item["outputs"][0] / "run.log"
+    item["log_file"].write_text("fail=0", encoding="utf-8")
+    before = launcher.completed_outputs(item)
+    item["log_file"].write_text("Another success: fail=0", encoding="utf-8")
+    assert launcher.completed_outputs(item) == before
+    assert str(item["log_file"]) not in before
 
 
 def test_every_output_file_is_fingerprinted(sandbox, monkeypatch):
@@ -652,7 +814,7 @@ def test_forwarded_audio_arguments_parse_in_actual_native_cli(sandbox, monkeypat
         settings["audio"]["speaker_classification"]["backend"] = "xgb"
         write_yaml(local, settings)
     item = item_for(sandbox, "audio", stage, extra)
-    source = launcher.ROOT / "HindiBabyNet-Pipeline/src/hindibabynet_pipeline/cli" / (stage.replace("-", "_") + ".py")
+    source = launcher.ROOT / launcher.PROJECTS["audio"] / "src/hindibabynet_pipeline/cli" / (stage.replace("-", "_") + ".py")
     tree = ast.parse(source.read_text(encoding="utf-8-sig"))
     main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "main")
     calls = []

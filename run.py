@@ -34,9 +34,11 @@ import yaml
 
 
 ORDER = ("audio", "vocal-stats", "prosody", "vocal-models", "prosody-stats", "cdi")
-PROJECTS = dict(zip(ORDER, ("HindiBabyNet-Pipeline", "HindiBabyNet-VocalInputStats",
-                          "HindiBabyNet-ProsodyModel", "HindiBabyNet-VocalInputStats",
-                          "HindiBabyNet-ProsodyStats", "HindiBabyNet-CDIAnalysis")))
+PROJECTS = dict(zip(ORDER, ("audio", "vocal_stats", "prosody", "vocal_stats", "prosody_stats", "cdi")))
+# Local migration compatibility only: ignored scientific assets were not moved.
+LEGACY_PROJECTS = dict(zip(ORDER, ("HindiBabyNet-Pipeline", "HindiBabyNet-VocalInputStats",
+    "HindiBabyNet-ProsodyModel", "HindiBabyNet-VocalInputStats", "HindiBabyNet-ProsodyStats",
+    "HindiBabyNet-CDIAnalysis")))
 SECTIONS = dict(zip(ORDER, ("audio", "vocal", "prosody", "vocal", "prosody_stats", "cdi")))
 NATIVE = dict(zip(ORDER, ("configs/config.yaml", "configs/config.yaml", "config/config.yaml",
                          "configs/config.yaml", "config/config.yaml", "configs/config.yaml")))
@@ -59,8 +61,9 @@ def path_at(base, value):
 
 
 def configure(destination):
-    """Snapshot mappings, not datasets; keep defaults in their native source code."""
-    snapshot = {"workflows": {}}
+    """Snapshot native mappings; use the example only for absent native sections."""
+    snapshot = {"tools": {"uv": "uv", "rscript": "Rscript"}, "workflows": {}}
+    template = None
     for name in ORDER:
         project = (ROOT / PROJECTS[name]).resolve()
         section = SECTIONS[name]
@@ -68,16 +71,27 @@ def configure(destination):
         if section in snapshot:
             continue
         source = project / NATIVE[name]
+        native_root = project
+        if not source.exists():
+            native_root = (ROOT / LEGACY_PROJECTS[name]).resolve()
+            source = native_root / NATIVE[name]
+        if not source.exists():
+            if template is None:
+                template = read_yaml(ROOT / "config.example.yaml")
+                snapshot["tools"] = template.get("tools", snapshot["tools"])
+            snapshot[section] = dict(template[section])
+            if name == "audio":
+                snapshot["audio_params"] = dict(template["audio_params"])
+            continue
         payload = read_yaml(source)
         mapping = dict(payload.get(section, payload))
-        original_root = path_at(source.parent, mapping["project_root"]) if section in payload and "project_root" in mapping else project
-        mapping["project_root"] = str(original_root)
+        mapping.setdefault("project_root", str(native_root))
         snapshot[section] = mapping
         if name == "audio":
-            sidecar = project / "configs/params.yaml"
+            sidecar = source.with_name("params.yaml")
             params = payload.get("audio_params", {}) if "audio" in payload else read_yaml(sidecar) if sidecar.exists() else {}
             params = dict(params.get("audio_params", params))
-            params["project_root"] = str(path_at(source.parent, params["project_root"]) if "project_root" in params else project)
+            params.setdefault("project_root", str(native_root))
             snapshot["audio_params"] = params
     with destination.open("x", encoding="utf-8") as handle:
         yaml.safe_dump(snapshot, handle, sort_keys=False, allow_unicode=True)
@@ -495,7 +509,8 @@ def identity(item):
             model = xgb.get("diarization", {}).get("model", xgb.get("diarization_model", "pyannote/speaker-diarization-3.1"))
             if isinstance(model, str) and path_at(project, model).exists():
                 models.append(path_at(project, model))
-    env = {k: v for k, v in os.environ.items() if k.startswith("HBN_") and k != "HBN_CONFIG_PATH"}
+    env = {k: v for k, v in os.environ.items()
+           if k.startswith("HBN_") and k not in {"HBN_CONFIG_PATH", "HBN_LOG_FILE"}}
     env.update({k: os.environ[k] for k in ("HF_HOME", "HF_HUB_CACHE", "TRANSFORMERS_CACHE",
                                          "R_LIBS", "R_LIBS_USER", "R_LIBS_SITE", "QUARTO_PATH") if k in os.environ})
     generated = [project / "R" / name for name in ("report.html", "report.pdf", "report_files")]
@@ -508,7 +523,10 @@ def identity(item):
 def completed_outputs(item):
     if item["name"] == "audio":
         logs = path_at(item["root"], item["data"].get("logs_root", "logs"))
-        for log in logs.rglob("*.log"):
+        log_files = list(logs.rglob("*.log"))
+        if item.get("log_file") and item["log_file"].is_file():
+            log_files.append(item["log_file"])
+        for log in log_files:
             text = log.read_text(encoding="utf-8", errors="replace")
             if re.search(r"\bfail=[1-9]\d*\b|\bFAIL\s*\|", text):
                 raise ValueError("Audio reported participant failures; no whole-stage completion")
@@ -551,7 +569,8 @@ def completed_outputs(item):
                     header = next(csv.reader(handle), [])
                 if not header or not any(header):
                     raise ValueError(f"Empty CSV schema: {path}")
-    outputs = fingerprint(item["outputs"], item["exclude"])
+    excluded = item["exclude"] + ([item["log_file"]] if item.get("log_file") else [])
+    outputs = fingerprint(item["outputs"], excluded)
     if not any(value and value["size"] for value in outputs.values()):
         raise ValueError(f"{item['name']}: no nonempty native outputs")
     return outputs
@@ -561,6 +580,8 @@ def run_state(item, config, resume):
     default_stage = {"audio": "pipeline", "prosody": "extract", "vocal-stats": "all"}.get(item["name"])
     key = json.dumps([item["name"], item["stage"] or default_stage, item["extra"], str(item["project"]), str(item["config"])])
     path = config.parent / ".local/runs" / (hashlib.sha256(key.encode()).hexdigest() + ".json")
+    if item["name"] == "audio":
+        item["log_file"] = path.with_suffix(".log")
     current = identity(item)
     if path.exists():
         record = json.loads(path.read_text(encoding="utf-8"))
@@ -706,11 +727,7 @@ def main(argv=None):
             commands.append((command, project, item))
         if args.command != "setup":
             validate_plan(plan)
-        print(
-            "Resume verifies whole-stage local records only. Audio identity is size+mtime_ns, not SHA256. "
-            "Remote HuggingFace revisions/weights and installed R packages are not pinned or fully verified. "
-            "No participant-level recovery, sandbox, or cross-config concurrency guarantee."
-        )
+        print("Whole-stage resume only; audio content, remote models and R packages are not fully verified/pinned. See README limitations.")
         for command, project, item in commands:
             print(f"[{item['name']}] cwd={project}\n  {subprocess.list2cmdline(command)}")
             if args.command != "setup":
@@ -749,6 +766,8 @@ def main(argv=None):
                     env["HBN_CONFIG_PATH"] = str(item["config"])
                 else:
                     env.pop("HBN_CONFIG_PATH", None)
+                if item["name"] == "audio":
+                    env["HBN_LOG_FILE"] = str(state_path.with_suffix(".log"))
                 if item["name"] == "vocal-models" and args.stage == "report":
                     if os.environ.get("HBN_REPORT_FORMAT", "html") != "html":
                         raise ValueError("Report stage supports explicit HTML only; PDF toolchain not checked")

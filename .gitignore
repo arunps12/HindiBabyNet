@@ -13,6 +13,12 @@ Data/
 **/external_models/
 **/models/
 .local/
+# Original asset directories are intentionally retained locally after source moves.
+HindiBabyNet-Pipeline/
+HindiBabyNet-CDIAnalysis/
+HindiBabyNet-ProsodyModel/
+HindiBabyNet-VocalInputStats/
+HindiBabyNet-ProsodyStats/
 config.local.yaml
 **/config.local.yaml
 **/config/config.yaml
@@ -56,6 +62,13 @@ config.local.yaml
 *.pdf
 *.html
 *.docx
+*.tex
+*.aux
+*.toc
+*.out
+*.bbl
+*.blg
+*.synctex.gz
 *.zip
 *.tar
 *.gz
