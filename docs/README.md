@@ -110,15 +110,26 @@ After installing the relevant environments, these commands run the Python suites
 
 ```text
 uv run pytest
-uv run --project audio --frozen --no-sync pytest
-uv run --project cdi --frozen --no-sync pytest
-uv run --project prosody --frozen --no-sync pytest
-uv run --project vocal_stats --frozen --no-sync pytest
+uv run --project audio --frozen --no-sync pytest audio/tests
+uv run --project cdi --frozen --no-sync pytest cdi/tests
+uv run --project prosody --frozen --no-sync pytest prosody/tests -m "not integration"
+uv run --project vocal_stats --frozen --no-sync pytest vocal_stats/tests
 ```
 
 These are not full research runs. Keep `HBN_TEST_LOCAL_DATA` unset: CDI's original-cohort tests require explicit `HBN_TEST_LOCAL_DATA=1`, can execute notebooks or write figures, and are excluded by default. Real SSL/model integration checks are separate opt-ins and can download weights. Arrange approved data, resource limits, and isolated destinations before enabling either kind of integration test.
 
-For R checks, see [prosody statistics tests](../prosody_stats/tests/testthat.R) and the [vocal tests](../vocal_stats/README.md#testing). Synthetic checks do not establish original-versus-migrated full-cohort equivalence. This documentation update does not report new test results or platform certification.
+For R checks, see [prosody statistics tests](../prosody_stats/tests/testthat.R) and the [vocal tests](../vocal_stats/README.md#testing). Synthetic checks do not establish original-versus-migrated full-cohort equivalence.
+
+### Simplification validation (2026-11-18)
+
+- Launcher: **111 passed**; audio in WSL: **189 passed**.
+- CDI: **20 passed, 9 original-cohort tests skipped**; prosody: **33 passed, 1 real-model integration test deselected**; vocal Python: **31 passed**.
+- A fresh frozen vocal environment installed through the root `setup` command and passed the same 31 tests. Other migrated Windows scientific suites used their existing environments with the new source paths; this is not certification of every fresh installation.
+- Three prosody R test files and both standalone synthetic shared-configuration checks passed. Dependency deprecations, expected missing-file warnings in negative tests, and an R YAML final-line warning remain.
+- Before/after CDI comparison on four authorized questionnaire responses found **18 output frames exactly equal**, including the reused-input path. No full cohort, real VTC/XGB/SSL inference, complete statistical model run, or rendered-report equivalence was established.
+- All **828 inventoried protected asset files** remained present with unchanged sizes and modification timestamps after migration. This was not a full-content hash audit and the inventory began after initial baseline testing.
+
+Earlier notebooks, classification outputs, model weights, and generated reports can remain in Git history. Current exclusions and index-only removals preserve local files but do not erase historical exposure.
 
 ## Common problems
 
