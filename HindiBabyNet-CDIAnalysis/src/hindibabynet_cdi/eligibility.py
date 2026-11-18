@@ -7,6 +7,7 @@ import pandas as pd
 from .age import add_age_columns
 from .cleaning import normalize_email, normalize_phone_number, parse_bool_yn, parse_percent, normalize_text
 from .config import ProjectConfig
+from .io import LoadedForm
 from .linking import LinkageOutputs, build_participant_linkage
 
 
@@ -151,8 +152,15 @@ def _build_exclusions(criteria: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def build_eligibility_outputs(config: ProjectConfig) -> EligibilityOutputs:
-    linkage_outputs: LinkageOutputs = build_participant_linkage(config)
+def build_eligibility_outputs(
+    config: ProjectConfig,
+    *,
+    linkage_outputs: LinkageOutputs | None = None,
+    forms: list[LoadedForm] | None = None,
+) -> EligibilityOutputs:
+    """Reuse supplied linkage, or build it from supplied/discovered forms."""
+    if linkage_outputs is None:
+        linkage_outputs = build_participant_linkage(config, forms=forms)
     criteria = evaluate_participant_criteria(linkage_outputs.participant_linkage, config)
     return EligibilityOutputs(
         participant_criteria=criteria,

@@ -168,8 +168,12 @@ def _build_merge_validation(tables: dict[str, pd.DataFrame], linkage: pd.DataFra
     )
 
 
-def build_participant_linkage(config: ProjectConfig) -> LinkageOutputs:
-    forms = load_detected_forms(config)
+def build_participant_linkage(
+    config: ProjectConfig, *, forms: list[LoadedForm] | None = None
+) -> LinkageOutputs:
+    """Build linkage, optionally reusing forms loaded with the same configuration."""
+    if forms is None:
+        forms = load_detected_forms(config)
     tables = _prepare_reference_tables(forms)
 
     consent = _select_available_columns(

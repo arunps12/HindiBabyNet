@@ -150,8 +150,12 @@ def _build_validation_rows(
     return rows
 
 
-def build_master_item_dictionary(config: ProjectConfig) -> ItemDictionaryOutputs:
-    forms = load_detected_forms(config)
+def build_master_item_dictionary(
+    config: ProjectConfig, *, forms: list[LoadedForm] | None = None
+) -> ItemDictionaryOutputs:
+    """Build the dictionary without rediscovery when selected forms are supplied."""
+    if forms is None:
+        forms = load_detected_forms(config)
     cdi1_columns = _item_columns(_get_form(forms, "cdi_8_18"))
     cdi2_columns = _item_columns(_get_form(forms, "cdi_19_36"))
     cdi1_index = {normalize_hindi_label(column): position for position, column in enumerate(cdi1_columns, start=1)}

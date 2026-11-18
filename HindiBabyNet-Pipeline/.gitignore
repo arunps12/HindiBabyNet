@@ -243,8 +243,8 @@ docs/
 Docs/
 tmp_*
 
-# Keep notebooks shareable
-!*.ipynb
+# Notebook originals remain local, including saved research outputs.
+*.ipynb
 
 # External model repos
 external_models/VTC/

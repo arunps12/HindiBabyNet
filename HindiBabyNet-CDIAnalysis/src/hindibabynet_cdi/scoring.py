@@ -230,10 +230,20 @@ def _build_participant_analysis(
     return participant_analysis_all, cdi1_analysis, cdi2_analysis
 
 
-def build_scoring_outputs(config: ProjectConfig) -> ScoringOutputs:
-    eligibility_outputs: EligibilityOutputs = build_eligibility_outputs(config)
-    dictionary_outputs: ItemDictionaryOutputs = build_master_item_dictionary(config)
-    forms = load_detected_forms(config)
+def build_scoring_outputs(
+    config: ProjectConfig,
+    *,
+    eligibility_outputs: EligibilityOutputs | None = None,
+    dictionary_outputs: ItemDictionaryOutputs | None = None,
+    forms: list[LoadedForm] | None = None,
+) -> ScoringOutputs:
+    """Reuse optional inputs from the same configuration and input snapshot."""
+    if eligibility_outputs is None:
+        eligibility_outputs = build_eligibility_outputs(config, forms=forms)
+    if dictionary_outputs is None:
+        dictionary_outputs = build_master_item_dictionary(config, forms=forms)
+    if forms is None:
+        forms = load_detected_forms(config)
 
     cdi1_form = _prepare_form_frame(_get_form(forms, "cdi_8_18"))
     cdi2_form = _prepare_form_frame(_get_form(forms, "cdi_19_36"))

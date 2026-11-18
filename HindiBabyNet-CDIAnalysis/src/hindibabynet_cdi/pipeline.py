@@ -7,6 +7,7 @@ import pandas as pd
 from .config import ProjectConfig, load_config
 from .eligibility import build_eligibility_outputs
 from .item_dictionary import build_master_item_dictionary
+from .io import load_detected_forms
 from .linking import build_participant_linkage
 from .qc import build_age_counts, build_sample_characteristics
 from .reporting import build_reporting_outputs
@@ -35,10 +36,16 @@ def run_pipeline(config: ProjectConfig | None = None) -> dict[str, Path]:
         ]
     )
 
-    linkage_outputs = build_participant_linkage(config)
-    eligibility_outputs = build_eligibility_outputs(config)
-    dictionary_outputs = build_master_item_dictionary(config)
-    scoring_outputs = build_scoring_outputs(config)
+    forms = load_detected_forms(config)
+    linkage_outputs = build_participant_linkage(config, forms=forms)
+    eligibility_outputs = build_eligibility_outputs(config, linkage_outputs=linkage_outputs)
+    dictionary_outputs = build_master_item_dictionary(config, forms=forms)
+    scoring_outputs = build_scoring_outputs(
+        config,
+        eligibility_outputs=eligibility_outputs,
+        dictionary_outputs=dictionary_outputs,
+        forms=forms,
+    )
     reporting_outputs = build_reporting_outputs(config, scoring_outputs)
 
     participant_analysis_all = scoring_outputs.participant_analysis_all.copy()
