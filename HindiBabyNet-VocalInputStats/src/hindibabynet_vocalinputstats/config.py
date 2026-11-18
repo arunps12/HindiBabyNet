@@ -87,13 +87,22 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 
 def load_config(config_path: str | Path | None = None) -> ProjectConfig:
-    """Load the repo config and resolve repo-relative paths."""
+    """Load native YAML or its 'vocal' section and resolve project-relative paths."""
     repo_root = get_repo_root()
+    if config_path is None:
+        config_path = os.environ.get("HBN_CONFIG_PATH") or None
     path = normalize_path(config_path, repo_root) if config_path is not None else repo_root / "configs" / "config.yaml"
     if path is None:
         raise ValueError("Config path could not be resolved.")
 
     payload = _load_yaml(path)
+    if "vocal" in payload:
+        payload = payload["vocal"]
+        if not isinstance(payload, dict):
+            raise ValueError(f"Expected a mapping in section 'vocal' of {path}")
+        project_root = payload.get("project_root")
+        if project_root is not None:
+            repo_root = (path.resolve().parent / project_root).resolve()
     metadata_value = payload.get("metadata_path", payload.get("metadata_csv"))
     if metadata_value is None:
         raise KeyError("Config must include either 'metadata_path' or 'metadata_csv'.")

@@ -1,0 +1,93 @@
+project:
+  name: "HindiBabyNet-ProsodyModel"
+  random_seed: 42
+
+paths:
+  rttm_root: "../Data/Classification_outputs/VTC"
+  audio_root: "../Data/Audio_data_processing"
+  participant_lookup: "../Data/Audio_metadata/participant_lookup.csv"
+  output_dir: "outputs"
+  cache_dir: "cache"
+
+rttm:
+  file_pattern: "**/rttm.csv"
+  participant_column: "uid"
+  start_column: "start_time_s"
+  duration_column: "duration_s"
+  speaker_column: "label"
+
+mapping:
+  strict: true
+  source_id_column: "original_par_id"
+  participant_id_column: "participant_id"
+
+speakers:
+  include:
+    FEM: "adult_female"
+    MAL: "adult_male"
+    OCH: "other_child"
+
+audio:
+  extensions: [".wav", ".flac", ".mp3", ".m4a"]
+  preferred_extensions: [".wav", ".flac"]
+  target_sample_rate: 16000
+  mono: true
+  end_tolerance_s: 0.05
+
+pitch:
+  method: "praat_ac"
+  speaker_settings:
+    FEM:
+      pitch_floor_hz: 75.0
+      pitch_ceiling_hz: 700.0
+    MAL:
+      pitch_floor_hz: 50.0
+      pitch_ceiling_hz: 400.0
+    OCH:
+      pitch_floor_hz: 100.0
+      pitch_ceiling_hz: 800.0
+  time_step_s: 0.01
+  lower_percentile: 5.0
+  upper_percentile: 95.0
+  minimum_voiced_frames: 3
+  semitone_reference_hz: 1.0
+  adaptive:
+    enabled: true
+    level: "segment"
+    lower_multiplier: 0.5
+    upper_multiplier: 2.0
+    minimum_floor_hz: 40.0
+    maximum_ceiling_hz: 1000.0
+    fallback_to_first_pass: true
+  praat:
+    voicing_threshold: 0.45
+    octave_cost: 0.01
+    octave_jump_cost: 0.35
+    voiced_unvoiced_cost: 0.14
+
+ssl:
+  wav2vec2_model: "arunps/wav2vec2-home-hindibabynet-ssl"
+  hubert_model: "arunps/hubert-home-hindibabynet-ssl"
+  wav2vec2_layer: -1
+  hubert_layer: -1
+  temporal_pooling: "mean"
+  segment_pooling: "mean"
+  minimum_segment_duration_s: 0.1
+  maximum_segment_duration_s: null
+
+pca:
+  n_components: 3
+  standardize: true
+  random_seed: 42
+
+runtime:
+  device: "auto"
+  batch_size: 1
+  num_workers: 0
+  strict: false
+  log_level: "INFO"
+
+output:
+  final_filename: "participant_speaker_acoustic_features.csv"
+  save_pca_artifacts: true
+  save_qc_reports: true

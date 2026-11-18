@@ -30,8 +30,11 @@ PUBLIC_COLUMNS = [
     "mother_education",
     "father_education",
     "SES",
+    "SES_num",
     "Location",
     "age_days",
+    "age_days_sq",
+    "age_days_sq_z",
     "age_months",
     "age_z",
     "age_z2",
@@ -49,10 +52,18 @@ PUBLIC_COLUMNS = [
     "adult_male_count_hour",
     "other_child_count_hour",
     "key_child_count_hour",
+    "adult_female_count_min_hour",
+    "adult_male_count_min_hour",
+    "other_child_count_min_hour",
+    "key_child_count_min_hour",
     "adult_female_duration_hour",
     "adult_male_duration_hour",
     "other_child_duration_hour",
     "key_child_duration_hour",
+    "adult_female_duration_min_hour",
+    "adult_male_duration_min_hour",
+    "other_child_duration_min_hour",
+    "key_child_duration_min_hour",
 ]
 
 SPEAKERS = ["adult_female", "adult_male", "other_child", "key_child"]
@@ -116,6 +127,7 @@ def _parse_dates(metadata: pd.DataFrame) -> pd.DataFrame:
 def _compute_age_fields(dataframe: pd.DataFrame, age_month_denominator: float) -> pd.DataFrame:
     enriched = dataframe.copy()
     enriched["age_days"] = (enriched["REC_date"] - enriched["birthdate"]).dt.days.astype("float")
+    enriched["age_days_sq"] = enriched["age_days"] ** 2
     enriched["age_months"] = enriched["age_days"] / age_month_denominator
 
     valid_age = enriched["age_days"].notna() & (enriched["age_days"] >= 0)
@@ -129,7 +141,30 @@ def _compute_age_fields(dataframe: pd.DataFrame, age_month_denominator: float) -
         else:
             mean = float(age_days.mean())
             enriched["age_z"] = (enriched["age_days"] - mean) / std
+
+    valid_age_sq = enriched["age_days_sq"].notna()
+    age_days_sq = enriched.loc[valid_age_sq, "age_days_sq"]
+    if age_days_sq.empty:
+        enriched["age_days_sq_z"] = np.nan
+    else:
+        std_sq = float(age_days_sq.std(ddof=1)) if len(age_days_sq) > 1 else 0.0
+        if not np.isfinite(std_sq) or std_sq == 0.0:
+            enriched["age_days_sq_z"] = np.where(valid_age_sq, 0.0, np.nan)
+        else:
+            mean_sq = float(age_days_sq.mean())
+            enriched["age_days_sq_z"] = (enriched["age_days_sq"] - mean_sq) / std_sq
+
     enriched["age_z2"] = enriched["age_z"] ** 2
+    return enriched
+
+
+def _add_continuous_ses(dataframe: pd.DataFrame) -> pd.DataFrame:
+    enriched = dataframe.copy()
+    ses_levels = ["primary_school", "high_school", "Intermediate", "bachelor", "master"]
+    enriched["SES"] = pd.Categorical(enriched["SES"], categories=ses_levels, ordered=True)
+    ses_codes = enriched["SES"].cat.codes.astype("float")
+    ses_codes = ses_codes.where(ses_codes >= 0, np.nan)
+    enriched["SES_num"] = ses_codes + 1.0
     return enriched
 
 
@@ -207,21 +242,45 @@ def _build_audio_records(metadata: pd.DataFrame, config: ProjectConfig) -> tuple
 
 
 def _build_age_validation_table(final_master: pd.DataFrame) -> pd.DataFrame:
-    required_columns = ["age_days", "age_z", "age_z2"]
+    required_columns = ["age_days", "age_days_sq", "age_days_sq_z", "age_z", "age_z2"]
     missing_columns = [column for column in required_columns if column not in final_master.columns]
     valid_age = final_master["age_z"].notna()
+    valid_age_sq = final_master["age_days_sq_z"].notna()
     valid_age_count = int(valid_age.sum())
+    valid_age_sq_count = int(valid_age_sq.sum())
     age_z_mean = float(final_master.loc[valid_age, "age_z"].mean()) if valid_age.any() else np.nan
     age_z_sd = float(final_master.loc[valid_age, "age_z"].std(ddof=0)) if valid_age.any() else np.nan
+    age_days_sq_z_mean = float(final_master.loc[valid_age_sq, "age_days_sq_z"].mean()) if valid_age_sq.any() else np.nan
+    age_days_sq_z_sd = float(final_master.loc[valid_age_sq, "age_days_sq_z"].std(ddof=1)) if valid_age_sq_count >= 2 else np.nan
     age_z2_matches = bool(np.allclose(
         final_master.loc[valid_age, "age_z2"],
         final_master.loc[valid_age, "age_z"] ** 2,
         equal_nan=True,
     )) if valid_age.any() else True
+    age_days_sq_matches = bool(np.allclose(
+        final_master.loc[final_master["age_days"].notna(), "age_days_sq"],
+        final_master.loc[final_master["age_days"].notna(), "age_days"] ** 2,
+        equal_nan=True,
+    )) if final_master["age_days"].notna().any() else True
 
     return pd.DataFrame(
         [
             {"check": "required_age_columns_present", "value": len(missing_columns) == 0, "detail": ", ".join(missing_columns)},
+            {
+                "check": "age_days_sq_equals_square",
+                "value": age_days_sq_matches,
+                "detail": "age_days_sq == age_days^2 for non-missing rows",
+            },
+            {
+                "check": "age_days_sq_z_mean_approximately_zero",
+                "value": bool(valid_age_sq_count < 1 or (np.isfinite(age_days_sq_z_mean) and abs(age_days_sq_z_mean) < 1e-9)),
+                "detail": age_days_sq_z_mean if valid_age_sq_count >= 1 else "no valid squared-age rows",
+            },
+            {
+                "check": "age_days_sq_z_sd_approximately_one",
+                "value": bool(valid_age_sq_count < 2 or (np.isfinite(age_days_sq_z_sd) and abs(age_days_sq_z_sd - 1.0) < 1e-9)),
+                "detail": age_days_sq_z_sd if valid_age_sq_count >= 2 else "fewer than two valid squared-age rows",
+            },
             {
                 "check": "age_z_mean_approximately_zero",
                 "value": bool(valid_age_count < 1 or (np.isfinite(age_z_mean) and abs(age_z_mean) < 1e-9)),
@@ -330,14 +389,26 @@ def _compute_rate_columns(dataframe: pd.DataFrame) -> pd.DataFrame:
     for speaker in SPEAKERS:
         count_column = f"{speaker}_count"
         duration_column = f"{speaker}_duration_sec"
-        output[f"{speaker}_count_hour"] = np.where(
+        count_hour_column = f"{speaker}_count_hour"
+        duration_hour_column = f"{speaker}_duration_hour"
+        output[count_hour_column] = np.where(
             output[count_column].notna() & output["recording_duration_hours"].gt(0),
             output[count_column] / output["recording_duration_hours"],
             np.nan,
         )
-        output[f"{speaker}_duration_hour"] = np.where(
+        output[f"{speaker}_count_min_hour"] = np.where(
+            output[count_hour_column].notna(),
+            output[count_hour_column] / 60.0,
+            np.nan,
+        )
+        output[duration_hour_column] = np.where(
             output[duration_column].notna() & output["recording_duration_hours"].gt(0),
             output[duration_column] / output["recording_duration_hours"],
+            np.nan,
+        )
+        output[f"{speaker}_duration_min_hour"] = np.where(
+            output[duration_hour_column].notna(),
+            output[duration_hour_column] / 60.0,
             np.nan,
         )
     return output
@@ -353,6 +424,7 @@ def _finalize_public_metadata(metadata: pd.DataFrame, config: ProjectConfig) -> 
     base = _parse_dates(base)
     base = _compute_age_fields(base, age_month_denominator=config.age_month_denominator)
     base["SES"] = base[config.ses_source]
+    base = _add_continuous_ses(base)
     return base.rename(columns={"par_id": "original_par_id"})
 
 

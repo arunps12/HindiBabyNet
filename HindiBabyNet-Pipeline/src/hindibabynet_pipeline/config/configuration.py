@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -18,20 +19,89 @@ from hindibabynet_pipeline.entity.config_entity import (
 
 @dataclass
 class ConfigurationManager:
-    config_path: Path = Path("configs/config.yaml")
+    """Load native split YAML or shared audio sections with unchanged precedence."""
+
+    config_path: str | Path | None = None
     params_path: Path = Path("configs/params.yaml")
 
     def __post_init__(self):
+        if self.config_path is None:
+            self.config_path = os.environ.get("HBN_CONFIG_PATH") or "configs/config.yaml"
         self.config_path = Path(self.config_path)
         self.params_path = Path(self.params_path)
-        if self.params_path == Path("configs/params.yaml") and self.config_path != Path("configs/config.yaml"):
+        root_config = read_yaml(self.config_path)
+        self._project_root: Path | None = None
+        section_mode = "audio" in root_config
+        if section_mode:
+            section = root_config["audio"]
+            if not isinstance(section, dict):
+                raise TypeError(f"Expected a mapping in section 'audio' of {self.config_path}")
+            self.runtime_config = dict(section)
+            project_root = self.runtime_config.pop("project_root", None)
+            self._project_root = (
+                (self.config_path.resolve().parent / project_root).resolve()
+                if project_root is not None
+                else Path(__file__).resolve().parents[3]
+            )
+            self._normalize_runtime_paths()
+        else:
+            self.runtime_config = root_config
+
+        if section_mode and self.params_path == Path("configs/params.yaml"):
+            self.params_path = self.config_path
+        elif self.params_path == Path("configs/params.yaml") and self.config_path != Path("configs/config.yaml"):
             sibling_params = self.config_path.with_name("params.yaml")
             if sibling_params.exists():
                 self.params_path = sibling_params
 
-        self.runtime_config: Dict[str, Any] = read_yaml(self.config_path)
-        self.params: Dict[str, Any] = read_yaml(self.params_path) if self.params_path.exists() else {}
+        same_source = self.params_path.resolve() == self.config_path.resolve()
+        if same_source:
+            params = root_config
+        else:
+            params = read_yaml(self.params_path) if self.params_path.exists() else {}
+        if "audio_params" in params:
+            section = params["audio_params"]
+            if not isinstance(section, dict):
+                raise TypeError(f"Expected a mapping in section 'audio_params' of {self.params_path}")
+            params = dict(section)
+            project_root = params.pop("project_root", None)
+            params_root = (
+                (self.params_path.resolve().parent / project_root).resolve()
+                if project_root is not None
+                else self._project_root or Path(__file__).resolve().parents[3]
+            )
+            for backend, key in (("xgb", "model_path"), ("vtc", "repo_path")):
+                if isinstance(params.get(backend), dict) and key in params[backend]:
+                    params[backend] = dict(params[backend])
+                    params[backend][key] = str((params_root / params[backend][key]).resolve())
+        elif same_source and section_mode:
+            params = {}
+        self.params: Dict[str, Any] = params
         self.config: Dict[str, Any] = self._merge_dicts(self.runtime_config, self.params)
+
+    def _section_path(self, value: str | Path) -> str | Path:
+        if self._project_root is None:
+            return value
+        return str((self._project_root / value).resolve())
+
+    def _normalize_runtime_paths(self) -> None:
+        if isinstance(self.runtime_config.get("paths"), dict):
+            self.runtime_config["paths"] = {
+                key: self._section_path(value)
+                for key, value in self.runtime_config["paths"].items()
+            }
+        for key in ("artifacts_root", "logs_root"):
+            if key in self.runtime_config:
+                self.runtime_config[key] = self._section_path(self.runtime_config[key])
+        if isinstance(self.runtime_config.get("speaker_classification"), dict):
+            sc = dict(self.runtime_config["speaker_classification"])
+            self.runtime_config["speaker_classification"] = sc
+            if "output_root" in sc:
+                sc["output_root"] = self._section_path(sc["output_root"])
+            for backend, key in (("xgb", "model_path"), ("vtc", "repo_path")):
+                if isinstance(sc.get(backend), dict) and key in sc[backend]:
+                    sc[backend] = dict(sc[backend])
+                    sc[backend][key] = self._section_path(sc[backend][key])
 
     def _merge_dicts(self, left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
         merged: Dict[str, Any] = dict(left)
@@ -55,10 +125,10 @@ class ConfigurationManager:
 
     # ---- helpers ----
     def get_logs_root(self) -> Path:
-        return Path(self.runtime_config.get("logs_root", "logs"))
+        return Path(self._section_path(self.runtime_config.get("logs_root", "logs")))
 
     def get_artifacts_root(self) -> Path:
-        return Path(self.runtime_config.get("artifacts_root", "artifacts/runs"))
+        return Path(self._section_path(self.runtime_config.get("artifacts_root", "artifacts/runs")))
 
     def make_run_id(self) -> str:
         return make_run_id()
@@ -93,12 +163,17 @@ class ConfigurationManager:
             "classify_win_sec": classification.get("win_sec", runtime.get("classify_win_sec", 1.0)),
             "classify_hop_sec": classification.get("hop_sec", runtime.get("classify_hop_sec", 0.5)),
         }
+        if "model_path" in merged:
+            merged["model_path"] = self._section_path(merged["model_path"])
         return merged
 
     def get_vtc_params(self) -> dict:
         runtime = self.runtime_config.get("speaker_classification", {}).get("vtc", {})
         params = self.params.get("vtc", {})
-        return {**params, **runtime}
+        merged = {**params, **runtime}
+        if "repo_path" in merged:
+            merged["repo_path"] = self._section_path(merged["repo_path"])
+        return merged
 
     def get_audio_preparation_params(self) -> dict:
         return self.params.get("audio_preparation", {})
@@ -263,7 +338,7 @@ class ConfigurationManager:
 
         return SpeakerClassificationConfig(
             artifacts_dir=artifacts_dir,
-            model_path=Path(sc.get("model_path", "models/xgb_egemaps.pkl")),
+            model_path=Path(self._section_path(sc.get("model_path", "models/xgb_egemaps.pkl"))),
             class_names=list(
                 sc.get(
                     "class_names",
@@ -305,7 +380,7 @@ class ConfigurationManager:
         vtc = self.get_vtc_params()
         output_root = self.get_classification_output_root() / "vtc"
         return VTCConfig(
-            repo_path=Path(vtc.get("repo_path", "external_models/VTC")),
+            repo_path=Path(self._section_path(vtc.get("repo_path", "external_models/VTC"))),
             device=str(vtc.get("device", "cuda")),
             output_root=output_root,
             input_root=output_root / "_tmp_vtc_inputs",

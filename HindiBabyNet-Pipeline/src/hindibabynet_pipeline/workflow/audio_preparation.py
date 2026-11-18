@@ -289,6 +289,7 @@ def run_prepare_audio(
         raise ValueError("Provide either recordings_parquet or wav.")
 
     cfg = ConfigurationManager()
+    run_id = run_id or cfg.make_run_id()
 
     if recordings_parquet is not None:
         df = pd.read_parquet(str(recordings_parquet))
@@ -296,11 +297,11 @@ def run_prepare_audio(
         if limit is not None:
             participants = participants[:limit]
         for pid in participants:
-            prep_cfg = cfg.get_audio_preparation_config(participant_id=pid, run_id=run_id)
+            prep_cfg = cfg.get_audio_preparation_config(recording_id=pid, run_id=run_id)
             AudioPreparation(prep_cfg).run(recordings_df=df, participant_id=pid)
         return
 
     wav = Path(wav)  # type: ignore[arg-type]
     rec_id = recording_id or wav.stem
-    prep_cfg = cfg.get_audio_preparation_config(participant_id=rec_id, run_id=run_id)
+    prep_cfg = cfg.get_audio_preparation_config(recording_id=rec_id, run_id=run_id)
     AudioPreparation(prep_cfg).run(wav_path=wav, recording_id=rec_id)

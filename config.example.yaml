@@ -1,0 +1,94 @@
+# Preferred: run.py configure
+# Exclusively creates ignored config.local.yaml from CURRENT native local YAML,
+# including audio_params and active scientific values. Never overwrites a file.
+# This is a private technical snapshot, NOT a publication template. No datasets
+# are copied. Native defaults remain in native code; no new scientific defaults.
+# Review the snapshot and enable workflows explicitly. No paths are redirected.
+# Shared vocal paths are also used by vocal-models R; its scientific defaults
+# and HBN_* scientific overrides are unchanged (YAML is not an R model spec).
+#
+# Alternatively copy this template and fill sections with exact native mappings.
+# Empty enabled sections are NOT runnable example scientific configs.
+# project_root is optional, relative to this YAML's parent, default native code
+# root. All other section keys retain their native meaning. Project directories
+# below are code locations. A workflow's optional config pointer selects a
+# separate legacy YAML instead; pointer/project paths are relative to THIS YAML.
+# Audio reads sibling/default params.yaml in legacy mode; prefer audio_params.
+tools:
+  uv: uv
+  rscript: Rscript
+
+workflows:
+  audio:
+    enabled: false
+    project: HindiBabyNet-Pipeline
+    # config: HindiBabyNet-Pipeline/configs/config.yaml
+  vocal-stats:
+    enabled: false
+    project: HindiBabyNet-VocalInputStats
+    # config: HindiBabyNet-VocalInputStats/configs/config.yaml
+  prosody:
+    enabled: false
+    project: HindiBabyNet-ProsodyModel
+    # config: HindiBabyNet-ProsodyModel/config/config.yaml
+  vocal-models:
+    enabled: false
+    project: HindiBabyNet-VocalInputStats
+    # R accepts a shared YAML containing vocal, not flat Python YAML.
+    # Legacy R defaults apply if vocal is absent and no pointer is supplied.
+  prosody-stats:
+    enabled: false
+    project: HindiBabyNet-ProsodyStats
+    # config: HindiBabyNet-ProsodyStats/config/config.yaml
+  cdi:
+    enabled: false
+    project: HindiBabyNet-CDIAnalysis
+    # config: HindiBabyNet-CDIAnalysis/configs/config.yaml
+
+audio: {}
+audio_params: {}
+vocal: {}
+prosody: {}
+prosody_stats: {}
+cdi: {}
+# Example adapter field only (synthetic): prosody.project_root: ./research/prosody
+# Use configure rather than manually duplicating full native scientific settings.
+#
+# all runs only enabled workflows, in listed order; no implicit dependencies or
+# backend substitution. Independent preexisting VTC inputs can feed consumers.
+# Explicit --config wins over HBN_CONFIG_PATH, otherwise config.local.yaml beside
+# run.py is used. Python CLIs get --config; audio and R get child HBN_CONFIG_PATH.
+# check / --dry-run are read-only and never launch subprocesses or create state.
+# setup alone runs uv sync --frozen per enabled Python project (no R installs).
+# Normal execution: uv run --frozen --no-sync, isolated native .venv environments.
+#
+# --resume defaults true: skip only successful WHOLE stages matching config,
+# recursive inputs, metadata/RTTM SHA256, source/locks, local model/accessible
+# VTC worktree+refs, HBN scientific environment, and ALL output fingerprints.
+# Ownership records live in .local/runs/ beside this YAML.
+# Non-audio files use SHA256; audio uses size+mtime_ns ONLY, not byte identity.
+# HuggingFace remote revisions/weights, installed R libraries/tool versions and
+# LFS content not present locally are NOT guaranteed/pinned. No scientific
+# equivalence or fully reproducible environment is claimed by a manifest.
+# Existing outputs/cache/log roots without matching successful ownership are
+# refused. Incomplete attempts cannot resume: per-participant recovery deferred.
+# Changed inputs or outputs require fresh configured output AND cache/log roots.
+# --no-resume does not permit overwrites. There is deliberately no --force.
+# A crash can leave .local/runs/active.lock: inspect before manually removing it.
+# Do not run overlapping configs concurrently; this is not a filesystem sandbox.
+#
+# --stage accepts native CLI stage names or exact R script basenames (not setup
+# alone). Conservative guards can refuse in-place chaining of separate native
+# stages sharing a write root; prefer the native full workflow command.
+# Example: run.py prosody --stage extract -- --participants SYNTHETIC
+# Native --resume passthrough is refused (no partial-cache trust).
+# Explicit report stages: run.py vocal-models --stage report
+# or: run.py prosody-stats --stage report
+# Never automatically rendered. Vocal invokes R/04_final_report.R, HTML only,
+# requires Quarto; guards both destination and native temporary report names.
+# Prosody uses rmarkdown::render on the existing Rmd, HTML/run_workflow=FALSE,
+# intermediates/destination under outputs_reports. Needs Pandoc and R rmarkdown;
+# R package checks happen in the child (no check-time process). Reports retain
+# native template behavior, including template parameter defaults.
+# End of file: delete the appended OLD template starting '# Copy this file to'
+# and everything following it, including duplicate tools/workflows mappings.

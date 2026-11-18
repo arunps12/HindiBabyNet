@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from hindibabynet_vocalinputstats.create_long_format import run_create_long
@@ -19,9 +20,12 @@ def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) ->
             "SES": ["college", "school"],
             "Location": ["Delhi", "Jaipur"],
             "age_days": [365.0, 366.0],
+            "age_days_sq": [133225.0, 133956.0],
+            "age_days_sq_z": [-0.7071067811865475, 0.7071067811865475],
             "age_months": [11.99, 12.02],
             "age_z": [-1.0, 1.0],
             "age_z2": [1.0, 1.0],
+            "SES_num": [None, None],
             "recording_duration_sec": [3600.0, 3600.0],
             "recording_duration_hours": [1.0, 1.0],
             "adult_female_count": [1.0, 2.0],
@@ -36,10 +40,18 @@ def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) ->
             "adult_male_count_hour": [3.0, 4.0],
             "other_child_count_hour": [5.0, 6.0],
             "key_child_count_hour": [7.0, 8.0],
+            "adult_female_count_min_hour": [1.0 / 60.0, 2.0 / 60.0],
+            "adult_male_count_min_hour": [3.0 / 60.0, 4.0 / 60.0],
+            "other_child_count_min_hour": [5.0 / 60.0, 6.0 / 60.0],
+            "key_child_count_min_hour": [7.0 / 60.0, 8.0 / 60.0],
             "adult_female_duration_hour": [10.0, 20.0],
             "adult_male_duration_hour": [30.0, 40.0],
             "other_child_duration_hour": [50.0, 60.0],
             "key_child_duration_hour": [70.0, 80.0],
+            "adult_female_duration_min_hour": [10.0 / 60.0, 20.0 / 60.0],
+            "adult_male_duration_min_hour": [30.0 / 60.0, 40.0 / 60.0],
+            "other_child_duration_min_hour": [50.0 / 60.0, 60.0 / 60.0],
+            "key_child_duration_min_hour": [70.0 / 60.0, 80.0 / 60.0],
         }
     )
     master.to_csv(derived_dir / "final_master.csv", index=False)
@@ -87,6 +99,13 @@ def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) ->
         "other_child",
     ]
     assert input_output_long["key_child_count_hour"].tolist() == [7.0, 7.0, 7.0, 8.0, 8.0, 8.0]
+    assert np.allclose(input_long["input_count_min_hour"], [1.0 / 60.0, 3.0 / 60.0, 5.0 / 60.0, 2.0 / 60.0, 4.0 / 60.0, 6.0 / 60.0])
+    assert np.allclose(input_long["input_duration_min_hour"], [10.0 / 60.0, 30.0 / 60.0, 50.0 / 60.0, 20.0 / 60.0, 40.0 / 60.0, 60.0 / 60.0])
+    assert np.allclose(input_output_long["key_child_count_min_hour"], [7.0 / 60.0, 7.0 / 60.0, 7.0 / 60.0, 8.0 / 60.0, 8.0 / 60.0, 8.0 / 60.0])
+    assert np.allclose(input_output_long["key_child_duration_min_hour"], [70.0 / 60.0, 70.0 / 60.0, 70.0 / 60.0, 80.0 / 60.0, 80.0 / 60.0, 80.0 / 60.0])
+    assert "age_days_sq" in input_long.columns
+    assert "age_days_sq_z" in input_long.columns
+    assert "SES_num" in input_long.columns
     assert "age_z2" in input_long.columns
     assert (input_long["age_z2"] == 1.0).all()
     assert "original_par_id" not in input_long.columns

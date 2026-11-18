@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any
 
@@ -173,9 +174,23 @@ def _load_yaml(config_path: Path) -> dict[str, Any]:
 
 
 def load_config(config_path: str | Path | None = None) -> ProjectConfig:
+    """Load native YAML or its 'cdi' section without changing analysis defaults."""
+    if config_path is None:
+        config_path = os.environ.get("HBN_CONFIG_PATH") or "configs/config.yaml"
     resolved_path = Path(config_path or "configs/config.yaml").resolve()
     raw_config = _load_yaml(resolved_path)
-    repo_root = _repo_root_from_config(resolved_path)
+    if "cdi" in raw_config:
+        raw_config = raw_config["cdi"]
+        if not isinstance(raw_config, dict):
+            raise TypeError(f"Expected a mapping in section 'cdi' of {resolved_path}")
+        project_root = raw_config.get("project_root")
+        repo_root = (
+            (resolved_path.parent / project_root).resolve()
+            if project_root is not None
+            else Path(__file__).resolve().parents[2]
+        )
+    else:
+        repo_root = _repo_root_from_config(resolved_path)
 
     paths_config = raw_config.get("paths", {})
     paths = ProjectPaths(

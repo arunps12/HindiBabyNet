@@ -15,11 +15,14 @@ INPUT_SPEAKERS = ["adult_female", "adult_male", "other_child"]
 COMMON_COLUMNS = [
     "participant_id",
     "age_days",
+    "age_days_sq",
+    "age_days_sq_z",
     "age_months",
     "age_z",
     "age_z2",
     "child_sex",
     "SES",
+    "SES_num",
     "mother_education",
     "father_education",
     "Location",
@@ -33,7 +36,9 @@ def _build_input_long(master: pd.DataFrame) -> pd.DataFrame:
         frame = master[COMMON_COLUMNS].copy()
         frame.insert(1, "speaker", speaker)
         frame["input_count_hour"] = master[f"{speaker}_count_hour"]
+        frame["input_count_min_hour"] = master[f"{speaker}_count_min_hour"]
         frame["input_duration_hour"] = master[f"{speaker}_duration_hour"]
+        frame["input_duration_min_hour"] = master[f"{speaker}_duration_min_hour"]
         frames.append(frame)
     output = pd.concat(frames, ignore_index=True)
     return output.sort_values(["participant_id", "speaker"], kind="stable").reset_index(drop=True)
@@ -45,9 +50,13 @@ def _build_input_output_long(master: pd.DataFrame) -> pd.DataFrame:
         frame = master[COMMON_COLUMNS].copy()
         frame.insert(1, "speaker", speaker)
         frame["input_count_hour"] = master[f"{speaker}_count_hour"]
+        frame["input_count_min_hour"] = master[f"{speaker}_count_min_hour"]
         frame["input_duration_hour"] = master[f"{speaker}_duration_hour"]
+        frame["input_duration_min_hour"] = master[f"{speaker}_duration_min_hour"]
         frame["key_child_count_hour"] = master["key_child_count_hour"]
+        frame["key_child_count_min_hour"] = master["key_child_count_min_hour"]
         frame["key_child_duration_hour"] = master["key_child_duration_hour"]
+        frame["key_child_duration_min_hour"] = master["key_child_duration_min_hour"]
         frames.append(frame)
     output = pd.concat(frames, ignore_index=True)
     return output.sort_values(["participant_id", "speaker"], kind="stable").reset_index(drop=True)
@@ -85,7 +94,7 @@ def _refresh_dataset_build_report(config: ProjectConfig, master: pd.DataFrame, i
 def create_long_format(config: ProjectConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     master_path = config.derived_data_dir / "final_master.csv"
     master = read_csv(master_path)
-    missing_age_columns = [column for column in ("age_days", "age_z", "age_z2") if column not in master.columns]
+    missing_age_columns = [column for column in ("age_days", "age_days_sq", "age_days_sq_z", "age_z", "age_z2") if column not in master.columns]
     if missing_age_columns:
         raise ValueError(f"final_master.csv is missing required age columns: {', '.join(missing_age_columns)}")
     input_long = _build_input_long(master)

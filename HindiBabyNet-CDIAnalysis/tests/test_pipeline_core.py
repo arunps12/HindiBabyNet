@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 
 import nbformat
+import pytest
 from nbclient import NotebookClient
 
 from hindibabynet_cdi import (
@@ -15,6 +17,13 @@ from hindibabynet_cdi import (
 from hindibabynet_cdi.cleaning import parse_completed_months
 from hindibabynet_cdi.io import compare_raw_file_variants, load_detected_forms
 from hindibabynet_cdi.linking import build_participant_linkage
+
+# These original acceptance tests read the research cohort and may write figures
+# or execute notebooks. Never run them implicitly during source-only validation.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("HBN_TEST_LOCAL_DATA") != "1",
+    reason="Local research-data acceptance tests require HBN_TEST_LOCAL_DATA=1; may write outputs",
+)
 
 
 def test_parse_completed_months_handles_digits_and_year_labels() -> None:
@@ -107,7 +116,7 @@ def test_notebooks_have_metadata_ids_and_execute() -> None:
     for notebook_path in notebook_paths:
         notebook = nbformat.read(notebook_path, as_version=4)
         assert notebook.cells
-        assert all("id" in cell.get("metadata", {}) for cell in notebook.cells)
+        assert all("id" in cell for cell in notebook.cells)
 
         client = NotebookClient(notebook, timeout=1200, kernel_name="python3")
         client.execute(cwd=str(repo_root))

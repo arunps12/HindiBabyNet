@@ -30,31 +30,73 @@ analysis_runtime <- new.env(parent = emptyenv())
 find_repo_root <- function(start = getwd()) {
   current <- normalizePath(start, winslash = "/", mustWork = FALSE)
   repeat {
-    candidate <- file.path(current, "data", "derived")
-    if (dir.exists(candidate)) {
+    candidate <- file.path(current, "R", "00_setup.R")
+    if (file.exists(candidate)) {
       return(current)
     }
     parent <- dirname(current)
     if (identical(parent, current)) {
-      stop("Could not locate repository root containing data/derived.", call. = FALSE)
+      stop("Could not locate repository root containing R/00_setup.R.", call. = FALSE)
     }
     current <- parent
   }
 }
 
-repo_root <- find_repo_root()
+repo_root <- local({
+  # Configured data roots must never redirect code sourcing.
+  source_files <- lapply(sys.frames(), function(frame) frame$ofile)
+  source_files <- Filter(function(path) !is.null(path) && basename(path) == "00_setup.R", source_files)
+  if (length(source_files)) find_repo_root(dirname(tail(source_files, 1)[[1]])) else find_repo_root()
+})
+
+normalize_repo_path <- function(path_value, root = repo_root) {
+  if (!is.character(path_value) || length(path_value) != 1L || is.na(path_value) || !nzchar(path_value)) {
+    stop("Configured paths must be non-empty strings.", call. = FALSE)
+  }
+  expanded <- path.expand(path_value)
+  absolute <- grepl("^([A-Za-z]:/|/)", gsub("\\\\", "/", expanded))
+  normalizePath(if (absolute) expanded else file.path(root, expanded), winslash = "/", mustWork = FALSE)
+}
+
+analysis_config <- list()
+analysis_project_root <- repo_root
+analysis_config_path <- Sys.getenv("HBN_CONFIG_PATH", unset = "")
+if (nzchar(analysis_config_path)) {
+  analysis_config_path <- normalize_repo_path(analysis_config_path)
+  if (!requireNamespace("yaml", quietly = TRUE)) {
+    stop("Package 'yaml' is required to read HBN_CONFIG_PATH.", call. = FALSE)
+  }
+  payload <- yaml::read_yaml(analysis_config_path)
+  if (!is.list(payload) || !("vocal" %in% names(payload))) {
+    stop("HBN_CONFIG_PATH must contain a 'vocal' mapping.", call. = FALSE)
+  }
+  analysis_config <- payload[["vocal"]]
+  if (!is.list(analysis_config) || (length(analysis_config) && is.null(names(analysis_config)))) {
+    stop("Section 'vocal' must be a mapping.", call. = FALSE)
+  }
+  if (!is.null(analysis_config$project_root)) {
+    analysis_project_root <- normalize_repo_path(analysis_config$project_root, dirname(analysis_config_path))
+  }
+}
+
+analysis_data_dir <- file.path(repo_root, "data", "derived")
+analysis_results_dir <- file.path(repo_root, "results")
+if (nzchar(analysis_config_path)) {
+  analysis_data_dir <- normalize_repo_path(analysis_config$derived_data_dir %||% "data/derived", analysis_project_root)
+  analysis_results_dir <- normalize_repo_path(analysis_config$results_dir %||% "results", analysis_project_root)
+}
 
 analysis_paths <- list(
   repo_root = repo_root,
   r_dir = file.path(repo_root, "R"),
   functions_dir = file.path(repo_root, "R", "functions"),
-  data_dir = file.path(repo_root, "data", "derived"),
-  results_models = file.path(repo_root, "results", "r_models"),
-  results_tables = file.path(repo_root, "results", "r_tables"),
-  results_diagnostics = file.path(repo_root, "results", "r_diagnostics"),
-  results_predictions = file.path(repo_root, "results", "r_predictions"),
-  results_plots = file.path(repo_root, "results", "r_plots"),
-  results_report = file.path(repo_root, "results", "final_report")
+  data_dir = analysis_data_dir,
+  results_models = file.path(analysis_results_dir, "r_models"),
+  results_tables = file.path(analysis_results_dir, "r_tables"),
+  results_diagnostics = file.path(analysis_results_dir, "r_diagnostics"),
+  results_predictions = file.path(analysis_results_dir, "r_predictions"),
+  results_plots = file.path(analysis_results_dir, "r_plots"),
+  results_report = file.path(analysis_results_dir, "final_report")
 )
 
 ensure_analysis_directories <- function(paths = analysis_paths) {

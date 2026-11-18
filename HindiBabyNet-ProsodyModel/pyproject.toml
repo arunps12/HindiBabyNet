@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hindibabynet-prosody"
+version = "0.1.0"
+description = "Prosodic and SSL feature extraction pipeline for HindiBabyNet"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "joblib>=1.5.0",
+    "numpy>=2.0,<3",
+    "pandas>=2.0,<3",
+    "praat-parselmouth>=0.4.4",
+    "protobuf>=5,<7",
+    "pydantic>=2.8,<3",
+    "pyyaml>=6,<7",
+    "rich>=13,<15",
+    "scikit-learn>=1.5,<2",
+    "soundfile>=0.12,<1",
+    "torch>=2.5,<3",
+    "torchaudio>=2.5,<3",
+    "transformers>=4.44,<5",
+    "typer>=0.12,<1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11,<2",
+    "pytest>=8,<9",
+    "pytest-cov>=5,<6",
+    "ruff>=0.6,<1",
+]
+
+[project.scripts]
+hindibabynet-prosody = "hindibabynet_prosody.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["hindibabynet_prosody*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "integration: real model download and external dependency tests",
+]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["hindibabynet_prosody"]
+strict = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N"]
+
+[tool.uv]
+index-url = "https://pypi.org/simple"

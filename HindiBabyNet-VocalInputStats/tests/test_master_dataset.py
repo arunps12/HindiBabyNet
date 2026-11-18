@@ -87,7 +87,13 @@ def test_build_master_dataset_creates_public_outputs(tmp_path: Path) -> None:
     assert pd.isna(final_master.loc[0, "recording_duration_hours"])
     assert final_master.loc[1, "recording_duration_hours"] == 2.0
     assert final_master.loc[1, "adult_female_count_hour"] == 0.5
+    assert final_master.loc[1, "adult_female_count_min_hour"] == final_master.loc[1, "adult_female_count_hour"] / 60.0
     assert final_master.loc[1, "key_child_duration_hour"] == 1.0
+    assert final_master.loc[1, "key_child_duration_min_hour"] == final_master.loc[1, "key_child_duration_hour"] / 60.0
+    assert "SES_num" in final_master.columns
+    assert "age_days_sq" in final_master.columns
+    assert "age_days_sq_z" in final_master.columns
+    assert final_master.loc[1, "age_days_sq"] == final_master.loc[1, "age_days"] ** 2
     assert "age_z2" in final_master.columns
     assert final_master.loc[1, "age_z2"] == final_master.loc[1, "age_z"] ** 2
     assert "original_par_id" not in final_master.columns
@@ -173,7 +179,9 @@ def test_build_master_dataset_uses_earliest_session_duration_for_rates(tmp_path:
 
     assert final_master.loc[0, "recording_duration_hours"] == 1.5
     assert final_master.loc[0, "adult_female_count_hour"] == 1.0 / 1.5
+    assert final_master.loc[0, "adult_female_count_min_hour"] == (1.0 / 1.5) / 60.0
     assert final_master.loc[0, "key_child_duration_hour"] == 120.0 / 1.5
+    assert final_master.loc[0, "key_child_duration_min_hour"] == (120.0 / 1.5) / 60.0
     duration_audit = pd.read_csv(tmp_path / "results" / "recording_duration_audit.csv")
     assert duration_audit.loc[0, "selected_date"] == 20250201
     assert duration_audit.loc[0, "audio_file_count"] == 2
