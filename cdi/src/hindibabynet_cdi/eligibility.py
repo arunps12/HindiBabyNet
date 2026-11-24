@@ -1,21 +1,26 @@
-from __future__ import annotations
+"""Inclusion rules of the CDI questionnaires."""
 
-from dataclasses import dataclass
+from __future__ import annotations
 
 import pandas as pd
 
 from .age import add_age_columns
-from .cleaning import normalize_email, normalize_phone_number, parse_bool_yn, parse_percent, normalize_text
+from .cleaning import normalize_text, parse_bool_yn, parse_percent
 from .config import ProjectConfig
-from .io import LoadedForm
-from .linking import LinkageOutputs, build_participant_linkage
 
 
-@dataclass(frozen=True)
-class EligibilityOutputs:
-    participant_criteria: pd.DataFrame
-    participant_flow: pd.DataFrame
-    exclusions: pd.DataFrame
+# Reasons why a questionnaire is not included, with the text for the summary on
+# the screen. The first reason that applies is the primary reason.
+EXCLUSION_REASONS = {
+    "broken_reference_chain": "not linked to a background, eligibility and consent form",
+    "no_consent": "no consent",
+    "failed_eligibility": "eligibility questions not passed",
+    "hindi_exposure_unknown": "Hindi exposure not known",
+    "hindi_exposure_invalid": "Hindi exposure not valid",
+    "hindi_exposure_leq_75": "Hindi exposure {limit} % or lower",
+    "age_outside_form_range": "age not known or outside the age range",
+    "age_form_mismatch": "age does not fit the questionnaire",
+}
 
 
 def _derive_hindi_exposure(data: pd.DataFrame, config: ProjectConfig) -> pd.DataFrame:
@@ -57,16 +62,22 @@ def _derive_hindi_exposure(data: pd.DataFrame, config: ProjectConfig) -> pd.Data
 
 
 def evaluate_participant_criteria(linkage: pd.DataFrame, config: ProjectConfig) -> pd.DataFrame:
+    """Apply the inclusion rules to every CDI submission.
+
+    A submission is included (included_final) when consent is given, the forms
+    are linked, the eligibility questions are passed, the Hindi exposure is
+    known, valid and above the limit, and the age is valid and fits the form.
+    """
     data = add_age_columns(linkage, config)
     data = _derive_hindi_exposure(data, config)
 
-    data["consent_given"] = data["consent_response"].map(parse_bool_yn).astype("boolean").fillna(False)
+    data["consent_given"] = data["consent_response"].map(parse_bool_yn).eq(True)
     data["mother_tongue_is_hindi"] = data["mother_tongue_response"].map(parse_bool_yn).eq(
         config.eligibility.required_mother_tongue_response
     )
     data["preterm_allowed"] = data["preterm_response"].map(parse_bool_yn).ne(True) if not config.eligibility.allow_preterm else True
     data["impairment_allowed"] = data["impairment_response"].map(parse_bool_yn).ne(True) if not config.eligibility.allow_impairment else True
-    data["eligibility_age_range_passed"] = data["age_range_response"].map(parse_bool_yn).fillna(False)
+    data["eligibility_age_range_passed"] = data["age_range_response"].map(parse_bool_yn).eq(True)
     data["eligibility_passed"] = (
         data["mother_tongue_is_hindi"]
         & data["preterm_allowed"]
@@ -77,7 +88,6 @@ def evaluate_participant_criteria(linkage: pd.DataFrame, config: ProjectConfig) 
     data["successfully_linked"] = (
         data["has_background_link"] & data["has_eligibility_link"] & data["has_consent_link"]
     )
-    data["cdi_is_complete_enough"] = True
 
     data["included_final"] = (
         data["consent_given"]
@@ -86,84 +96,24 @@ def evaluate_participant_criteria(linkage: pd.DataFrame, config: ProjectConfig) 
         & data["hindi_exposure_passed"]
         & data["age_is_valid"].fillna(False)
         & data["age_form_match"].fillna(False)
-        & data["cdi_is_complete_enough"]
     )
 
-    exclusion_reason_columns = {
-        "no_consent": ~data["consent_given"],
-        "broken_reference_chain": ~data["successfully_linked"],
-        "failed_eligibility": ~data["eligibility_passed"],
-        "hindi_exposure_unknown": data["hindi_exposure_unknown"],
-        "hindi_exposure_invalid": data["hindi_exposure_invalid"],
-        "hindi_exposure_leq_75": ~data["hindi_exposure_passed"] & ~data["hindi_exposure_unknown"] & ~data["hindi_exposure_invalid"],
-        "age_outside_form_range": ~data["age_is_valid"].fillna(False),
-        "age_form_mismatch": ~data["age_form_match"].fillna(False),
-        "incomplete_cdi": ~data["cdi_is_complete_enough"],
-    }
-
-    data["all_exclusion_reasons"] = data.apply(
-        lambda row: "; ".join(
-            reason for reason, mask in exclusion_reason_columns.items() if bool(mask.loc[row.name])
-        ),
-        axis=1,
-    )
-    data["primary_exclusion_reason"] = data["all_exclusion_reasons"].str.split("; ").str[0].fillna("")
-    data["mobile_number"] = data["mobile_number"].map(normalize_phone_number)
-    data["email"] = data["email"].map(normalize_email)
+    reasons = pd.DataFrame(
+        {
+            "broken_reference_chain": ~data["successfully_linked"],
+            "no_consent": ~data["consent_given"],
+            "failed_eligibility": ~data["eligibility_passed"],
+            "hindi_exposure_unknown": data["hindi_exposure_unknown"],
+            "hindi_exposure_invalid": data["hindi_exposure_invalid"],
+            "hindi_exposure_leq_75": ~data["hindi_exposure_passed"] & ~data["hindi_exposure_unknown"] & ~data["hindi_exposure_invalid"],
+            "age_outside_form_range": ~data["age_is_valid"].fillna(False),
+            "age_form_mismatch": ~data["age_form_match"].fillna(False),
+        }
+    )[list(EXCLUSION_REASONS)]
+    found = [
+        [reason for reason, applies in zip(reasons.columns, row) if applies]
+        for row in reasons.itertuples(index=False, name=None)
+    ]
+    data["all_exclusion_reasons"] = ["; ".join(row_reasons) for row_reasons in found]
+    data["primary_exclusion_reason"] = [row_reasons[0] if row_reasons else "" for row_reasons in found]
     return data
-
-
-def _build_participant_flow(criteria: pd.DataFrame) -> pd.DataFrame:
-    stages = [
-        ("Raw CDI submissions", criteria["cdi_submission_id"].notna()),
-        ("Successfully linked to background", criteria["has_background_link"]),
-        ("Successfully linked to eligibility", criteria["has_eligibility_link"]),
-        ("Successfully linked to consent", criteria["has_consent_link"]),
-        ("Consent provided", criteria["consent_given"]),
-        ("Eligibility passed", criteria["eligibility_passed"]),
-        ("Hindi exposure >75%", criteria["hindi_exposure_passed"]),
-        ("Age matches form", criteria["age_form_match"].fillna(False)),
-        ("Passed completeness check", criteria["cdi_is_complete_enough"]),
-        ("Final included participants", criteria["included_final"]),
-    ]
-    rows: list[dict[str, object]] = []
-    for stage, mask in stages:
-        cdi1 = int((mask & criteria["submitted_form"].eq("CDI-I")).sum())
-        cdi2 = int((mask & criteria["submitted_form"].eq("CDI-II")).sum())
-        rows.append({"Stage": stage, "CDI-I": cdi1, "CDI-II": cdi2, "Total": cdi1 + cdi2})
-    return pd.DataFrame(rows)
-
-
-def _build_exclusions(criteria: pd.DataFrame) -> pd.DataFrame:
-    exclusion_definitions = [
-        ("No consent", criteria["primary_exclusion_reason"].eq("no_consent")),
-        ("Broken reference chain", criteria["primary_exclusion_reason"].eq("broken_reference_chain")),
-        ("Failed eligibility", criteria["primary_exclusion_reason"].eq("failed_eligibility")),
-        ("Hindi exposure ≤75%", criteria["primary_exclusion_reason"].eq("hindi_exposure_leq_75")),
-        ("Hindi exposure unknown", criteria["primary_exclusion_reason"].eq("hindi_exposure_unknown")),
-        ("Age outside form range", criteria["primary_exclusion_reason"].isin(["age_outside_form_range", "age_form_mismatch"])),
-        ("Incomplete CDI", criteria["primary_exclusion_reason"].eq("incomplete_cdi")),
-    ]
-    rows: list[dict[str, object]] = []
-    for reason, mask in exclusion_definitions:
-        cdi1 = int((mask & criteria["submitted_form"].eq("CDI-I")).sum())
-        cdi2 = int((mask & criteria["submitted_form"].eq("CDI-II")).sum())
-        rows.append({"Exclusion reason": reason, "CDI-I": cdi1, "CDI-II": cdi2, "Total": cdi1 + cdi2})
-    return pd.DataFrame(rows)
-
-
-def build_eligibility_outputs(
-    config: ProjectConfig,
-    *,
-    linkage_outputs: LinkageOutputs | None = None,
-    forms: list[LoadedForm] | None = None,
-) -> EligibilityOutputs:
-    """Reuse supplied linkage, or build it from supplied/discovered forms."""
-    if linkage_outputs is None:
-        linkage_outputs = build_participant_linkage(config, forms=forms)
-    criteria = evaluate_participant_criteria(linkage_outputs.participant_linkage, config)
-    return EligibilityOutputs(
-        participant_criteria=criteria,
-        participant_flow=_build_participant_flow(criteria),
-        exclusions=_build_exclusions(criteria),
-    )

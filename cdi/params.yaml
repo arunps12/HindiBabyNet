@@ -1,0 +1,70 @@
+# Settings of the CDI processing (command: hbn-cdi).
+# The data folders are in config.yaml in the project root.
+# Do not change these values for an existing study.
+
+# Form numbers in Nettskjema. The file name of an export contains the number.
+forms:
+  consent_form_id: 539547
+  eligibility_form_id: 539591
+  background_form_id: 539576
+  cdi_8_18_form_id: 539642
+  cdi_19_36_form_id: 539644
+
+analysis:
+  age_month_divisor: 30.4375
+  # Names of the two questionnaires in the column "questionnaire" of word_mapping.csv.
+  younger_questionnaire: "8_18"
+  older_questionnaire: "19_36"
+  strict_hindi_threshold: 75
+  age_discrepancy_flag_months: 2
+
+eligibility:
+  consent_column: "मैं सहमति देता/देती हूँ कि मेरी गुमनाम जानकारी ऊपर वर्णित परियोजना में उपयोग की जाएगी।"
+  mother_tongue_column: "क्या आपके बच्चे की मातृभाषा हिंदी है?"
+  preterm_column: "क्या आपका बच्चा प्री-टर्म जन्मा है?"
+  impairment_column: "क्या आपके बच्चे को बोलने, सुनने या देखने से संबंधित कोई समस्या है?"
+  age_range_column: "क्या आपके बच्चे की आयु 8 से 36 महीने के बीच है?"
+  required_mother_tongue_response: true
+  allow_preterm: false
+  allow_impairment: false
+
+exposure:
+  second_language_column: "यदि लागू हो, तो आपके बच्चे की दूसरी भाषा क्या है?"
+  second_language_percent_column: "आपका बच्चा कितने प्रतिशत समय दूसरी भाषा सुनता है?"
+  third_language_column: "यदि लागू हो, तो आपके बच्चे की तीसरी भाषा क्या है?"
+  third_language_percent_column: "आपका बच्चा कितने प्रतिशत समय तीसरी भाषा सुनता है?"
+
+age:
+  reported_age_column: "बच्चे की उम्र कितने महीनों की है?"
+  birthdate_column: "birthdate"
+  cdi1_min_month: 8
+  cdi1_max_month: 18
+  cdi2_min_month: 19
+  cdi2_max_month: 36
+
+education:
+  mother_education_column: "माता की वर्तमान शिक्षा स्तर:"
+  father_education_column: "पिता की वर्तमान शिक्षा स्तर:"
+
+# Column names that identify a form when the file name has no form number.
+form_detection_rules:
+  consent:
+    - "मैं सहमति देता/देती हूँ कि मेरी गुमनाम जानकारी ऊपर वर्णित परियोजना में उपयोग की जाएगी।"
+    - "fill_date"
+  eligibility:
+    - "क्या आपके बच्चे की मातृभाषा हिंदी है?"
+    - "क्या आपका बच्चा प्री-टर्म जन्मा है?"
+    - "Reference ID"
+  background:
+    - "बच्चे की उम्र कितने महीनों की है?"
+    - "birthdate"
+    - "SUBMISSION_REFERENCE"
+    - "$forwarded_to_form"
+  cdi_8_18:
+    - "केवल समझता/समझती है"
+    - "समझता/समझती है और कहता/कहती है"
+    - "इश/आह/उह (दर्द)"
+  cdi_19_36:
+    - "कहता/कहती है"
+    - "इश/आह/उह (दर्द)"
+    - "क्रिंग क्रिंग (साइकिल का शोर घंटी)"

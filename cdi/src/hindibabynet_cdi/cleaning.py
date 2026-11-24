@@ -1,3 +1,5 @@
+"""Clean the text of the exports and score single answers."""
+
 from __future__ import annotations
 
 import html
@@ -117,17 +119,6 @@ def parse_completed_months(value: object) -> int | None:
     if number_match:
         return int(float(number_match.group(0)))
     return None
-
-
-def normalize_phone_number(value: object) -> str:
-    text = normalize_text(value)
-    if not text:
-        return ""
-    return text.replace(" ", "")
-
-
-def normalize_email(value: object) -> str:
-    return normalize_text(value).lower()
 
 
 def normalize_response_value(value: object) -> str:

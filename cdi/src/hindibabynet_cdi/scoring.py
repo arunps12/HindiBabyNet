@@ -1,310 +1,236 @@
-from __future__ import annotations
+"""Score the answers of the included questionnaires."""
 
-from dataclasses import dataclass
+from __future__ import annotations
 
 import pandas as pd
 
 from .cleaning import normalize_response_value, score_cdi8_response, score_cdi19_response
-from .columns import CREATED_AT, SUBMISSION_ID
-from .config import ProjectConfig
-from .eligibility import EligibilityOutputs, build_eligibility_outputs
-from .io import LoadedForm, load_detected_forms
-from .item_dictionary import ItemDictionaryOutputs, build_master_item_dictionary, normalize_hindi_label
+from .columns import CDI1_FORM, CDI2_FORM, SUBMISSION_ID
+from .io import LoadedForm
+from .item_dictionary import normalize_hindi_label
 
 
-@dataclass(frozen=True)
-class ScoringOutputs:
-    participant_analysis_all: pd.DataFrame
-    participant_analysis_cdi1: pd.DataFrame
-    participant_analysis_cdi2: pd.DataFrame
-    cdi1_items_long: pd.DataFrame
-    cdi2_items_long: pd.DataFrame
-    included_participant_contacts: pd.DataFrame
-    unknown_responses: pd.DataFrame
-    completeness_report: pd.DataFrame
+# For each form: its export, and the columns of the item list with the items of
+# the form, their column name in the export and their position in the export.
+FORM_FIELDS = {
+    CDI1_FORM: ("cdi_8_18", "cdi1", "raw_column_8_18", "cdi1_order"),
+    CDI2_FORM: ("cdi_19_36", "cdi2", "raw_column_19_36", "cdi2_order"),
+}
+
+_ITEM_INFO = [
+    "child_id",
+    "submission_id",
+    "item_id",
+    "item_type",
+    "category",
+    "category_hindi",
+    "item",
+    "item_english",
+    "response",
+]
+# Columns of the item tables. Only CDI-1 has a score for understanding.
+ITEM_COLUMNS = {
+    CDI1_FORM: _ITEM_INFO + ["understands", "produces"],
+    CDI2_FORM: _ITEM_INFO + ["produces"],
+}
+
+_CHILD_INFO = [
+    "child_id",
+    "submission_id",
+    "completion_date",
+    "birthdate",
+    "age_months",
+    "age_months_exact",
+    "gender",
+    "mother_education",
+    "father_education",
+    "hindi_exposure_percent",
+]
+_TOTALS = [
+    "production_total",
+    "n_items",
+    "n_answered",
+    "age_discrepancy_flag",
+    "n_submissions_for_child",
+    "exact_duplicate_of",
+]
+# Columns of the summary tables.
+SUMMARY_COLUMNS = {
+    CDI1_FORM: _CHILD_INFO + ["comprehension_total"] + _TOTALS,
+    CDI2_FORM: _CHILD_INFO + _TOTALS,
+}
 
 
-def _get_form(forms: list[LoadedForm], role: str) -> LoadedForm:
-    for form in forms:
-        if form.role == role:
-            return form
-    raise KeyError(f"Missing form role: {role}")
-
-
-def _prepare_form_frame(form: LoadedForm) -> pd.DataFrame:
-    data = form.data.copy()
-    return data.rename(columns={SUBMISSION_ID: "cdi_submission_id", CREATED_AT: "cdi_created_raw"})
-
-
-def _participant_columns(criteria: pd.DataFrame) -> list[str]:
-    return [
-        "participant_id",
-        "submitted_form",
-        "questionnaire",
-        "cdi_submission_id",
-        "child_sex",
-        "mother_education",
-        "reported_age_months",
-        "calculated_age_months_exact",
-        "age_month",
-        "expected_form",
-        "age_form_match",
-        "hindi_percentage",
-        "included_final",
-        "primary_exclusion_reason",
-        "all_exclusion_reasons",
-        "mobile_number",
-        "email",
-    ]
-
-
-def _evaluate_completeness(
-    participant_frame: pd.DataFrame,
-    item_map: pd.DataFrame,
-    max_trailing_blank_run: int,
-) -> pd.DataFrame:
-    ordered_item_map = item_map.sort_values("item_order")
-    ordered_columns = ordered_item_map["raw_column"].tolist()
-    rows: list[dict[str, object]] = []
-
-    for _, participant in participant_frame.iterrows():
-        normalized_values = [normalize_response_value(participant.get(column, "")) for column in ordered_columns]
-        answered_positions = [index for index, value in enumerate(normalized_values, start=1) if value]
-        n_items_expected = len(ordered_columns)
-        n_items_present = sum(column in participant_frame.columns for column in ordered_columns)
-        n_nonblank_responses = len(answered_positions)
-
-        if n_items_present < n_items_expected:
-            completion_status = "missing_item_columns"
-            cdi_is_complete_enough = False
-            trailing_blank_run = pd.NA
-        elif not answered_positions:
-            completion_status = "all_blank"
-            cdi_is_complete_enough = False
-            trailing_blank_run = n_items_expected
-        else:
-            last_answered_position = max(answered_positions)
-            trailing_blank_run = n_items_expected - last_answered_position
-            completion_status = "complete" if trailing_blank_run <= max_trailing_blank_run else "trailing_blank_block"
-            cdi_is_complete_enough = completion_status == "complete"
-
-        rows.append(
-            {
-                "participant_id": participant["participant_id"],
-                "cdi_submission_id": participant["cdi_submission_id"],
-                "n_items_expected": n_items_expected,
-                "n_items_present": n_items_present,
-                "n_nonblank_responses": n_nonblank_responses,
-                "trailing_blank_run": trailing_blank_run,
-                "completion_status": completion_status,
-                "cdi_is_complete_enough": cdi_is_complete_enough,
-            }
-        )
-
-    return pd.DataFrame(rows)
-
-
-def _score_form_items(
-    criteria: pd.DataFrame,
-    form_data: pd.DataFrame,
-    item_dictionary: pd.DataFrame,
-    form_label: str,
-    raw_column_field: str,
-    item_order_field: str,
-    max_trailing_blank_run: int,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    form_participants = criteria.loc[criteria["submitted_form"].eq(form_label), _participant_columns(criteria)].copy()
-    merged = form_participants.merge(form_data, on="cdi_submission_id", how="left", validate="1:1")
-
-    item_map = item_dictionary.loc[
-        item_dictionary[raw_column_field].ne(""),
-        ["item_id", "word", "word_english", "category", "category_english", raw_column_field, item_order_field],
+def _form_items(item_list: pd.DataFrame, form_label: str, form: LoadedForm) -> pd.DataFrame:
+    """The items of one form, in the order of the export."""
+    _, flag, raw_field, order_field = FORM_FIELDS[form_label]
+    items = item_list.loc[
+        item_list[flag].eq(1) & item_list[raw_field].ne(""),
+        ["item_id", "word", "word_english", "category", "category_english", raw_field, order_field],
     ].copy()
-    item_map = item_map.rename(columns={raw_column_field: "raw_column", item_order_field: "item_order"})
-    item_map["raw_column"] = item_map["raw_column"].map(normalize_hindi_label)
-    item_map = item_map.sort_values(["item_order", "item_id"]).drop_duplicates(subset=["raw_column"], keep="first")
-
-    completeness = _evaluate_completeness(merged, item_map, max_trailing_blank_run)
-    merged = merged.merge(completeness, on=["participant_id", "cdi_submission_id"], how="left", validate="1:1")
-
-    long = merged.melt(
-        id_vars=_participant_columns(criteria) + [
-            "n_items_expected",
-            "n_items_present",
-            "n_nonblank_responses",
-            "trailing_blank_run",
-            "completion_status",
-            "cdi_is_complete_enough",
-        ],
-        value_vars=item_map["raw_column"].tolist(),
-        var_name="raw_column",
-        value_name="raw_response",
-    )
-    long = long.merge(item_map, on="raw_column", how="left", validate="m:1")
-    long["form"] = form_label
-    long["raw_response"] = long["raw_response"].map(normalize_response_value)
-
-    if form_label == "CDI-I":
-        scored = long["raw_response"].map(score_cdi8_response)
-        long[["understand", "produce", "unknown_response"]] = pd.DataFrame(scored.tolist(), index=long.index)
-    else:
-        scored = long["raw_response"].map(score_cdi19_response)
-        scored_frame = pd.DataFrame(scored.tolist(), columns=["produce", "unknown_response"], index=long.index)
-        long["understand"] = pd.NA
-        long[["produce", "unknown_response"]] = scored_frame
-
-    unknown_responses = long.loc[long["unknown_response"].fillna(False)].copy()
-    long = long[
-        [
-            "participant_id",
-            "form",
-            "item_id",
-            "word",
-            "word_english",
-            "category",
-            "category_english",
-            "calculated_age_months_exact",
-            "age_month",
-            "understand",
-            "produce",
-            "raw_response",
-            "cdi_submission_id",
-            "included_final",
-            "completion_status",
-            "cdi_is_complete_enough",
-        ]
-    ].rename(columns={"calculated_age_months_exact": "age_months_exact"})
-
-    return long, unknown_responses, completeness
+    items = items.rename(columns={raw_field: "raw_column", order_field: "item_order"})
+    items["raw_column"] = items["raw_column"].map(normalize_hindi_label)
+    items = items.sort_values(["item_order", "item_id"]).drop_duplicates(subset=["raw_column"], keep="first")
+    if items.empty:
+        raise ValueError(f"The item list has no items for the form in {form.path.name}.")
+    missing = items.loc[~items["raw_column"].isin(form.data.columns), "item_id"].tolist()
+    if missing:
+        raise ValueError(
+            f"{len(missing)} items of the item list are not columns of {form.path.name} "
+            f"(item IDs: {', '.join(str(item_id) for item_id in missing[:10])}). "
+            "Check the item names in word_mapping.csv."
+        )
+    return items
 
 
-def _build_participant_analysis(
+def _iso_date(value: object) -> str:
+    """Date as YYYY-MM-DD, empty when there is no date."""
+    return "" if pd.isna(value) else pd.Timestamp(value).strftime("%Y-%m-%d")
+
+
+def _exact_duplicates(
+    children: list[str],
+    submissions: list[str],
+    created: list[pd.Timestamp],
+    answers_of: dict[str, tuple[str, ...]],
+) -> list[str]:
+    """For each questionnaire: the earliest one of the same child with the same answers.
+
+    Empty for the earliest questionnaire itself and when no earlier one is the same.
+    """
+    earliest_with_answers: dict[tuple, str] = {}
+    duplicate_of = [""] * len(submissions)
+    for row in sorted(range(len(submissions)), key=lambda row: created[row]):
+        key = (children[row], answers_of[submissions[row]])
+        if key in earliest_with_answers:
+            duplicate_of[row] = earliest_with_answers[key]
+        else:
+            earliest_with_answers[key] = submissions[row]
+    return duplicate_of
+
+
+def score_form(
+    form_label: str,
     criteria: pd.DataFrame,
-    cdi1_items_long: pd.DataFrame,
-    cdi2_items_long: pd.DataFrame,
-    cdi1_completeness: pd.DataFrame,
-    cdi2_completeness: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    cdi1_totals = (
-        cdi1_items_long.groupby("participant_id", dropna=False)
-        .agg(
-            comprehension_total=("understand", "sum"),
-            production_total=("produce", "sum"),
-            age_months_exact=("age_months_exact", "first"),
-            age_month=("age_month", "first"),
+    forms: dict[str, LoadedForm],
+    item_list: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    """Score the included questionnaires of one form (CDI1_FORM or CDI2_FORM).
+
+    Returns the item table (one row per questionnaire and item), the summary
+    table (one row per questionnaire) and the number of answers that were not
+    recognised. An item without an answer has the score 0. An answer that is
+    not recognised has no score.
+    """
+    form = forms[FORM_FIELDS[form_label][0]]
+    form_items = _form_items(item_list, form_label, form)
+    item_columns = form_items["raw_column"].tolist()
+    score_columns = ITEM_COLUMNS[form_label][len(_ITEM_INFO):]
+
+    included = criteria.loc[
+        criteria["submitted_form"].eq(form_label) & criteria["included_final"]
+    ].reset_index(drop=True)
+    if included.empty:
+        return (
+            pd.DataFrame(columns=ITEM_COLUMNS[form_label]),
+            pd.DataFrame(columns=SUMMARY_COLUMNS[form_label]),
+            0,
         )
+
+    # One row per questionnaire and item.
+    answers = included[["participant_id", "cdi_submission_id"]].merge(
+        form.data[[SUBMISSION_ID] + item_columns],
+        left_on="cdi_submission_id",
+        right_on=SUBMISSION_ID,
+        how="left",
+        validate="1:1",
+    )
+    long = answers.melt(
+        id_vars=["participant_id", "cdi_submission_id"],
+        value_vars=item_columns,
+        var_name="raw_column",
+        value_name="response",
+    )
+    long["response"] = long["response"].map(normalize_response_value)
+    long = long.merge(form_items, on="raw_column", how="left", validate="m:1")
+
+    # Row order: one questionnaire after the other, the items as in the export.
+    questionnaire_position = {
+        submission: position for position, submission in enumerate(included["cdi_submission_id"])
+    }
+    item_position = {column: position for position, column in enumerate(item_columns)}
+    long["questionnaire_position"] = long["cdi_submission_id"].map(questionnaire_position)
+    long["item_position"] = long["raw_column"].map(item_position)
+    long = long.sort_values(["questionnaire_position", "item_position"]).reset_index(drop=True)
+
+    score_answer = score_cdi8_response if form_label == CDI1_FORM else score_cdi19_response
+    scores = pd.DataFrame(
+        long["response"].map(score_answer).tolist(),
+        index=long.index,
+        columns=score_columns + ["not_recognised"],
+    )
+
+    items = pd.DataFrame(
+        {
+            "child_id": long["participant_id"],
+            "submission_id": long["cdi_submission_id"],
+            "item_id": long["item_id"],
+            "item_type": "word",
+            "category": long["category_english"],
+            "category_hindi": long["category"],
+            "item": long["word"],
+            "item_english": long["word_english"],
+            "response": long["response"],
+        }
+    )
+    for column in score_columns:
+        items[column] = scores[column].astype("Int64")
+
+    summary = pd.DataFrame(
+        {
+            "child_id": included["participant_id"],
+            "submission_id": included["cdi_submission_id"],
+            "completion_date": included["cdi_completion_date"].map(_iso_date),
+            "birthdate": included["birthdate_parsed"].map(_iso_date),
+            "age_months": included["age_month"].astype("Int64"),
+            "age_months_exact": included["calculated_age_months_exact"],
+            "gender": included["child_sex"],
+            "mother_education": included["mother_education"],
+            "father_education": included["father_education"],
+            "hindi_exposure_percent": included["hindi_percentage"].astype(float),
+            # Empty when the age given by the parent is not known.
+            "age_discrepancy_flag": included["age_discrepancy_flag"]
+            .astype("boolean")
+            .where(included["reported_age_months"].notna()),
+        }
+    )
+
+    totals = {
+        "production_total": ("produces", "sum"),
+        "n_items": ("item_id", "size"),
+        "n_answered": ("answered", "sum"),
+    }
+    if "understands" in score_columns:
+        totals = {"comprehension_total": ("understands", "sum"), **totals}
+    per_questionnaire = (
+        items.assign(answered=items["response"].ne(""))
+        .groupby("submission_id", sort=False)
+        .agg(**totals)
         .reset_index()
     )
-    cdi2_totals = (
-        cdi2_items_long.groupby("participant_id", dropna=False)
-        .agg(
-            production_total=("produce", "sum"),
-            age_months_exact=("age_months_exact", "first"),
-            age_month=("age_month", "first"),
-        )
-        .reset_index()
-    )
-    cdi2_totals["comprehension_total"] = pd.NA
+    summary = summary.merge(per_questionnaire, on="submission_id", how="left", validate="1:1")
 
-    base_columns = [
-        "participant_id",
-        "submitted_form",
-        "child_sex",
-        "mother_education",
-        "hindi_percentage",
-        "included_final",
-        "expected_form",
-        "age_form_match",
-        "primary_exclusion_reason",
-        "all_exclusion_reasons",
-    ]
-    base = criteria[base_columns].copy().rename(columns={"submitted_form": "form", "child_sex": "sex"})
-
-    cdi1_analysis = base.loc[base["form"].eq("CDI-I")].merge(cdi1_totals, on="participant_id", how="left", validate="1:1")
-    cdi1_analysis = cdi1_analysis.merge(cdi1_completeness, on="participant_id", how="left", validate="1:1")
-
-    cdi2_analysis = base.loc[base["form"].eq("CDI-II")].merge(cdi2_totals, on="participant_id", how="left", validate="1:1")
-    cdi2_analysis = cdi2_analysis.merge(cdi2_completeness, on="participant_id", how="left", validate="1:1")
-
-    participant_analysis_all = pd.concat([cdi1_analysis, cdi2_analysis], ignore_index=True, sort=False)
-    return participant_analysis_all, cdi1_analysis, cdi2_analysis
-
-
-def build_scoring_outputs(
-    config: ProjectConfig,
-    *,
-    eligibility_outputs: EligibilityOutputs | None = None,
-    dictionary_outputs: ItemDictionaryOutputs | None = None,
-    forms: list[LoadedForm] | None = None,
-) -> ScoringOutputs:
-    """Reuse optional inputs from the same configuration and input snapshot."""
-    if eligibility_outputs is None:
-        eligibility_outputs = build_eligibility_outputs(config, forms=forms)
-    if dictionary_outputs is None:
-        dictionary_outputs = build_master_item_dictionary(config, forms=forms)
-    if forms is None:
-        forms = load_detected_forms(config)
-
-    cdi1_form = _prepare_form_frame(_get_form(forms, "cdi_8_18"))
-    cdi2_form = _prepare_form_frame(_get_form(forms, "cdi_19_36"))
-
-    cdi1_items_long, cdi1_unknown, cdi1_completeness = _score_form_items(
-        eligibility_outputs.participant_criteria,
-        cdi1_form,
-        dictionary_outputs.master_dictionary.loc[dictionary_outputs.master_dictionary["cdi1"].eq(1)].copy(),
-        "CDI-I",
-        "raw_column_8_18",
-        "cdi1_order",
-        config.completeness.maximum_trailing_blank_run,
-    )
-    cdi2_items_long, cdi2_unknown, cdi2_completeness = _score_form_items(
-        eligibility_outputs.participant_criteria,
-        cdi2_form,
-        dictionary_outputs.master_dictionary.loc[dictionary_outputs.master_dictionary["cdi2"].eq(1)].copy(),
-        "CDI-II",
-        "raw_column_19_36",
-        "cdi2_order",
-        config.completeness.maximum_trailing_blank_run,
+    summary["n_submissions_for_child"] = summary.groupby("child_id")["submission_id"].transform("size")
+    answers_of = {
+        submission: tuple(responses)
+        for submission, responses in items.groupby("submission_id", sort=False)["response"]
+    }
+    summary["exact_duplicate_of"] = _exact_duplicates(
+        summary["child_id"].tolist(),
+        summary["submission_id"].tolist(),
+        included["cdi_created_timestamp"].tolist(),
+        answers_of,
     )
 
-    participant_analysis_all, participant_analysis_cdi1, participant_analysis_cdi2 = _build_participant_analysis(
-        eligibility_outputs.participant_criteria,
-        cdi1_items_long,
-        cdi2_items_long,
-        cdi1_completeness,
-        cdi2_completeness,
-    )
-
-    included_participant_contacts = eligibility_outputs.participant_criteria.loc[
-        eligibility_outputs.participant_criteria["included_final"],
-        [
-            "participant_id",
-            "submitted_form",
-            "calculated_age_months_exact",
-            "child_sex",
-            "mother_education",
-            "mobile_number",
-            "email",
-        ],
-    ].copy().rename(columns={"submitted_form": "form", "calculated_age_months_exact": "age_months_exact"})
-
-    unknown_responses = pd.concat([cdi1_unknown, cdi2_unknown], ignore_index=True, sort=False)
-    completeness_report = pd.concat(
-        [
-            cdi1_completeness.assign(form="CDI-I"),
-            cdi2_completeness.assign(form="CDI-II"),
-        ],
-        ignore_index=True,
-        sort=False,
-    )
-
-    return ScoringOutputs(
-        participant_analysis_all=participant_analysis_all,
-        participant_analysis_cdi1=participant_analysis_cdi1,
-        participant_analysis_cdi2=participant_analysis_cdi2,
-        cdi1_items_long=cdi1_items_long,
-        cdi2_items_long=cdi2_items_long,
-        included_participant_contacts=included_participant_contacts,
-        unknown_responses=unknown_responses,
-        completeness_report=completeness_report,
-    )
+    n_not_recognised = int(scores["not_recognised"].sum())
+    return items[ITEM_COLUMNS[form_label]], summary[SUMMARY_COLUMNS[form_label]], n_not_recognised

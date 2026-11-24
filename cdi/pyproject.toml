@@ -1,27 +1,18 @@
 [project]
 name = "hindibabynet-cdi"
-version = "0.1.0"
-description = "Reproducible Hindi CDI questionnaire analysis from Nettskjema"
-readme = "README.md"
+version = "0.2.0"
+description = "Processes the Hindi CDI questionnaires of the HindiBabyNet project"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "ipykernel>=7.2.0",
-    "ipywidgets>=8.1,<9",
-    "jupyter>=1.1.1",
-    "matplotlib>=3.7,<4",
-    "nbclient>=0.10,<1",
-    "nbformat>=5.10,<6",
+    "hbn-paths",
     "numpy>=1.24,<2",
     "openpyxl>=3.1,<4",
     "pandas>=2.0,<3",
-    "patsy>=0.5.6,<1",
     "pyyaml>=6,<7",
-    "python-dateutil>=2.8,<3",
-    "pytest>=7,<9",
-    "ruff>=0.4,<1",
-    "seaborn>=0.12,<1",
-    "statsmodels>=0.14,<1",
 ]
+
+[project.scripts]
+hbn-cdi = "hindibabynet_cdi.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -32,10 +23,13 @@ where = ["src"]
 include = ["hindibabynet_cdi*"]
 
 [dependency-groups]
-dev = []
+dev = ["pytest>=7,<9"]
 
 [tool.pytest.ini_options]
-pythonpath = [".", "src"]
+pythonpath = ["src"]
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
+
+[tool.uv.sources]
+hbn-paths = { path = "../shared", editable = true }

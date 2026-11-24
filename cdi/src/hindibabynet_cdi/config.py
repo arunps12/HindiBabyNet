@@ -1,32 +1,23 @@
+"""Settings and data folders of the CDI processing.
+
+The settings are read from cdi/params.yaml. The data folders are read from
+config.yaml in the project root.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
-from typing import Any
 
 import yaml
+from hbn_paths import Config
 
 
-@dataclass(frozen=True)
-class ProjectPaths:
-    repo_root: Path
-    raw_data: Path
-    interim_data: Path
-    processed_data: Path
-    metadata: Path
-    outputs: Path
-    personal_info: Path
+# cdi/params.yaml
+DEFAULT_PARAMS_PATH = Path(__file__).resolve().parents[2] / "params.yaml"
 
-
-@dataclass(frozen=True)
-class FormIds:
-    consent: str
-    eligibility: str
-    background: str
-    cdi_8_18: str
-    cdi_19_36: str
-    contact: str
+# The five questionnaire forms, in the order in which a parent fills them in.
+FORM_ROLES = ("consent", "eligibility", "background", "cdi_8_18", "cdi_19_36")
 
 
 @dataclass(frozen=True)
@@ -34,8 +25,6 @@ class AnalysisSettings:
     age_month_divisor: float
     younger_questionnaire: str
     older_questionnaire: str
-    younger_age_bins: tuple[str, ...]
-    older_age_bins: tuple[str, ...]
     strict_hindi_threshold: float
     age_discrepancy_flag_months: float
 
@@ -64,8 +53,6 @@ class ExposureSettings:
 class AgeSettings:
     reported_age_column: str
     birthdate_column: str
-    child_age_label_column: str
-    completion_date_column: str
     cdi1_min_month: int
     cdi1_max_month: int
     cdi2_min_month: int
@@ -73,306 +60,92 @@ class AgeSettings:
 
 
 @dataclass(frozen=True)
-class ContactSettings:
-    mobile_number_column: str
-    email_column: str
-
-
-@dataclass(frozen=True)
 class EducationSettings:
     mother_education_column: str
     father_education_column: str
-    analysis_groups: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class CompletenessSettings:
-    minimum_present_ratio: float
-    maximum_trailing_blank_run: int
-
-
-@dataclass(frozen=True)
-class OutputSettings:
-    qc_dir: Path
-    cdi1_tables_dir: Path
-    cdi2_tables_dir: Path
-    combined_tables_dir: Path
-    cdi1_comprehension_figures_dir: Path
-    cdi1_production_figures_dir: Path
-    cdi1_items_figures_dir: Path
-    cdi1_categories_figures_dir: Path
-    cdi2_production_figures_dir: Path
-    cdi2_items_figures_dir: Path
-    cdi2_categories_figures_dir: Path
-    combined_figures_dir: Path
-    qc_figures_dir: Path
 
 
 @dataclass(frozen=True)
 class ProjectConfig:
-    paths: ProjectPaths
-    form_ids: FormIds
+    config_path: Path
+    params_path: Path
+    raw_dir: Path
+    word_mapping_path: Path
+    output_dir: Path
+    form_ids: dict[str, str]
+    form_detection_rules: dict[str, tuple[str, ...]]
     analysis: AnalysisSettings
     eligibility: EligibilitySettings
     exposure: ExposureSettings
     age: AgeSettings
-    contact: ContactSettings
     education: EducationSettings
-    completeness: CompletenessSettings
-    outputs: OutputSettings
-    form_detection_rules: dict[str, tuple[str, ...]]
 
 
-DEFAULT_FORM_DETECTION_RULES: dict[str, tuple[str, ...]] = {
-    "consent": (
-        "मैं सहमति देता/देती हूँ कि मेरी गुमनाम जानकारी ऊपर वर्णित परियोजना में उपयोग की जाएगी।",
-        "fill_date",
-    ),
-    "eligibility": (
-        "क्या आपके बच्चे की मातृभाषा हिंदी है?",
-        "क्या आपका बच्चा प्री-टर्म जन्मा है?",
-        "Reference ID",
-    ),
-    "background": (
-        "बच्चे की उम्र कितने महीनों की है?",
-        "birthdate",
-        "SUBMISSION_REFERENCE",
-        "$forwarded_to_form",
-    ),
-    "cdi_8_18": (
-        "केवल समझता/समझती है",
-        "समझता/समझती है और कहता/कहती है",
-        "इश/आह/उह (दर्द)",
-    ),
-    "cdi_19_36": (
-        "कहता/कहती है",
-        "इश/आह/उह (दर्द)",
-        "क्रिंग क्रिंग (साइकिल का शोर घंटी)",
-    ),
-    "contact": (
-        "<b>कृपया अपना व्हाट्सएप नंबर प्रदान करें, यदि आपके पास है, अन्यथा सामान्य फोन नंबर प्रदान करें।</b>",
-        "<b>Email address (ईमेल)</b>",
-        "Reference ID",
-    ),
-}
+def load_config(
+    config_path: str | Path | None = None,
+    params_path: str | Path | None = None,
+) -> ProjectConfig:
+    """Read the settings from params.yaml and the folders from the root config.yaml."""
+    params_file = Path(params_path) if params_path is not None else DEFAULT_PARAMS_PATH
+    with params_file.open(encoding="utf-8-sig") as handle:
+        params = yaml.safe_load(handle) or {}
 
+    folders = Config(config_path)
+    raw_dir = folders.input("raw_cdi")
+    word_mapping_path = folders.input("word_mapping")
 
-def _repo_root_from_config(config_path: Path) -> Path:
-    return config_path.resolve().parent.parent
-
-
-def _resolve_repo_path(repo_root: Path, relative_path: str) -> Path:
-    return (repo_root / relative_path).resolve()
-
-
-def _load_yaml(config_path: Path) -> dict[str, Any]:
-    with config_path.open("r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle) or {}
-    if not isinstance(data, dict):
-        raise TypeError(f"Expected mapping at top level of {config_path}")
-    return data
-
-
-def load_config(config_path: str | Path | None = None) -> ProjectConfig:
-    """Load native YAML or its 'cdi' section without changing analysis defaults."""
-    if config_path is None:
-        config_path = os.environ.get("HBN_CONFIG_PATH") or "configs/config.yaml"
-    resolved_path = Path(config_path or "configs/config.yaml").resolve()
-    raw_config = _load_yaml(resolved_path)
-    if "cdi" in raw_config:
-        raw_config = raw_config["cdi"]
-        if not isinstance(raw_config, dict):
-            raise TypeError(f"Expected a mapping in section 'cdi' of {resolved_path}")
-        project_root = raw_config.get("project_root")
-        repo_root = (
-            (resolved_path.parent / project_root).resolve()
-            if project_root is not None
-            else Path(__file__).resolve().parents[2]
+    try:
+        forms = params["forms"]
+        analysis = params["analysis"]
+        eligibility = params["eligibility"]
+        exposure = params["exposure"]
+        age = params["age"]
+        education = params["education"]
+        rules = params["form_detection_rules"]
+        return ProjectConfig(
+            config_path=folders.file,
+            params_path=params_file,
+            raw_dir=raw_dir,
+            word_mapping_path=word_mapping_path,
+            output_dir=folders.results("cdi"),
+            form_ids={role: str(forms[f"{role}_form_id"]) for role in FORM_ROLES},
+            form_detection_rules={role: tuple(str(name) for name in rules[role]) for role in FORM_ROLES},
+            analysis=AnalysisSettings(
+                age_month_divisor=float(analysis["age_month_divisor"]),
+                younger_questionnaire=str(analysis["younger_questionnaire"]),
+                older_questionnaire=str(analysis["older_questionnaire"]),
+                strict_hindi_threshold=float(analysis["strict_hindi_threshold"]),
+                age_discrepancy_flag_months=float(analysis["age_discrepancy_flag_months"]),
+            ),
+            eligibility=EligibilitySettings(
+                consent_column=str(eligibility["consent_column"]),
+                mother_tongue_column=str(eligibility["mother_tongue_column"]),
+                preterm_column=str(eligibility["preterm_column"]),
+                impairment_column=str(eligibility["impairment_column"]),
+                age_range_column=str(eligibility["age_range_column"]),
+                required_mother_tongue_response=bool(eligibility["required_mother_tongue_response"]),
+                allow_preterm=bool(eligibility["allow_preterm"]),
+                allow_impairment=bool(eligibility["allow_impairment"]),
+            ),
+            exposure=ExposureSettings(
+                second_language_column=str(exposure["second_language_column"]),
+                second_language_percent_column=str(exposure["second_language_percent_column"]),
+                third_language_column=str(exposure["third_language_column"]),
+                third_language_percent_column=str(exposure["third_language_percent_column"]),
+            ),
+            age=AgeSettings(
+                reported_age_column=str(age["reported_age_column"]),
+                birthdate_column=str(age["birthdate_column"]),
+                cdi1_min_month=int(age["cdi1_min_month"]),
+                cdi1_max_month=int(age["cdi1_max_month"]),
+                cdi2_min_month=int(age["cdi2_min_month"]),
+                cdi2_max_month=int(age["cdi2_max_month"]),
+            ),
+            education=EducationSettings(
+                mother_education_column=str(education["mother_education_column"]),
+                father_education_column=str(education["father_education_column"]),
+            ),
         )
-    else:
-        repo_root = _repo_root_from_config(resolved_path)
+    except KeyError as error:
+        raise ValueError(f"The setting {error} is missing in {params_file}.") from None
 
-    paths_config = raw_config.get("paths", {})
-    paths = ProjectPaths(
-        repo_root=repo_root,
-        raw_data=_resolve_repo_path(repo_root, paths_config.get("raw_data", "data/raw")),
-        interim_data=_resolve_repo_path(repo_root, paths_config.get("interim_data", "data/interim")),
-        processed_data=_resolve_repo_path(repo_root, paths_config.get("processed_data", "data/processed")),
-        metadata=_resolve_repo_path(repo_root, paths_config.get("metadata", "metadata")),
-        outputs=_resolve_repo_path(repo_root, paths_config.get("outputs", "outputs")),
-        personal_info=_resolve_repo_path(repo_root, paths_config.get("personal_info", "data/personal_info")),
-    )
-
-    forms_config = raw_config.get("forms", {})
-    form_ids = FormIds(
-        consent=str(forms_config.get("consent_form_id", "")),
-        eligibility=str(forms_config.get("eligibility_form_id", "")),
-        background=str(forms_config.get("background_form_id", "")),
-        cdi_8_18=str(forms_config.get("cdi_8_18_form_id", "")),
-        cdi_19_36=str(forms_config.get("cdi_19_36_form_id", "")),
-        contact=str(forms_config.get("contact_form_id", "")),
-    )
-
-    analysis_config = raw_config.get("analysis", {})
-    analysis = AnalysisSettings(
-        age_month_divisor=float(analysis_config.get("age_month_divisor", 30.4375)),
-        younger_questionnaire=str(analysis_config.get("younger_questionnaire", "8_18")),
-        older_questionnaire=str(analysis_config.get("older_questionnaire", "19_36")),
-        younger_age_bins=tuple(analysis_config.get("younger_age_bins", [])),
-        older_age_bins=tuple(analysis_config.get("older_age_bins", [])),
-        strict_hindi_threshold=float(analysis_config.get("strict_hindi_threshold", 75.0)),
-        age_discrepancy_flag_months=float(analysis_config.get("age_discrepancy_flag_months", 2.0)),
-    )
-
-    eligibility_config = raw_config.get("eligibility", {})
-    eligibility = EligibilitySettings(
-        consent_column=str(
-            eligibility_config.get(
-                "consent_column",
-                "मैं सहमति देता/देती हूँ कि मेरी गुमनाम जानकारी ऊपर वर्णित परियोजना में उपयोग की जाएगी।",
-            )
-        ),
-        mother_tongue_column=str(
-            eligibility_config.get("mother_tongue_column", "क्या आपके बच्चे की मातृभाषा हिंदी है?")
-        ),
-        preterm_column=str(eligibility_config.get("preterm_column", "क्या आपका बच्चा प्री-टर्म जन्मा है?")),
-        impairment_column=str(
-            eligibility_config.get(
-                "impairment_column",
-                "क्या आपके बच्चे को बोलने, सुनने या देखने से संबंधित कोई समस्या है?",
-            )
-        ),
-        age_range_column=str(
-            eligibility_config.get("age_range_column", "क्या आपके बच्चे की आयु 8 से 36 महीने के बीच है?")
-        ),
-        required_mother_tongue_response=bool(eligibility_config.get("required_mother_tongue_response", True)),
-        allow_preterm=bool(eligibility_config.get("allow_preterm", False)),
-        allow_impairment=bool(eligibility_config.get("allow_impairment", False)),
-    )
-
-    exposure_config = raw_config.get("exposure", {})
-    exposure = ExposureSettings(
-        second_language_column=str(
-            exposure_config.get("second_language_column", "यदि लागू हो, तो आपके बच्चे की दूसरी भाषा क्या है?")
-        ),
-        second_language_percent_column=str(
-            exposure_config.get(
-                "second_language_percent_column",
-                "आपका बच्चा कितने प्रतिशत समय दूसरी भाषा सुनता है?",
-            )
-        ),
-        third_language_column=str(
-            exposure_config.get("third_language_column", "यदि लागू हो, तो आपके बच्चे की तीसरी भाषा क्या है?")
-        ),
-        third_language_percent_column=str(
-            exposure_config.get(
-                "third_language_percent_column",
-                "आपका बच्चा कितने प्रतिशत समय तीसरी भाषा सुनता है?",
-            )
-        ),
-    )
-
-    age_config = raw_config.get("age", {})
-    age = AgeSettings(
-        reported_age_column=str(age_config.get("reported_age_column", "बच्चे की उम्र कितने महीनों की है?")),
-        birthdate_column=str(age_config.get("birthdate_column", "birthdate")),
-        child_age_label_column=str(age_config.get("child_age_label_column", "बच्चे की आयु")),
-        completion_date_column=str(age_config.get("completion_date_column", "$created")),
-        cdi1_min_month=int(age_config.get("cdi1_min_month", 8)),
-        cdi1_max_month=int(age_config.get("cdi1_max_month", 18)),
-        cdi2_min_month=int(age_config.get("cdi2_min_month", 19)),
-        cdi2_max_month=int(age_config.get("cdi2_max_month", 36)),
-    )
-
-    contact_config = raw_config.get("contact", {})
-    contact = ContactSettings(
-        mobile_number_column=str(
-            contact_config.get(
-                "mobile_number_column",
-                "<b>कृपया अपना व्हाट्सएप नंबर प्रदान करें, यदि आपके पास है, अन्यथा सामान्य फोन नंबर प्रदान करें।</b>",
-            )
-        ),
-        email_column=str(contact_config.get("email_column", "<b>Email address (ईमेल)</b>")),
-    )
-
-    education_config = raw_config.get("education", {})
-    education = EducationSettings(
-        mother_education_column=str(
-            education_config.get("mother_education_column", "माता की वर्तमान शिक्षा स्तर:")
-        ),
-        father_education_column=str(
-            education_config.get("father_education_column", "पिता की वर्तमान शिक्षा स्तर:")
-        ),
-        analysis_groups=tuple(
-            education_config.get(
-                "analysis_groups",
-                ["Primary", "Secondary", "College", "Graduate", "Other/unknown"],
-            )
-        ),
-    )
-
-    completeness_config = raw_config.get("completeness", {})
-    completeness = CompletenessSettings(
-        minimum_present_ratio=float(completeness_config.get("minimum_present_ratio", 0.8)),
-        maximum_trailing_blank_run=int(completeness_config.get("maximum_trailing_blank_run", 25)),
-    )
-
-    outputs_config = raw_config.get("outputs", {})
-    outputs = OutputSettings(
-        qc_dir=_resolve_repo_path(repo_root, outputs_config.get("qc_dir", "outputs/tables/qc")),
-        cdi1_tables_dir=_resolve_repo_path(repo_root, outputs_config.get("cdi1_tables_dir", "outputs/tables/cdi1")),
-        cdi2_tables_dir=_resolve_repo_path(repo_root, outputs_config.get("cdi2_tables_dir", "outputs/tables/cdi2")),
-        combined_tables_dir=_resolve_repo_path(
-            repo_root, outputs_config.get("combined_tables_dir", "outputs/tables/combined")
-        ),
-        cdi1_comprehension_figures_dir=_resolve_repo_path(
-            repo_root,
-            outputs_config.get("cdi1_comprehension_figures_dir", "outputs/figures/cdi1/comprehension"),
-        ),
-        cdi1_production_figures_dir=_resolve_repo_path(
-            repo_root,
-            outputs_config.get("cdi1_production_figures_dir", "outputs/figures/cdi1/production"),
-        ),
-        cdi1_items_figures_dir=_resolve_repo_path(
-            repo_root, outputs_config.get("cdi1_items_figures_dir", "outputs/figures/cdi1/items")
-        ),
-        cdi1_categories_figures_dir=_resolve_repo_path(
-            repo_root,
-            outputs_config.get("cdi1_categories_figures_dir", "outputs/figures/cdi1/categories"),
-        ),
-        cdi2_production_figures_dir=_resolve_repo_path(
-            repo_root,
-            outputs_config.get("cdi2_production_figures_dir", "outputs/figures/cdi2/production"),
-        ),
-        cdi2_items_figures_dir=_resolve_repo_path(
-            repo_root, outputs_config.get("cdi2_items_figures_dir", "outputs/figures/cdi2/items")
-        ),
-        cdi2_categories_figures_dir=_resolve_repo_path(
-            repo_root,
-            outputs_config.get("cdi2_categories_figures_dir", "outputs/figures/cdi2/categories"),
-        ),
-        combined_figures_dir=_resolve_repo_path(
-            repo_root, outputs_config.get("combined_figures_dir", "outputs/figures/combined")
-        ),
-        qc_figures_dir=_resolve_repo_path(repo_root, outputs_config.get("qc_figures_dir", "outputs/figures/qc")),
-    )
-
-    configured_rules = raw_config.get("form_detection_rules", {})
-    form_detection_rules = {
-        key: tuple(value)
-        for key, value in {**DEFAULT_FORM_DETECTION_RULES, **configured_rules}.items()
-    }
-
-    return ProjectConfig(
-        paths=paths,
-        form_ids=form_ids,
-        analysis=analysis,
-        eligibility=eligibility,
-        exposure=exposure,
-        age=age,
-        contact=contact,
-        education=education,
-        completeness=completeness,
-        outputs=outputs,
-        form_detection_rules=form_detection_rules,
-    )

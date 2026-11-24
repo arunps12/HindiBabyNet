@@ -1,3 +1,5 @@
+"""Age of the child on the day of the CDI submission."""
+
 from __future__ import annotations
 
 import math
@@ -5,10 +7,12 @@ import math
 import pandas as pd
 
 from .cleaning import parse_completed_months, parse_date_value, parse_timestamp
+from .columns import CDI1_FORM, CDI2_FORM
 from .config import ProjectConfig
 
 
 def add_age_columns(participant_linkage: pd.DataFrame, config: ProjectConfig) -> pd.DataFrame:
+    """Add the age, the form that fits the age and the age checks."""
     data = participant_linkage.copy()
 
     data["reported_age_months"] = data["reported_age_months"].map(parse_completed_months)
@@ -38,9 +42,9 @@ def add_age_columns(participant_linkage: pd.DataFrame, config: ProjectConfig) ->
         if value is None or pd.isna(value):
             return "unknown"
         if config.age.cdi1_min_month <= value < config.age.cdi2_min_month:
-            return "CDI-I"
+            return CDI1_FORM
         if config.age.cdi2_min_month <= value <= config.age.cdi2_max_month + 0.999999:
-            return "CDI-II"
+            return CDI2_FORM
         return "out_of_range"
 
     data["expected_form"] = data["calculated_age_months_exact"].map(_expected_form)
