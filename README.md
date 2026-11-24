@@ -1,102 +1,204 @@
 # HindiBabyNet
 
-HindiBabyNet studies language development in Hindi-speaking children. This repository contains audio processing, vocal input/output analysis, prosodic feature extraction, prosodic statistics, and Hindi CDI questionnaire analysis.
+HindiBabyNet is a research project on the language environment and early language development of Hindi-learning children. This repository has the code for five workflows.
 
-## Find the right workflow
+| Workflow | What it does |
+| --- | --- |
+| `audio` | Prepares the day-long audio recordings and classifies the speakers with VTC or with our XGBoost model |
+| `audio-stats` | Statistical analysis of vocal input and child vocalizations |
+| `prosody` | Extracts acoustic and prosodic features of the speakers |
+| `prosody-stats` | Statistical analysis of the prosodic features |
+| `cdi` | Processes the Hindi CDI questionnaires |
 
-| Source folder | Purpose | Launcher command |
-| --- | --- | --- |
-| [audio](audio/README.md) | Prepare recordings and classify speaker types | `audio` |
-| [vocal_stats](vocal_stats/README.md) | Build vocal datasets and descriptive summaries | `vocal-stats` |
-| [prosody](prosody/README.md) | Extract pitch and speech-model features; not model training | `prosody` |
-| [vocal_stats](vocal_stats/README.md) | Fit vocal input/output statistical models in R | `vocal-models` |
-| [prosody_stats](prosody_stats/README.md) | Fit prosodic statistical models in R | `prosody-stats` |
-| [cdi](cdi/README.md) | Link and score CDI questionnaires | `cdi` |
-| [docs](docs/README.md) | Configuration, safety, and troubleshooting | — |
+The repository has only code. The research data is not part of it. You can keep the data in any folder, also outside this project.
 
-Source code now lives in these folders, with launcher tests in [tests/test_run.py](tests/test_run.py). Python package names are unchanged. Existing research data, caches, outputs, weights, native configurations, and old environments remain in the ignored original `HindiBabyNet-*` asset directories; they were not moved into the new source folders. A fresh clone does not include them.
+## Folders of the project
+
+```
+HindiBabyNet/
+├── README.md
+├── config.example.yaml     example of the configuration file
+├── shared/                 small helper that reads the configuration file
+├── audio/                  audio preparation and speaker classification
+├── audio-stats/            audio-stats.Rmd and its R functions
+├── prosody/                prosodic feature extraction
+├── prosody-stats/          prosody-stats.Rmd and its R functions
+├── cdi/                    CDI questionnaire processing
+└── references/             scientific documents of the project
+```
+
+Each workflow folder has a file `params.yaml` with the settings of the method (for example sample rate or pitch range). Do not change these values for an existing study. The data locations are not in these files. They are in one file, `config.yaml`, which is explained below.
+
+## Folders of the data
+
+All data is under one main data folder. This is the recommended structure:
+
+```
+HindiBabyNet-data/
+├── raw/
+│   ├── audio/                    raw recordings: <participant>/<YYYYMMDD>/*.WAV
+│   ├── cdi/                      CDI questionnaire exports and word_mapping.csv
+│   └── metadata/                 metadata_cleaned.xlsx, participant_lookup.csv
+├── derived/
+│   ├── prepared-audio/           one prepared WAV file per participant
+│   ├── vtc-classification/       VTC results
+│   ├── xgb-classification/       XGBoost results
+│   ├── prosody-features/         acoustic and prosodic features
+│   └── statistical-data/         prepared datasets for audio-stats
+├── results/
+│   ├── cdi/
+│   ├── audio-stats/
+│   └── prosody-stats/
+└── cache/                        temporary files
+```
+
+`raw` has the original data. `derived` has files that one workflow makes and another workflow reads. `results` has the final tables, figures and reports.
 
 ## 1. Install the software
 
-- Install [uv](https://docs.astral.sh/uv/getting-started/installation/). Use a compatible Python 3.10–3.12 interpreter for the projects that require it; uv manages each project's environment independently. The locked dependencies may further constrain the usable interpreter.
-- Install FFmpeg and make `ffmpeg` available on `PATH` for audio processing.
-- For statistical models, install R and the packages listed in the [vocal guide](vocal_stats/README.md#r-packages) or [prosody statistics guide](prosody_stats/README.md#r-packages). `Rscript` must be available on `PATH`, or configured under `tools.rscript`.
-- Quarto is needed only for the optional vocal HTML report. Pandoc and R Markdown support are needed for the optional prosody HTML report. PDF/LaTeX is not required by the launcher.
-- Audio VTC requires a separately installed external model repository, weights, and environment. Use WSL/Linux for audio: the current VTC integration has Unix-oriented paths and is not established as a native Windows workflow.
+You need:
 
-Keep scientific environments independent. The root environment is only for the launcher; each Python project has its own environment and lockfile, including incompatible NumPy requirements. Manage each R analysis's packages separately and retain its known-working versions rather than merging or upgrading the scientific environments. Root setup does not provision R libraries.
+- **uv** for all Python workflows. Install it as described on <https://docs.astral.sh/uv/getting-started/installation/>.
+  - Windows PowerShell: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+  - Ubuntu: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **R and RStudio** for `audio-stats` and `prosody-stats`.
+- **Ubuntu (WSL)** on a Windows computer for the `audio` workflow. See [audio/README.md](audio/README.md).
 
-## 2. Create or review your local configuration
+You do not need to install Python packages yourself. The first time you run a command, uv installs the packages of that workflow.
 
-Open the repository root. Example PowerShell location:
+For the two statistical analyses, open RStudio and run this once in the Console:
 
-```powershell
-Set-Location C:/research/HindiBabyNet
-if (-not (Test-Path config.local.yaml)) { Copy-Item config.example.yaml config.local.yaml }
+```r
+install.packages(c("tidyverse", "lme4", "lmerTest", "glmmTMB", "performance", "DHARMa",
+                   "emmeans", "ggeffects", "broom.mixed", "parameters", "boot", "yaml",
+                   "knitr", "rmarkdown", "car", "readxl"))
 ```
 
-WSL/Linux equivalent:
+## 2. Set the data folders
 
-```bash
-cd /path/to/HindiBabyNet
-cp -n config.example.yaml config.local.yaml
+Copy the file `config.example.yaml` and name the copy `config.yaml`. Keep it in the project folder. This file stays on your computer and is not uploaded to GitHub.
+
+Open `config.yaml` and change `data_dir` to your main data folder:
+
+```yaml
+data_dir: D:/HindiBabyNet-data
 ```
 
-**If [config.local.yaml](config.local.yaml) already exists, keep it; do not overwrite it with the example.** The migrated local file imports the existing native mappings and starts with all workflows disabled. Preserve all original scientific settings, including settings that differ from examples.
+If your data has the structure shown above, this is all. If a folder is stored in another place, write it under `paths`. For example, if you already have prepared audio and VTC results in other folders:
 
-The [root example](config.example.yaml) contains full native mappings, including CDI and prosody statistics, with current source folders and all workflows disabled. Its six `project_root: "."` values resolve paths from the root YAML's directory; inputs use private `Data` locations and outputs use dedicated `results` locations, with local caches separate. You edit **one root local configuration**—no duplicate per-workflow mappings are needed.
-
-1. For a new study, copy the example as above, then edit input/model paths and choose **fresh, dedicated output, cache, log, artifact, private-table, and report locations**. Connect downstream inputs to the intended outputs; example destinations are not guaranteed empty.
-2. For an existing study, keep the existing configuration and scientific settings. Retain each section's original asset-based `project_root` when preserving relative asset paths; `workflows.<name>.project` locates source code, not data.
-3. Set `enabled: true` only for workflows you intend to run. No dependencies are enabled automatically.
-
-Alternatively, `configure` creates a new local configuration from native configs in the new source folders, then falls back to the original asset-folder configs, then the versioned full root template for missing sections. It disables all workflows and refuses to overwrite a destination. See [configuration and migration](docs/README.md#configuration-and-migration).
-
-**The template is not approval for scientific changes.** Preserve approved settings: active prosody and the root template use a **100 Hz** semitone reference; the older [per-workflow example](prosody/config/config.example.yaml) uses **1 Hz**. These references are not interchangeable.
-
-Use paths valid in the operating system where commands run; Windows paths do not automatically become WSL paths. See the [configuration guide](docs/README.md#configuration-and-migration).
-
-## 3. Install the enabled environments
-
-From the repository root, after editing your local configuration:
-
-```text
-uv sync
-uv run python run.py setup
+```yaml
+data_dir: D:/HindiBabyNet-data
+paths:
+  raw_audio: /home/yourname/hindinet_data/RawAudioData
+  prepared_audio: E:/HindiNet/Audio_data_processing
+  vtc: E:/HindiNet/Classification_outputs/VTC
 ```
 
-Root sync installs launcher dependencies. `setup` runs frozen uv sync in each enabled Python source project. It does not install R packages, FFmpeg, external VTC, or model weights. Existing environments in old asset folders are not moved or reused automatically. If no workflows are enabled, setup has nothing to install.
+Some rules for the paths:
 
-## 4. Check, then run
+- Use `/` in the paths, also on Windows.
+- A path without a drive letter starts from the folder of `config.yaml`. For example `../HindiBabyNet-data` is a folder next to the project folder.
+- A Windows path like `C:/data` also works in Ubuntu. An Ubuntu path like `/home/yourname/data` also works in Windows and RStudio.
+- A network folder (`//server/share/...`) works on Windows. In Ubuntu you must mount it first.
 
-```text
-uv run python run.py check
-uv run python run.py all --dry-run
-uv run python run.py all
+You never need to change a Python or R file to change a data location.
+
+## 3. Run a workflow
+
+Run all commands from the project folder. Existing output files are never replaced. If an output file already exists, the command stops and tells you which file it is.
+
+### audio
+
+This workflow runs in Ubuntu. All steps are explained in [audio/README.md](audio/README.md).
+
+| Step | Command (Ubuntu terminal) | Output |
+| --- | --- | --- |
+| Prepare the audio | `uv run --project audio hbn-audio prepare` | `derived/prepared-audio/` |
+| Classify speakers with VTC | `uv run --project audio hbn-audio classify-vtc` | `derived/vtc-classification/` |
+| Classify speakers with XGBoost | `uv run --project audio --extra xgb hbn-audio classify-xgb` | `derived/xgb-classification/` |
+
+If the prepared audio files are already available, you do not need to prepare them again. If VTC results are already available, you do not need to run VTC again. Set `prepared_audio` and `vtc` in `config.yaml` to these folders and go to the next workflow.
+
+### cdi
+
+- Where: Windows PowerShell (or Ubuntu), in the project folder.
+- Input: the questionnaire exports from Nettskjema and the file `word_mapping.csv` in `raw/cdi/`.
+- Command:
+
+```
+uv run --project cdi hbn-cdi
 ```
 
-`all` runs only explicitly enabled workflows, sequentially in this dependency order:
+- Output: four files in `results/cdi/`.
 
-Execution order: audio → vocal-stats → prosody → vocal-models → prosody-stats → cdi.
+| File | Content |
+| --- | --- |
+| `cdi1_items.csv` | item responses of CDI-1 (8 to 18 months), one row per questionnaire and word |
+| `cdi2_items.csv` | item responses of CDI-2 (19 to 36 months) |
+| `cdi1_summary.csv` | one row per CDI-1 questionnaire: age, gender, birthdate, education of the parents, completion date, comprehension and production scores |
+| `cdi2_summary.csv` | one row per CDI-2 questionnaire, with the production score |
 
-Workflows remain independent: you can use approved existing inputs instead of enabling upstream processing. CDI does not require audio. VTC-dependent consumers cannot use XGB output as a substitute. Reports and interactive annotation are not included in `all`.
+The item files and the summary files are joined with `child_id` and `submission_id`. A questionnaire is included when the parent gave consent, the forms are linked, the child fulfils the eligibility criteria, the Hindi exposure is above 75 %, and the age fits the questionnaire. If a child has more than one questionnaire, every questionnaire is kept as a separate row. The command prints how many questionnaires were included and why the others were not.
 
-Run just one enabled workflow, for example:
+### prosody
 
-```text
-uv run python run.py vocal-stats
-uv run python run.py prosody
-uv run python run.py cdi
+- Where: Windows PowerShell (or Ubuntu), in the project folder.
+- Input: the prepared audio, the VTC results and `participant_lookup.csv`.
+- First check the input files. This does not write anything:
+
+```
+uv run --project prosody hbn-prosody --check
 ```
 
-The [launcher](run.py) also supports `--config`, `--stage`, `--resume` (the default), `--no-resume`, and `--dry-run`. Put supported native stage options after `--`. See the [command and safety reference](docs/README.md#launcher-reference) before using individual stages.
+- Then run the extraction. It takes a long time. A GPU makes it faster.
 
-## Safe reuse and private data
+```
+uv run --project prosody hbn-prosody
+```
 
-The launcher skips only a completed **whole stage** whose local ownership record and checked fingerprints match. Stale, partial, altered, or unowned occupied outputs are refused. `--no-resume` does not permit overwrites; there is no `--force`. Prefer a full workflow command over chaining stages that share write locations. A stopped run may require fresh output paths rather than resuming participants.
+- Output: `derived/prosody-features/participant_speaker_acoustic_features.csv` (one row per participant and speaker), with quality-check tables in the folder `qc`.
 
-Keep all participant-derived material private, including pseudonymized tables, classification outputs, weights, reports, and executed notebooks. [.gitignore](.gitignore) is not publication approval. See the [operating guide](docs/README.md#outputs-and-recovery) for fingerprint/recovery limits and [scientific and privacy boundaries](docs/README.md#scientific-and-privacy-boundaries) before sharing or changing an analysis.
+If the features file is already available, you do not need to run this step. The first run downloads the two speech models from Hugging Face.
 
-## Testing
+### audio-stats
 
-Synthetic/unit tests cover launcher and workflow behavior; external-model and original-cohort checks are separate. See [testing guidance](docs/README.md#testing-and-validation), including CDI's opt-in original-data tests and validation limits.
+There are two steps.
+
+**Step 1: prepare the dataset.** Skip this step if the files `final_master.csv`, `input_long.csv` and `input_output_long.csv` are already in `derived/statistical-data/`.
+
+- Where: Windows PowerShell, in the project folder.
+- Input: the VTC results, the metadata file, and the raw recordings (the command reads the duration of the first recording day).
+
+```
+uv run --project audio-stats hbn-audio-stats
+```
+
+**Step 2: run the analysis.**
+
+- Open the file `audio-stats/audio-stats.Rmd` in RStudio and click **Knit**.
+- It loads the dataset, makes the descriptive tables and figures, fits the models and makes the report.
+- Output: `results/audio-stats/audio-stats.html`, with the folders `tables`, `figures`, `models`, `predictions` and `diagnostics`.
+
+The settings of the models are in the `params` block at the top of the Rmd file. They are explained in the first section of the report.
+
+### prosody-stats
+
+- Input: the features file from `prosody` and the dataset of `audio-stats` (Step 1).
+- Open the file `prosody-stats/prosody-stats.Rmd` in RStudio and click **Knit**. It takes about 10 minutes.
+- Output: `results/prosody-stats/prosody-stats.html`, with the folders `tables`, `figures`, `models`, `predictions` and `diagnostics`.
+
+## Common problems
+
+| Problem | What to do |
+| --- | --- |
+| `Configuration file not found` | Copy `config.example.yaml` to `config.yaml` in the project folder. |
+| `Not found: ...` with the name of a path | The folder or file is not at this place. Check `data_dir` and the line under `paths` that the message names. |
+| `... already exists and is not replaced` | The output is already there. Use it, or move the old file to another folder and run the command again. |
+| `uv` is not found | Close and open the terminal again after you installed uv. |
+| Knit stops with `there is no package called ...` | Install the R packages with the command in section 1. |
+| The Knit button makes no HTML file in the Rmd folder | This is correct. The report is saved in the `results` folder of your data folder. |
+| A network folder does not work in Ubuntu | Mount the folder in Ubuntu, or copy the files to a local folder, and write this path in `config.yaml`. |
+
+## Data protection
+
+The recordings, the questionnaires, the participant information and all results are research data. Keep them on your computer or on the secured project storage. Do not add them to this repository. The file `.gitignore` is written so that only the code folders listed above can be uploaded.
