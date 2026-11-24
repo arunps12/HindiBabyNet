@@ -1,93 +1,206 @@
-# Audio preparation and speaker classification
+# audio: audio preparation and speaker classification
 
-This workflow catalogues recordings, selects the configured sessions, joins/prepares audio, and classifies speaker types. TextGrid export, manual speaker-class annotation, and evaluation are separate optional stages. It does not perform CDI analysis, prosodic model training, or an active ADS/IDS annotation workflow.
+This workflow has two parts:
 
-Package: `hindibabynet-pipeline`; import name: `hindibabynet_pipeline`. Source is now in this folder. Existing recordings, model weights, native configurations, environments, and results remain at their original ignored asset locations.
+1. **Audio preparation.** The recordings of the first recording day of each child are joined into one audio file (mono, 16 kHz).
+2. **Speaker classification.** The prepared audio is divided into speech segments of different speakers. There are two methods. Choose one of them, they are not mixed:
+   - **VTC** (Voice Type Classifier 2.0). It gives four classes: adult female (FEM), adult male (MAL), key child (KCHI) and other child (OCH). The statistical analyses and the prosody extraction of HindiBabyNet use the VTC results.
+   - **XGBoost**. Our own model, trained on eGeMAPS features. It gives the classes adult male, adult female, child and background.
 
-## Setup and configuration
+All commands of this workflow are run in **Ubuntu**. On a Windows computer, Ubuntu runs inside Windows (WSL). VTC does not run on Windows directly.
 
-Complete the [root installation](../README.md) first. Use WSL/Linux for audio: the current external VTC integration assumes Unix-oriented repository/interpreter paths; native Windows audio VTC is not established as supported.
+If you already have prepared audio and VTC results, you do not need this workflow. Write their folders in `config.yaml` (`prepared_audio` and `vtc`) and use the other workflows.
 
-Required software is uv, a compatible Python 3.10–3.12 environment, and FFmpeg on `PATH`. Root `setup` installs the enabled audio project's frozen Python dependencies, not the external VTC environment or weights.
+## 1. Install Ubuntu on Windows
 
-In the [local configuration](../config.local.yaml):
+Do this once.
 
-- Set `workflows.audio.project` to `audio`, and enable it only when ready.
-- The full [root template](../config.example.yaml) already includes `audio` and `audio_params`; edit paths in the single root local configuration, without duplicate workflow YAMLs. The [runtime example](configs/config.example.yaml) and [parameter file](configs/params.yaml) remain native schema references.
-- For an existing study, preserve both approved mappings and their original asset-based `project_root` values. A new root-template copy uses `project_root: "."`; review `audio.paths.raw_audio_root` and other input/model paths, using absolute paths where working-directory semantics would be ambiguous.
-- Review session selection, joining, mono conversion, sample rate, peak normalization, and backend settings without changing their approved values. The workflow supports earliest-valid-date session selection; selecting all sessions is a methodological change, not a path repair.
-- Assign fresh prepared/joined audio, classification, logs, artifacts, TextGrid, annotation, and evaluation write locations. Match downstream audio and RTTM paths to the same recording timebase.
+1. Open **Windows PowerShell** as administrator.
+2. Run:
 
-### VTC
-
-The [LAAC-LSCP Voice Type Classifier](https://github.com/LAAC-LSCP/VTC) is an external dependency, not included model weights. Obtain its approved checkout, submodules/LFS content, weights, lockfile, and separate working environment using its instructions. Configure `speaker_classification.vtc.repo_path` and the approved device/settings. Root setup does not clone, install, or download VTC. The launcher checks its inference script, lockfile, and local interpreter, but those checks are not a successful inference test.
-
-VTC produces `FEM` (adult female), `MAL` (adult male), `KCHI` (key child), and `OCH` (other child) segments. It supplies the VTC inputs used by the vocal and prosody workflows.
-
-### XGB
-
-XGB is a distinct standalone route: voice activity detection and diarization, 88-dimensional eGeMAPSv02 features, and XGBoost classification into adult male, adult female, child, and background. It also exports speaker streams, segment tables, summaries, and TextGrids. Obtain the approved trained weights separately and configure their path; do not assume weights ship in a fresh clone. Any gated diarization model access must also be arranged privately.
-
-For this optional stack, explicitly install the declared extra from the repository root:
-
-```text
-uv sync --project audio --frozen --extra xgb
+```
+wsl --install -d Ubuntu
 ```
 
-Select `xgb` in the configuration, rather than passing an unsupported backend override through the root launcher. **Never substitute XGB outputs for VTC outputs in dependent analyses.** TextGrid/annotation dependencies may also require the relevant optional packages; minimal audio setup is not a guarantee that every manual tool is installed.
+3. Restart the computer. Ubuntu opens and asks for a user name and a password. Choose them and remember the password.
 
-## Run from the repository root
+Later, open Ubuntu from the Windows Start menu (type "Ubuntu"). All commands below are typed in this Ubuntu window.
 
-After enabling audio, completing external setup, and choosing fresh outputs:
+## 2. Install the required programs in Ubuntu
 
-```text
-uv run python run.py setup
-uv run python run.py audio --dry-run
-uv run python run.py audio
+```bash
+sudo apt update
+sudo apt install ffmpeg git git-lfs
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-The default `pipeline` stage performs ingestion, preparation, and the configured classification backend. A limited run uses:
+Close Ubuntu and open it again. Check that the programs are found:
 
-```text
-uv run python run.py audio --stage pipeline -- --limit 1
+```bash
+uv --version
+ffmpeg -version
+git lfs version
 ```
 
-Use a separate fresh configuration/output allocation for a limited test, not the destination intended for a subsequent complete run.
+## 3. Open the project folder in Ubuntu
 
-### Individual and manual stages
+The Windows drives are under `/mnt` in Ubuntu. The folder `C:\Users\yourname\Projects\HindiBabyNet` is `/mnt/c/Users/yourname/Projects/HindiBabyNet`.
 
-These are alternatives, not an in-place sequence guaranteed to pass output guards:
-
-```text
-uv run python run.py audio --stage prepare-audio -- --wav /path/to/input.wav
-uv run python run.py audio --stage classify-vtc -- --wav /path/to/prepared.wav
-uv run python run.py audio --stage generate-textgrids
-uv run python run.py audio --stage annotate-segments
-uv run python run.py audio --stage evaluate-models
+```bash
+cd /mnt/c/Users/yourname/Projects/HindiBabyNet
 ```
 
-Replace placeholder paths before use. `prepare-audio` requires either `--wav` or `--recordings-parquet`; only `--wav` accepts `--recording-id`. Classification accepts either source form too, with optional `--participant-id` only alongside `--wav`. `classify-vtc` or `classify-xgb` must match the configured backend. Batch manifest stages are not automatically resumed by the launcher.
+Run all `hbn-audio` commands from this folder. They read the data folders from `config.yaml` (see the main [README](../README.md)). You can write Windows paths (`D:/...`) or Ubuntu paths (`/home/yourname/...`) in `config.yaml`. Both work.
 
-TextGrid generation and annotation use the configured backend and can accept `--input-file` or `--participant-id`; annotation is interactive. Evaluation reads the configured manual annotation root and optionally accepts `--participant-id`. It does **not** accept `--input-csv`. Shared bookkeeping roots can make separate stages refuse existing files: review all write roots first and prefer the full workflow for routine processing. Annotation/evaluation are never automatically included in root `all`.
+Recordings in the Ubuntu home folder are read much faster than recordings on a Windows drive. If you copy the raw recordings to Ubuntu, for example to `/home/yourname/hindinet_data/RawAudioData`, write this path as `raw_audio` in `config.yaml`.
 
-## Outputs and interpretation
+## 4. Prepare the audio
 
-Outputs go to configured locations, not automatically to this source folder:
+The raw recordings must have this structure. The date folder has 8 digits (year, month, day):
 
-- Prepared participant recordings and ingestion/preparation manifests.
-- VTC: per-recording processed/raw RTTM directories and CSV segment tables, plus run metadata. Automatic VTC classification does not itself export caregiver streams or TextGrids.
-- XGB: segment tables, class/dominant-speaker WAV streams, summary metadata, and TextGrids.
-- Optional TextGrids normalize VTC labels to `adult_female`, `adult_male`, `key_child`, and `other_child`.
-- Evaluation: accuracy/report, confusion matrix, classwise metrics, and evaluated annotations.
-
-Segment boundaries/durations are in seconds on the corresponding recording. Joining, trimming, or replacing audio after classification can invalidate that timebase. Keep speaker mappings, processing settings, and recording identity with results.
-
-The root launcher only reuses matching successful whole stages. Existing native caches, partial participant results, or logs are not automatically adopted. See [safe recovery](../docs/README.md#outputs-and-recovery).
-
-## Tests and privacy
-
-```text
-uv run --project audio --frozen --no-sync pytest
+```
+raw/audio/<participant>/<YYYYMMDD>/*.WAV
 ```
 
-Unit/synthetic checks do not verify external VTC installation, trained weights, native Windows support, or scientific equivalence on the research corpus. Keep recordings, classification outputs, annotations, logs, and weights private and ignored; review staged content before sharing. Respect the external model licenses and the local [audio license](LICENSE).
+The recorder also saves an `.ASR` file next to each `.WAV` file. The preparation does not use the `.ASR` files.
+
+First look at what is there. This command only reads and does not write anything:
+
+```bash
+uv run --project audio hbn-audio prepare --check
+```
+
+For each participant it shows the first recording day, the number of WAV files of this day, and if a prepared file already exists. It also compares the duration of the first-day recordings with the duration of the prepared file.
+
+Then prepare the audio:
+
+```bash
+uv run --project audio hbn-audio prepare
+```
+
+What it does for each participant:
+
+- It takes the earliest date folder. Only the WAV files of this day are used. Recordings of later days are never used.
+- If there is more than one WAV file, the files are joined in the order of their names.
+- The audio is converted to mono, 16 kHz, and the volume is normalised to a peak of -1 dBFS.
+- The original recordings are only read. They are not changed.
+
+Output for each participant, in `derived/prepared-audio/<participant>/`:
+
+- `<participant>.wav`: the prepared audio.
+- `<participant>_preparation.json`: the selected date, the names of the source files, and the settings.
+
+Important rules:
+
+- If the first day folder is empty or a WAV file of this day is damaged, the command reports an error for this participant. It does not take another day. Correct the folder and run the command again.
+- If a prepared file already exists, it is kept and not prepared again.
+- To prepare only one participant, add `--participant <participant>`. To try the first two participants, add `--limit 2`.
+
+## 5. Speaker classification with VTC
+
+### What VTC is
+
+VTC is a program of the LAAC-LSCP group: <https://github.com/LAAC-LSCP/VTC>. It is not part of this repository. It is installed once in its own folder and has its own Python environment. HindiBabyNet only calls it.
+
+### Install VTC
+
+We used VTC version 2.0.2. Install it in your Ubuntu home folder:
+
+```bash
+cd ~
+git lfs install
+git clone --recurse-submodules https://github.com/LAAC-LSCP/VTC.git
+cd VTC
+git checkout dcf5b4f03b68e1800a322f9075eabdb451d4e289
+git submodule update --init --recursive
+uv sync
+```
+
+`git checkout` selects the same version that we used. The model file (about 1 GB) is downloaded by `git lfs` into the folder `~/VTC/VTC-2.0/model`. You do not need to configure the model.
+
+Check the installation:
+
+```bash
+cd ~/VTC
+./check_sys_dependencies.sh
+ls -lh VTC-2.0/model
+```
+
+The first command must say that all system dependencies are installed. The second must show `best.ckpt` with a size of about 1 GB. If the file is very small, run `git lfs pull` inside `~/VTC/VTC-2.0`.
+
+If VTC is installed in another folder, write the folder in `config.yaml`:
+
+```yaml
+audio:
+  vtc_repo: ~/VTC
+  vtc_device: cpu      # use cuda if the computer has an NVIDIA GPU
+```
+
+### Run VTC
+
+```bash
+cd /mnt/c/Users/yourname/Projects/HindiBabyNet
+uv run --project audio hbn-audio classify-vtc
+```
+
+- Input: the prepared audio in `derived/prepared-audio/`.
+- Output for each participant, in `derived/vtc-classification/<participant>/`:
+  - `rttm.csv`: one row per speech segment (start time, duration, speaker class).
+  - `rttm/<participant>.rttm`: the same segments in RTTM format.
+  - `run_info.json`: the command, the VTC version and the run time.
+- Batch size is 32. It is set in `audio/params.yaml`.
+- VTC is slow on a CPU. The VTC documentation gives about 4 minutes for 1 hour of audio on a CPU. Start with one participant: `uv run --project audio hbn-audio classify-vtc --limit 1`.
+
+If the results of a participant are already available (`rttm.csv` and the folder `rttm`), VTC is not run again for this participant. Existing results are never changed.
+
+### How the results are used
+
+`audio-stats` counts the segments and their durations per speaker from `rttm.csv`. `prosody` uses the segments of `rttm.csv` to cut the speech of each speaker from the prepared audio.
+
+### If VTC stops with an error
+
+| Problem | What to do |
+| --- | --- |
+| `VTC runs only in Ubuntu` | You started the command in Windows PowerShell. Open Ubuntu and run it there. |
+| `uv` or `scripts/infer.py` is not found | Check section 2 and the folder in `vtc_repo`. |
+| Error about `torchcodec` or FFmpeg libraries | The `torchcodec` package of VTC could not load the FFmpeg libraries. On our computer (Ubuntu 20.04) we installed FFmpeg libraries in a separate micromamba environment named `ffmpeg-libs` and added its `lib` folder to `LD_LIBRARY_PATH` in the file `~/.bashrc`: `export LD_LIBRARY_PATH="$HOME/micromamba/envs/ffmpeg-libs/lib:$LD_LIBRARY_PATH"`. With another Ubuntu version this may not be needed. |
+| `incomplete results` for a participant | An earlier run stopped in the middle. Move this participant's folder out of `derived/vtc-classification/` and run again. |
+
+## 6. Speaker classification with XGBoost
+
+The trained model is in this repository: `audio/models/xgb_egemaps.pkl`. It is not trained again.
+
+The method has these steps: voice activity detection (WebRTC VAD), speaker diarization (pyannote), eGeMAPS features (openSMILE) for each speech segment, and classification of each segment with the XGBoost model.
+
+Before the first run:
+
+1. The diarization uses the model `pyannote/speaker-diarization-3.1` from Hugging Face. Make a free account on <https://huggingface.co>, accept the conditions on the page of this model, and create an access token.
+2. Give the token to the program in the Ubuntu window:
+
+```bash
+export HF_TOKEN=your_token
+```
+
+Run:
+
+```bash
+uv run --project audio --extra xgb hbn-audio classify-xgb
+```
+
+The first run installs the XGBoost packages. This is a large download. If the installation stops at the package `webrtcvad`, a C compiler is missing. Install it with `sudo apt install build-essential` and run the command again.
+
+Output for each participant, in `derived/xgb-classification/<participant>/`: the segments table (`<participant>_segments.parquet`), a Praat TextGrid, a summary (`<participant>_summary.json`), `run_info.json`, and audio files with the speech of the main female speaker, the main male speaker, the child and the background.
+
+The XGBoost results and the VTC results are saved in different folders. One method is never used in place of the other.
+
+## 7. Optional tools
+
+These tools are for checking the automatic classification. They are not needed for the main workflow. Use `--method vtc` or `--method xgb`.
+
+| Command | What it does | Output |
+| --- | --- | --- |
+| `uv run --project audio hbn-audio textgrid --method vtc` | makes Praat TextGrid files from the classification results | `derived/textgrids/` |
+| `uv run --project audio hbn-audio annotate --method vtc --participant <participant>` | plays sampled segments and asks you for the speaker label | `derived/manual-annotations/` |
+| `uv run --project audio hbn-audio evaluate --method vtc` | compares the automatic labels with your labels (accuracy, confusion matrix, precision, recall, F1) | `results/classification-evaluation/` |
+
+The protocols for manual annotation and evaluation are in the folder [references](../references).

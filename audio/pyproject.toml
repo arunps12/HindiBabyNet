@@ -1,66 +1,50 @@
 [project]
-name = "hindibabynet-pipeline"
-version = "0.1.0"
-description = "Technical audio-processing pipeline for the broader HindiBabyNet project"
-readme = "README.md"
+name = "hindibabynet-audio"
+version = "0.2.0"
+description = "Audio preparation and speaker classification (VTC or XGBoost) for the HindiBabyNet project"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "huggingface-hub<0.21",
-    "joblib>=1.5.3",
+    "hbn-paths",
     "numpy>=2.2.6",
     "pandas>=2.0,<2.3",
+    "praatio>=6.2.2",
     "pyarrow>=14,<24",
-    "pydantic>=2.5,<3",
-    "python-dotenv>=1.2.1",
     "pyyaml>=6,<7",
     "scipy>=1.15.3",
     "soundfile>=0.12,<1",
-    "tqdm>=4.64,<5",
 ]
 
 [project.optional-dependencies]
 xgb = [
+    "huggingface-hub<0.21",
+    "joblib>=1.5.3",
     "matplotlib>=3.7,<3.9",
     "opensmile>=2.6.0",
-    "praatio>=6.2.2",
     "pyannote-audio>=3.4.0",
+    "python-dotenv>=1.2.1",
     "torch==2.5.1",
     "torchaudio==2.5.1",
+    "tqdm>=4.64,<5",
     "webrtcvad>=2,<3",
     "xgboost>=3.1.3",
 ]
 
 [project.scripts]
-hindibabynet-pipeline = "hindibabynet_pipeline.cli.pipeline:main"
-hindibabynet-prepare-audio = "hindibabynet_pipeline.cli.prepare_audio:main"
-hindibabynet-classify-xgb = "hindibabynet_pipeline.cli.classify_xgb:main"
-hindibabynet-classify-vtc = "hindibabynet_pipeline.cli.classify_vtc:main"
-hindibabynet-generate-textgrids = "hindibabynet_pipeline.cli.generate_textgrids:main"
-hindibabynet-annotate-segments = "hindibabynet_pipeline.cli.annotate_segments:main"
-hindibabynet-evaluate-models = "hindibabynet_pipeline.cli.evaluate_models:main"
-hindibabynet-pipeline-check = "hindibabynet_pipeline.check_setup:main"
-
+hbn-audio = "hindibabynet_audio.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["hindibabynet_pipeline*"]
-exclude = ["hindibabynet", "hindibabynet.*"]
+include = ["hindibabynet_audio*"]
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
-dev = [
-    "ipykernel>=7.2.0",
-    "jupyter>=1.1.1",
-    "matplotlib>=3.8.4",
-    "pytest>=7,<9",
-    "ruff>=0.4,<1",
-]
+dev = ["pytest>=7,<9"]
 
 [tool.pytest.ini_options]
-pythonpath = [".", "src"]
+pythonpath = ["src"]
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
@@ -70,5 +54,6 @@ name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
 
 [tool.uv.sources]
+hbn-paths = { path = "../shared", editable = true }
 torch = { index = "pytorch-cu124" }
 torchaudio = { index = "pytorch-cu124" }
