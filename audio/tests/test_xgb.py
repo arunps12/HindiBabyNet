@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 import pytest
 import soundfile as sf
 
 # The whole file is skipped when the XGBoost extra is not installed.
+joblib = pytest.importorskip("joblib")
 pytest.importorskip("xgboost")
 pytest.importorskip("opensmile")
 pytest.importorskip("torch")
