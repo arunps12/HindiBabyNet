@@ -1,0 +1,627 @@
+---
+title: "HindiBabyNet Prosody Statistical Analysis Report"
+author: "Arun Prakash Singh"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+    code_folding: show
+    df_print: paged
+params:
+  run_workflow: true
+  nsim: 1000
+  model_robustness_mode: "strict"
+  family1_age_specification: "linear"
+  family2_count_age_specification: "linear"
+  family2_duration_age_specification: "linear"
+  confidence_level: 0.95
+  speaker_reference_level: "adult_female"
+  child_sex_reference_level: "female"
+  city_reference_level: "CNB"
+  primary_acoustic_measures: !r c("median_F0_Hz", "robust_pitch_range_Hz", "wav2vec_PC1", "wav2vec_PC2", "wav2vec_PC3", "hubert_PC1", "hubert_PC2", "hubert_PC3")
+  sensitivity_acoustic_measures: !r c("mean_F0_Hz", "mean_F0_ST", "median_F0_ST", "robust_pitch_range_ST")
+  show_code: true
+knit: (function(input, ...) { source(file.path(dirname(input), "..", "shared", "paths.R")); rmarkdown::render(input, output_dir = hbn_results(hbn_read_config(file.path(dirname(input), "..")), "prosody-stats"), envir = globalenv()) })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = params$show_code, warning = TRUE, message = FALSE, error = FALSE,
+  cache = FALSE, fig.align = "center", fig.width = 9, fig.height = 5.5, dpi = 120
+)
+options(width = 120, scipen = 999)
+
+# The report runs from the folder of this file.
+report_root <- dirname(normalizePath(knitr::current_input(dir = TRUE), winslash = "/", mustWork = TRUE))
+knitr::opts_knit$set(root.dir = report_root)
+collapse_param_values <- function(values) {
+  values <- trimws(as.character(unlist(values, use.names = FALSE)))
+  paste(values[nzchar(values)], collapse = ";")
+}
+report_overrides <- c(
+  HBN_PROSODY_NSIM = as.character(params$nsim),
+  HBN_PROSODY_CONFIDENCE_LEVEL = as.character(params$confidence_level),
+  HBN_PROSODY_MODEL_ROBUSTNESS_MODE = as.character(params$model_robustness_mode),
+  HBN_PROSODY_FAMILY1_AGE_SPEC = as.character(params$family1_age_specification),
+  HBN_PROSODY_FAMILY2_COUNT_AGE_SPEC = as.character(params$family2_count_age_specification),
+  HBN_PROSODY_FAMILY2_DURATION_AGE_SPEC = as.character(params$family2_duration_age_specification),
+  HBN_PROSODY_SPEAKER_REF = as.character(params$speaker_reference_level),
+  HBN_PROSODY_CHILD_SEX_REF = as.character(params$child_sex_reference_level),
+  HBN_PROSODY_CITY_REF = as.character(params$city_reference_level),
+  HBN_PROSODY_PRIMARY_MEASURES = collapse_param_values(params$primary_acoustic_measures),
+  HBN_PROSODY_SENSITIVITY_MEASURES = collapse_param_values(params$sensitivity_acoustic_measures)
+)
+old_report_environment <- Sys.getenv(names(report_overrides), unset = NA_character_)
+knitr::knit_hooks$set(document = local({
+  previous_hook <- knitr::knit_hooks$get("document")
+  function(x) {
+    Sys.unsetenv(names(old_report_environment)[is.na(old_report_environment)])
+    present <- !is.na(old_report_environment)
+    if (any(present)) do.call(Sys.setenv, as.list(old_report_environment[present]))
+    previous_hook(x)
+  }
+}))
+do.call(Sys.setenv, as.list(report_overrides))
+source(file.path(report_root, "R", "00_setup.R"), local = TRUE)
+for (helper in c("table_helpers.R", "data_helpers.R", "model_helpers.R",
+                 "diagnostics_helpers.R", "prediction_helpers.R", "plotting_helpers.R")) {
+  source(file.path(analysis_paths$functions_dir, helper), local = TRUE)
+}
+load_required_packages(attach = FALSE)
+if (!is.logical(params$run_workflow) || length(params$run_workflow) != 1L || is.na(params$run_workflow)) {
+  stop("run_workflow must be TRUE or FALSE.")
+}
+if (!length(analysis_options$primary_acoustic_measures)) stop("At least one primary acoustic measure is required.")
+if (isTRUE(params$run_workflow)) {
+  # A new run writes all results again.
+  ensure_analysis_directories()
+} else {
+  # Without a new run, the report is built from the saved results of the last run.
+  saved_manifests <- file.path(analysis_paths$outputs_tables, c("family1_manifest.csv", "family2_manifest.csv"))
+  if (!all(file.exists(saved_manifests))) {
+    stop(sprintf("No saved results were found in %s. Set run_workflow to true and knit again.",
+      analysis_paths$outputs_reports), call. = FALSE)
+  }
+}
+```
+
+# Purpose and execution order
+
+Open this file in RStudio and click **Knit**. Knitting runs the whole analysis
+in this order:
+
+1. data preparation,
+2. Family 1 models,
+3. Family 2 models,
+4. tables and figures.
+
+After that, this report is built. Knitting can take a long time.
+
+Family 1 models describe each acoustic measure by speaker and child age.
+Family 2 models relate the vocalisations of the key child (count and duration
+per hour) to each acoustic measure. The 8 primary measures give 8 Family 1
+models and 16 Family 2 models (one count model and one duration model for each
+measure).
+
+## Settings and safe reuse
+
+The settings are in the `params` block at the top of this file. Change them
+there before you knit.
+
+- `nsim`: number of simulations for the prediction intervals. The default is 1000.
+- `confidence_level`: the default is 0.95.
+- `model_robustness_mode`: `strict` or `auto`. With `auto`, a model that cannot
+  be fitted is tried again with another optimizer. The formula is never changed.
+- Age specification: `none`, `linear` or `quadratic`. It is set separately for
+  Family 1, Family 2 count and Family 2 duration models.
+- Reference levels for speaker, child sex and city.
+- The lists of primary and sensitivity measures.
+
+SES is used as a number: primary_school = 1, high_school = 2, Intermediate = 3,
+bachelor = 4, master = 5.
+
+The folders of the input data and the results folder are set in `config.yaml`
+in the project root. The report and all tables, figures and models are saved in
+`results/prosody-stats` inside the data folder.
+
+Every knit with `run_workflow: true` fits all models again and writes the
+results again. If you change the list of primary measures, empty the results
+folder first. Otherwise the files of the removed measures stay there and are
+mixed into the summary tables.
+
+With `run_workflow: false` the models are not fitted again. The report is then
+built from the saved results of the last run. Keep the other settings as they
+were in that run.
+
+The results contain participant-level research data. They must stay private.
+Do not share the report, the tables, the figures or the models without a review.
+
+# Scientific execution
+
+The next four parts run the analysis.
+
+## Prepare and validate the analysis dataset
+
+```{r prepare-prosody-data, eval=params$run_workflow, results='hide'}
+prosody_data_bundle <- prepare_prosody_long_dataset()
+
+write_csv_output(
+  prosody_data_bundle$prosody_long,
+  file.path(analysis_paths$data_derived, "prosody_long.csv")
+)
+write_csv_output(
+  prosody_data_bundle$merge_summary,
+  file.path(analysis_paths$outputs_tables, "merge_summary.csv")
+)
+write_csv_output(
+  prosody_data_bundle$missingness,
+  file.path(analysis_paths$outputs_tables, "missingness_summary.csv")
+)
+write_csv_output(
+  prosody_data_bundle$complete_cases,
+  file.path(analysis_paths$outputs_tables, "complete_case_counts.csv")
+)
+write_csv_output(
+  prosody_data_bundle$unmatched,
+  file.path(analysis_paths$outputs_tables, "unmatched_identifiers.csv")
+)
+write_csv_output(
+  prosody_data_bundle$variation_checks,
+  file.path(analysis_paths$outputs_tables, "variation_checks.csv")
+)
+write_text_output(
+  prosody_data_bundle$merge_notes,
+  file.path(analysis_paths$outputs_tables, "merge_summary.txt")
+)
+
+message(sprintf(
+  "Prepared prosody_long dataset with %d rows across %d participants.",
+  nrow(prosody_data_bundle$prosody_long),
+  dplyr::n_distinct(prosody_data_bundle$prosody_long$participant_id)
+))
+```
+
+## Fit Family 1 and export predictions, plots, diagnostics and contrasts
+
+```{r fit-family1-models, eval=params$run_workflow, results='hide'}
+prosody_long <- read_csv_required(file.path(analysis_paths$data_derived, "prosody_long.csv"), "prosody_long")
+prosody_long <- set_reference_levels(prosody_long)
+store_age_day_summary(prosody_long)
+
+family1_bundles <- list()
+family1_fixed_effects <- list()
+family1_fit_stats <- list()
+family1_diagnostics <- list()
+family1_vif_tables <- list()
+family1_emmeans <- list()
+family1_pairs <- list()
+
+for (outcome_name in analysis_options$primary_acoustic_measures) {
+  output_stub <- build_model_stub("family1", outcome_name)
+  formula <- build_family_1_formula(outcome_name)
+  bundle <- fit_prosody_model(
+    data = prosody_long,
+    formula = formula,
+    model_family = "family_1",
+    response_name = outcome_name,
+    acoustic_measure = outcome_name
+  )
+
+  prediction_grid <- build_age_speaker_grid(bundle, bundle$analysis_data)
+  prediction_data <- compute_monte_carlo_ci(bundle, prediction_grid)
+  prediction_csv <- file.path(analysis_paths$outputs_predictions, sprintf("%s_predictions.csv", output_stub))
+  write_csv_output(prediction_data, prediction_csv)
+
+  prediction_plot <- plot_age_speaker_predictions(bundle, prediction_data, bundle$analysis_data, y_label = outcome_name)
+  prediction_plot_path <- file.path(analysis_paths$outputs_plots, sprintf("%s_predictions.png", output_stub))
+  save_plot(prediction_plot, prediction_plot_path)
+
+  forest_plot <- plot_fixed_effects_forest(bundle)
+  forest_plot_path <- file.path(analysis_paths$outputs_plots, sprintf("%s_forest.png", output_stub))
+  save_plot(forest_plot, forest_plot_path, width = 8, height = 4.8)
+
+  diagnostics <- run_model_diagnostics(bundle, output_stub = output_stub)
+  vif_summary <- vif_table(bundle)
+  emmeans_summary <- estimate_speaker_emmeans(bundle)
+  pairs_summary <- estimate_speaker_pairs(bundle)
+
+  save_model_bundle(bundle, file.path(analysis_paths$outputs_models, sprintf("%s.rds", output_stub)))
+  write_csv_output(extract_fixed_effects(bundle), file.path(analysis_paths$outputs_tables, sprintf("%s_fixed_effects.csv", output_stub)))
+  write_csv_output(model_fit_statistics(bundle), file.path(analysis_paths$outputs_tables, sprintf("%s_fit_stats.csv", output_stub)))
+  write_csv_output(vif_summary, file.path(analysis_paths$outputs_tables, sprintf("%s_vif.csv", output_stub)))
+  write_csv_output(emmeans_summary, file.path(analysis_paths$outputs_tables, sprintf("%s_emmeans.csv", output_stub)))
+  write_csv_output(pairs_summary, file.path(analysis_paths$outputs_tables, sprintf("%s_speaker_pairs.csv", output_stub)))
+
+  family1_bundles[[outcome_name]] <- bundle
+  family1_fixed_effects[[outcome_name]] <- extract_fixed_effects(bundle)
+  family1_fit_stats[[outcome_name]] <- model_fit_statistics(bundle)
+  family1_diagnostics[[outcome_name]] <- diagnostics$summary
+  family1_vif_tables[[outcome_name]] <- vif_summary
+  family1_emmeans[[outcome_name]] <- emmeans_summary
+  family1_pairs[[outcome_name]] <- pairs_summary
+}
+
+family1_manifest <- bind_rows_safe(lapply(names(family1_bundles), function(outcome_name) {
+  data.frame(
+    outcome = outcome_name,
+    model_path = file.path(analysis_paths$outputs_models, sprintf("%s.rds", build_model_stub("family1", outcome_name))),
+    stringsAsFactors = FALSE
+  )
+}))
+write_csv_output(family1_manifest, file.path(analysis_paths$outputs_tables, "family1_manifest.csv"))
+```
+
+## Fit Family 2 count and duration models and export their results
+
+```{r fit-family2-models, eval=params$run_workflow, results='hide'}
+prosody_long <- read_csv_required(file.path(analysis_paths$data_derived, "prosody_long.csv"), "prosody_long")
+prosody_long <- set_reference_levels(prosody_long)
+store_age_day_summary(prosody_long)
+
+family2_count_bundles <- list()
+family2_duration_bundles <- list()
+family2_fixed_effects <- list()
+family2_fit_stats <- list()
+family2_diagnostics <- list()
+family2_vif_tables <- list()
+
+for (acoustic_measure in analysis_options$primary_acoustic_measures) {
+  standardized <- standardize_predictor(prosody_long, acoustic_measure)
+  prosody_long_with_z <- standardized$data
+  predictor_name <- standardized$standardized_name
+
+  for (model_spec in list(
+    list(model_family = "family_2_count", response_name = "key_child_count_per_hour", adjustment_name = "input_count_per_hour"),
+    list(model_family = "family_2_duration", response_name = "key_child_duration_per_hour", adjustment_name = "input_duration_per_hour")
+  )) {
+    output_stub <- build_model_stub(model_spec$model_family, model_spec$response_name, acoustic_measure)
+    formula <- build_family_2_formula(
+      outcome_name = model_spec$response_name,
+      predictor_name = predictor_name,
+      adjustment_name = model_spec$adjustment_name,
+      model_family = model_spec$model_family
+    )
+
+    bundle <- fit_prosody_model(
+      data = prosody_long_with_z,
+      formula = formula,
+      model_family = model_spec$model_family,
+      response_name = model_spec$response_name,
+      acoustic_measure = acoustic_measure,
+      standardized_predictor = predictor_name
+    )
+
+    prediction_grid <- build_predictor_speaker_grid(bundle, bundle$analysis_data, predictor_name)
+    prediction_data <- compute_monte_carlo_ci(bundle, prediction_grid)
+    names(prediction_data)[names(prediction_data) == predictor_name] <- predictor_name
+    prediction_csv <- file.path(analysis_paths$outputs_predictions, sprintf("%s_predictions.csv", output_stub))
+    write_csv_output(prediction_data, prediction_csv)
+
+    prediction_plot <- plot_predictor_speaker_predictions(bundle, prediction_data, bundle$analysis_data, predictor_name, y_label = model_spec$response_name)
+    prediction_plot_path <- file.path(analysis_paths$outputs_plots, sprintf("%s_predictions.png", output_stub))
+    save_plot(prediction_plot, prediction_plot_path, width = 10, height = 4.8)
+
+    forest_plot <- plot_fixed_effects_forest(bundle)
+    forest_plot_path <- file.path(analysis_paths$outputs_plots, sprintf("%s_forest.png", output_stub))
+    save_plot(forest_plot, forest_plot_path, width = 8, height = 4.8)
+
+    diagnostics <- run_model_diagnostics(bundle, output_stub = output_stub)
+    vif_summary <- vif_table(bundle)
+
+    save_model_bundle(bundle, file.path(analysis_paths$outputs_models, sprintf("%s.rds", output_stub)))
+    write_csv_output(extract_fixed_effects(bundle), file.path(analysis_paths$outputs_tables, sprintf("%s_fixed_effects.csv", output_stub)))
+    write_csv_output(model_fit_statistics(bundle), file.path(analysis_paths$outputs_tables, sprintf("%s_fit_stats.csv", output_stub)))
+    write_csv_output(vif_summary, file.path(analysis_paths$outputs_tables, sprintf("%s_vif.csv", output_stub)))
+
+    if (identical(model_spec$model_family, "family_2_count")) {
+      family2_count_bundles[[acoustic_measure]] <- bundle
+    } else {
+      family2_duration_bundles[[acoustic_measure]] <- bundle
+    }
+    family2_fixed_effects[[output_stub]] <- extract_fixed_effects(bundle)
+    family2_fit_stats[[output_stub]] <- model_fit_statistics(bundle)
+    family2_diagnostics[[output_stub]] <- diagnostics$summary
+    family2_vif_tables[[output_stub]] <- vif_summary
+  }
+}
+
+family2_manifest <- bind_rows_safe(c(
+  lapply(names(family2_count_bundles), function(acoustic_measure) {
+    data.frame(
+      model_family = "family_2_count",
+      acoustic_measure = acoustic_measure,
+      model_path = file.path(analysis_paths$outputs_models, sprintf("%s.rds", build_model_stub("family_2_count", "key_child_count_per_hour", acoustic_measure))),
+      stringsAsFactors = FALSE
+    )
+  }),
+  lapply(names(family2_duration_bundles), function(acoustic_measure) {
+    data.frame(
+      model_family = "family_2_duration",
+      acoustic_measure = acoustic_measure,
+      model_path = file.path(analysis_paths$outputs_models, sprintf("%s.rds", build_model_stub("family_2_duration", "key_child_duration_per_hour", acoustic_measure))),
+      stringsAsFactors = FALSE
+    )
+  })
+))
+write_csv_output(family2_manifest, file.path(analysis_paths$outputs_tables, "family2_manifest.csv"))
+```
+
+## Aggregate scientific tables and descriptives
+
+```{r create-tables-plots, eval=params$run_workflow, results='hide'}
+prosody_long <- read_csv_required(file.path(analysis_paths$data_derived, "prosody_long.csv"), "prosody_long")
+
+participant_descriptives <- prosody_long |>
+  dplyr::distinct(.data$participant_id, .data$age_days, .data$age_months, .data$age_z, .data$SES, .data$child_sex, .data$city) |>
+  dplyr::summarise(
+    n_participants = dplyr::n(),
+    mean_age_days = mean(.data$age_days, na.rm = TRUE),
+    sd_age_days = stats::sd(.data$age_days, na.rm = TRUE),
+    mean_age_months = mean(.data$age_months, na.rm = TRUE),
+    sd_age_months = stats::sd(.data$age_months, na.rm = TRUE)
+  )
+
+speaker_descriptives <- prosody_long |>
+  dplyr::group_by(.data$speaker) |>
+  dplyr::summarise(
+    n_rows = dplyr::n(),
+    dplyr::across(dplyr::all_of(analysis_options$primary_acoustic_measures), list(mean = ~mean(.x, na.rm = TRUE), sd = ~stats::sd(.x, na.rm = TRUE))),
+    .groups = "drop"
+  )
+
+acoustic_correlations <- prosody_long |>
+  dplyr::select(dplyr::all_of(analysis_options$primary_acoustic_measures)) |>
+  stats::cor(use = "pairwise.complete.obs") |>
+  as.data.frame()
+
+pca_summary <- prosody_long |>
+  dplyr::summarise(
+    dplyr::across(dplyr::matches("^(wav2vec|hubert)_PC[123]$"), list(mean = ~mean(.x, na.rm = TRUE), sd = ~stats::sd(.x, na.rm = TRUE)))
+  )
+
+family1_fixed_files <- list.files(analysis_paths$outputs_tables, pattern = "^family1__.*_fixed_effects\\.csv$", full.names = TRUE)
+family2_count_files <- list.files(analysis_paths$outputs_tables, pattern = "^family_2_count__.*_fixed_effects\\.csv$", full.names = TRUE)
+family2_duration_files <- list.files(analysis_paths$outputs_tables, pattern = "^family_2_duration__.*_fixed_effects\\.csv$", full.names = TRUE)
+fit_stat_files <- list.files(analysis_paths$outputs_tables, pattern = "_fit_stats\\.csv$", full.names = TRUE)
+vif_files <- list.files(analysis_paths$outputs_tables, pattern = "_vif\\.csv$", full.names = TRUE)
+diagnostic_files <- list.files(analysis_paths$outputs_diagnostics, pattern = "_diagnostics_summary\\.csv$", full.names = TRUE)
+
+read_csv_list <- function(paths) {
+  bind_rows_safe(lapply(paths, function(path) read.csv(path, stringsAsFactors = FALSE)))
+}
+
+write_csv_output(participant_descriptives, file.path(analysis_paths$outputs_tables, "participant_descriptives.csv"))
+write_csv_output(speaker_descriptives, file.path(analysis_paths$outputs_tables, "speaker_descriptives.csv"))
+write_csv_output(acoustic_correlations, file.path(analysis_paths$outputs_tables, "acoustic_correlations.csv"))
+write_csv_output(pca_summary, file.path(analysis_paths$outputs_tables, "pca_summary.csv"))
+write_csv_output(read_csv_list(family1_fixed_files), file.path(analysis_paths$outputs_tables, "family1_fixed_effects_summary.csv"))
+write_csv_output(read_csv_list(family2_count_files), file.path(analysis_paths$outputs_tables, "family2_count_fixed_effects_summary.csv"))
+write_csv_output(read_csv_list(family2_duration_files), file.path(analysis_paths$outputs_tables, "family2_duration_fixed_effects_summary.csv"))
+write_csv_output(read_csv_list(fit_stat_files), file.path(analysis_paths$outputs_tables, "model_fit_statistics_summary.csv"))
+write_csv_output(read_csv_list(vif_files), file.path(analysis_paths$outputs_tables, "vif_summary.csv"))
+write_csv_output(read_csv_list(diagnostic_files), file.path(analysis_paths$outputs_tables, "diagnostics_summary.csv"))
+```
+
+```{r report-helpers, include=FALSE}
+read_output_csv <- function(name) {
+  path <- file.path(analysis_paths$outputs_tables, name)
+  if (!file.exists(path)) stop(sprintf("Missing required analysis table: %s", name))
+  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+}
+render_table <- function(data, caption = NULL, digits = 3) {
+  if (is.null(data) || nrow(as.data.frame(data)) == 0) return(invisible(NULL))
+  print(knitr::kable(as.data.frame(data), caption = caption, digits = digits))
+  invisible(data)
+}
+show_table <- function(x, digits = 3, caption = NULL) render_table(x, caption, digits)
+render_image <- function(path, width = "88%") {
+  if (!file.exists(path)) stop("Missing required analysis image.")
+  # Emit actual knitr image output: handles spaces and self-contained HTML.
+  cat(knitr::asis_output(sprintf('<img src="%s" style="width:%s" />\n\n',
+      gsub("&", "&amp;", normalizePath(path, winslash = "/"), fixed = TRUE), width)))
+}
+list_plot_paths <- function(pattern, directory = analysis_paths$outputs_plots) {
+  sort(list.files(directory, pattern = pattern, full.names = TRUE))
+}
+bundle_output_stub <- function(bundle) {
+  if (identical(bundle$model_family, "family_1")) return(build_model_stub("family1", bundle$response_name))
+  build_model_stub(bundle$model_family, bundle$response_name, bundle$acoustic_measure)
+}
+load_manifest_bundles <- function(manifest) {
+  if (!nrow(manifest) || !"model_path" %in% names(manifest) || !all(file.exists(manifest$model_path))) {
+    stop("Incomplete model manifest; rerun using fresh outputs.")
+  }
+  bundles <- lapply(manifest$model_path, load_model_bundle)
+  names(bundles) <- manifest$model_path
+  bundles
+}
+render_bundle_section <- function(bundle) {
+  output_stub <- bundle_output_stub(bundle)
+  cat(sprintf("## %s\n\n### Model formula\n\n```r\n", output_stub))
+  cat(paste(deparse(bundle$fitted_formula), collapse = " "))
+  cat("\n```\n\n")
+  show_table(model_fit_statistics(bundle), caption = "Model fit statistics")
+  show_table(extract_fixed_effects(bundle), caption = "Fixed effects")
+  random_effects <- tryCatch(tidy_model_random_effects(bundle$model, conf.int = TRUE),
+    error = function(e) data.frame(note = conditionMessage(e)))
+  show_table(random_effects, caption = "Random effects")
+  cat("\n### Full model summary\n\n```text\n")
+  print(summary(bundle$model))
+  cat("\n```\n\n### Saved figures\n\n")
+  render_image(file.path(analysis_paths$outputs_plots, sprintf("%s_forest.png", output_stub)))
+  render_image(file.path(analysis_paths$outputs_plots, sprintf("%s_predictions.png", output_stub)))
+  for (suffix in c("residual_vs_fitted", "qq", "observed_vs_fitted")) {
+    render_image(file.path(analysis_paths$outputs_diagnostics, sprintf("%s_%s.png", output_stub, suffix)), "80%")
+  }
+}
+family1_fixed <- read_output_csv("family1_fixed_effects_summary.csv")
+family2_count_fixed <- read_output_csv("family2_count_fixed_effects_summary.csv")
+family2_duration_fixed <- read_output_csv("family2_duration_fixed_effects_summary.csv")
+fit_stats <- read_output_csv("model_fit_statistics_summary.csv")
+diagnostics_summary <- read_output_csv("diagnostics_summary.csv")
+vif_summary <- read_output_csv("vif_summary.csv")
+participant_descriptives <- read_output_csv("participant_descriptives.csv")
+speaker_descriptives <- read_output_csv("speaker_descriptives.csv")
+missingness_summary <- read_output_csv("missingness_summary.csv")
+complete_case_counts <- read_output_csv("complete_case_counts.csv")
+merge_summary <- read_output_csv("merge_summary.csv")
+acoustic_correlations <- read_output_csv("acoustic_correlations.csv")
+pca_summary <- read_output_csv("pca_summary.csv")
+variation_checks <- read_output_csv("variation_checks.csv")
+family1_manifest <- read_output_csv("family1_manifest.csv")
+family2_manifest <- read_output_csv("family2_manifest.csv")
+if (nrow(family1_manifest) != length(analysis_options$primary_acoustic_measures) ||
+    nrow(family2_manifest) != 2L * length(analysis_options$primary_acoustic_measures)) stop("Unexpected model count.")
+model_bundles <- c(load_manifest_bundles(family1_manifest), load_manifest_bundles(family2_manifest))
+selection_table <- selection_table_from_bundles(model_bundles)
+```
+
+# Project overview and data sources
+
+This analysis builds one table with one row for each participant and speaker.
+It uses these input files:
+
+- `participant_speaker_acoustic_features.csv`: the acoustic features,
+- `final_master.csv`, `input_long.csv` and `input_output_long.csv`: the
+  participant data and the vocal input and output data,
+- `participant_lookup.csv`: the participant identifiers,
+- `metadata_cleaned.xlsx`: the cleaned metadata. This file is optional. The
+  merge notes say if it was found.
+
+The folders of these files are set in `config.yaml`. Acoustic features are not
+extracted here.
+
+# Merge and inclusion flow
+
+```{r merge-flow}
+render_table(merge_summary, "Merge summary")
+render_table(variation_checks, "Within-participant outcome consistency and expected speaker-row variation")
+```
+
+# Participant descriptives
+
+```{r participant-descriptives}
+render_table(participant_descriptives, "Participant descriptives")
+render_table(speaker_descriptives, "Speaker-level acoustic descriptives")
+```
+
+# PCA summaries and correlations
+
+```{r pca-corr}
+render_table(pca_summary, "PCA score summary")
+render_table(acoustic_correlations, "Primary acoustic-variable correlations")
+```
+
+# Missingness and complete cases
+
+```{r missingness}
+render_table(missingness_summary, "Variable-level missingness")
+render_table(complete_case_counts, "Complete-case counts for planned models")
+```
+
+# Active modelling configuration
+
+```{r active-model-config}
+active_model_config <- data.frame(
+  setting = c("run_workflow", "nsim", "model_robustness_mode", "family1 age specification",
+    "family2 count age specification", "family2 duration age specification", "confidence_level",
+    "speaker reference", "child sex reference", "city reference"),
+  value = c(params$run_workflow, params$nsim, analysis_options$model_robustness_mode,
+    get_family_age_specification("family_1"), get_family_age_specification("family_2_count"),
+    get_family_age_specification("family_2_duration"), analysis_options$confidence_level,
+    analysis_config$reference_levels$speaker, analysis_config$reference_levels$child_sex,
+    analysis_config$reference_levels$city), stringsAsFactors = FALSE
+)
+show_table(active_model_config, caption = "Active modelling configuration")
+show_table(selection_table, caption = "Saved model bundle manifest")
+```
+
+# Model Family 1 results
+
+Default formula (the outcome remains in its original acoustic units):
+
+`acoustic_measure ~ speaker * age_z + SES_num + child_sex + city + (1 | participant_id)`
+
+```{r family1-tables}
+render_table(family1_fixed, "Model Family 1 fixed effects")
+```
+
+```{r family1-plots, results='asis'}
+for (path in list_plot_paths("^family1__.*_(forest|predictions)\\.png$")) render_image(path)
+```
+
+```{r family1-model-summaries, results='asis'}
+family1_bundles <- Filter(function(bundle) identical(bundle$model_family, "family_1"), model_bundles)
+for (bundle in family1_bundles) render_bundle_section(bundle)
+```
+
+# Model Family 2 count results
+
+Default formula (acoustic predictor standardized, vocal input main effect only):
+
+`key_child_count_per_hour ~ acoustic_measure_z * speaker + input_count_per_hour + age_z + SES_num + child_sex + city + (1 | participant_id)`
+
+```{r family2-count-tables}
+render_table(family2_count_fixed, "Model Family 2 count fixed effects")
+```
+
+```{r family2-count-plots, results='asis'}
+for (path in list_plot_paths("^family_2_count__.*_(forest|predictions)\\.png$")) render_image(path)
+```
+
+```{r family2-count-model-summaries, results='asis'}
+family2_count_bundles <- Filter(function(bundle) identical(bundle$model_family, "family_2_count"), model_bundles)
+for (bundle in family2_count_bundles) render_bundle_section(bundle)
+```
+
+# Model Family 2 duration results
+
+Default formula:
+
+`key_child_duration_per_hour ~ acoustic_measure_z * speaker + input_duration_per_hour + age_z + SES_num + child_sex + city + (1 | participant_id)`
+
+```{r family2-duration-tables}
+render_table(family2_duration_fixed, "Model Family 2 duration fixed effects")
+```
+
+```{r family2-duration-plots, results='asis'}
+for (path in list_plot_paths("^family_2_duration__.*_(forest|predictions)\\.png$")) render_image(path)
+```
+
+```{r family2-duration-model-summaries, results='asis'}
+family2_duration_bundles <- Filter(function(bundle) identical(bundle$model_family, "family_2_duration"), model_bundles)
+for (bundle in family2_duration_bundles) render_bundle_section(bundle)
+```
+
+# Diagnostics and model fit
+
+```{r diagnostics}
+render_table(fit_stats, "AIC, BIC, log-likelihood, and sample size")
+render_table(diagnostics_summary, "Convergence, singularity, and residual summaries")
+render_table(vif_summary, "Variance inflation factor summary")
+```
+
+```{r diagnostics-plots, results='asis'}
+for (path in sort(list.files(analysis_paths$outputs_diagnostics, pattern = "\\.png$", full.names = TRUE))) {
+  render_image(path, width = "80%")
+}
+```
+
+# Sensitivity analyses
+
+```{r sensitivity}
+render_table(data.frame(sensitivity_measure = analysis_options$sensitivity_acoustic_measures,
+  stringsAsFactors = FALSE), "Configured sensitivity measures")
+```
+
+Only the primary measures are modelled. The sensitivity measures are listed
+here, but no models are fitted for them.
+
+# Session information
+
+```{r session-info}
+sessionInfo()
+```

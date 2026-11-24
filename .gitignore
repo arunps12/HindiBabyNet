@@ -1,7 +1,22 @@
-# Research material is local, including pseudonymised and aggregated results.
-# Review content before staging: a filename alone cannot establish confidentiality.
-Data/
+# Only the source folders listed here are part of the repository.
+# Everything else at the project root stays on this computer: research data,
+# results, the local config.yaml and old project folders, whatever their names.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/config.example.yaml
+!/shared/
+!/audio/
+!/audio-stats/
+!/prosody/
+!/prosody-stats/
+!/cdi/
+!/references/
+
+# Inside the source folders, data and generated files also stay local.
 **/data/
+**/output/
 **/outputs/
 **/results/
 **/figures/
@@ -11,22 +26,13 @@ Data/
 **/artifacts/
 **/local_runs/
 **/external_models/
-**/models/
-.local/
-# Original asset directories are intentionally retained locally after source moves.
-HindiBabyNet-Pipeline/
-HindiBabyNet-CDIAnalysis/
-HindiBabyNet-ProsodyModel/
-HindiBabyNet-VocalInputStats/
-HindiBabyNet-ProsodyStats/
+**/models/*
+config.yaml
+**/config.yaml
 config.local.yaml
-**/config.local.yaml
-**/config/config.yaml
-**/configs/config.yaml
-!**/config.example.yaml
 
-# Data, annotations, model parameters and rendered results wherever saved.
 *.[wW][aA][vV]
+*.[aA][sS][rR]
 *.[fF][lL][aA][cC]
 *.[mM][pP]3
 *.[mM]4[aA]
@@ -72,14 +78,14 @@ config.local.yaml
 *.zip
 *.tar
 *.gz
-# Executed notebooks can contain data in outputs, source and metadata.
-# Keep local originals; publish a separately reviewed, output-free copy only.
 *.ipynb
 
-# Secrets, machine state, environment and generated build material.
+# The trained XGBoost speaker model is the only model file in the repository.
+!/audio/models/xgb_egemaps.pkl
+
+# Secrets, environments, caches and editor files.
 .env
 .env.*
-!.env.example
 *.pem
 *.key
 *credentials*.json
@@ -102,9 +108,8 @@ htmlcov/
 .RData
 .Ruserdata
 .Rproj.user/
-renv/library/
-renv/staging/
-.r-library/
+*_cache/
+*_files/
 .vscode/
 .DS_Store
 Thumbs.db

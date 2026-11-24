@@ -1,0 +1,36 @@
+[project]
+name = "hindibabynet-audio-stats"
+version = "0.2.0"
+description = "Prepares the statistical dataset for the HindiBabyNet audio statistics"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "hbn-paths",
+    "numpy>=1.24,<2",
+    "openpyxl>=3.1,<4",
+    "pandas>=2.0,<3",
+    "pyyaml>=6,<7",
+    "soundfile>=0.12,<1",
+]
+
+[project.scripts]
+hbn-audio-stats = "hindibabynet_audio_stats.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["hindibabynet_audio_stats*"]
+
+[dependency-groups]
+dev = ["pytest>=7,<9"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.uv]
+index-url = "https://pypi.org/simple"
+
+[tool.uv.sources]
+hbn-paths = { path = "../shared", editable = true }

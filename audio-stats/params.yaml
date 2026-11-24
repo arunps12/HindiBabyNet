@@ -1,0 +1,26 @@
+# Settings of the dataset preparation (command: hbn-audio-stats).
+# The data locations are in config.yaml in the project root.
+# Do not change these values for an existing study.
+
+metadata_file: metadata_cleaned.xlsx
+participant_lookup_file: participant_lookup.csv
+metadata_id_column: par_id
+recording_duration_source: raw_audio_sessions
+session_selection: earliest
+session_date_format: "%Y%m%d"
+audio_layout:
+  type: participant_folder
+  participant_folder_name: "{par_id}"
+  recursive: true
+  audio_extensions: [".wav", ".WAV", ".flac", ".FLAC"]
+  expected_audio_files: auto
+  prefer_largest_audio_file: true
+vtc_layout:
+  type: participant_folder
+  participant_folder_name: "{par_id}"
+  rttm_csv_name: rttm.csv
+participant_id_digits: 3
+age_month_denominator: 30.44
+ses_source: mother_education
+minimum_recording_hours_warning: 1.0
+manual_mapping_file:

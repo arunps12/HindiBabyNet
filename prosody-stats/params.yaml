@@ -1,0 +1,95 @@
+# Settings of the prosody statistical analysis.
+# The folders of the input data and of the results are not set here.
+# They are set in config.yaml in the project root.
+
+# Names of the input files.
+files:
+  acoustic_features: participant_speaker_acoustic_features.csv
+  final_master: final_master.csv
+  input_long: input_long.csv
+  input_output_long: input_output_long.csv
+  participant_lookup: participant_lookup.csv
+  metadata_cleaned: metadata_cleaned.xlsx
+
+variables:
+  participant_id: participant_id
+  source_participant_id: source_participant_id
+  speaker: speaker
+  age_days: age_days
+  age_months: age_months
+  age_z: age_z
+  age_z2: age_z2
+  ses: SES
+  ses_num: SES_num
+  child_sex: child_sex
+  city: Location
+  input_count_per_hour: input_count_hour
+  input_duration_per_hour: input_duration_hour
+  key_child_count_per_hour: key_child_count_hour
+  key_child_duration_per_hour: key_child_duration_hour
+
+speaker_mapping:
+  FEM: adult_female
+  MAL: adult_male
+  OCH: other_child
+  adult_female: adult_female
+  adult_male: adult_male
+  other_child: other_child
+
+reference_levels:
+  speaker: adult_female
+  child_sex: female
+  city: CNB
+
+ses_levels:
+  - primary_school
+  - high_school
+  - Intermediate
+  - bachelor
+  - master
+
+analysis:
+  primary_acoustic_measures:
+    - median_F0_Hz
+    - robust_pitch_range_Hz
+    - wav2vec_PC1
+    - wav2vec_PC2
+    - wav2vec_PC3
+    - hubert_PC1
+    - hubert_PC2
+    - hubert_PC3
+  sensitivity_acoustic_measures:
+    - mean_F0_Hz
+    - mean_F0_ST
+    - median_F0_ST
+    - robust_pitch_range_ST
+  family_1_age_specification: linear
+  family_2_age_specification: linear
+  confidence_level: 0.95
+  prediction_grid_size: 60
+  monte_carlo_draws: 1000
+  random_seed: 123
+  overwrite_outputs: false
+
+validation:
+  min_age_days: 0
+  max_age_days: 3650
+  expected_speakers:
+    - adult_female
+    - adult_male
+    - other_child
+  acoustic_numeric_columns:
+    - mean_F0_Hz
+    - median_F0_Hz
+    - sd_F0_Hz
+    - robust_pitch_range_Hz
+    - mean_F0_ST
+    - median_F0_ST
+    - sd_F0_ST
+    - robust_pitch_range_ST
+    - wav2vec_PC1
+    - wav2vec_PC2
+    - wav2vec_PC3
+    - hubert_PC1
+    - hubert_PC2
+    - hubert_PC3

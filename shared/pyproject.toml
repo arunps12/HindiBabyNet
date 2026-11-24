@@ -1,0 +1,13 @@
+[project]
+name = "hbn-paths"
+version = "0.1.0"
+description = "Reads the HindiBabyNet config.yaml and gives the data folders to all workflows"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6,<7"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["hbn_paths"]
