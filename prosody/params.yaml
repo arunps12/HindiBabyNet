@@ -1,13 +1,12 @@
+# Settings of the prosody feature extraction (command: hbn-prosody).
+# The data folders are set in config.yaml in the project root.
+# Do not change these values for an existing study.
+# Semitone values are calculated as 12 * log2(F0 / reference), with the
+# reference 100 Hz (pitch.semitone_reference_hz).
+
 project:
   name: "HindiBabyNet-ProsodyModel"
   random_seed: 42
-
-paths:
-  rttm_root: "../Data/Classification_outputs/VTC"
-  audio_root: "../Data/Audio_data_processing"
-  participant_lookup: "../Data/Audio_metadata/participant_lookup.csv"
-  output_dir: "outputs"
-  cache_dir: "cache"
 
 rttm:
   file_pattern: "**/rttm.csv"
@@ -20,6 +19,7 @@ mapping:
   strict: true
   source_id_column: "original_par_id"
   participant_id_column: "participant_id"
+  lookup_file: "participant_lookup.csv"
 
 speakers:
   include:
@@ -50,7 +50,7 @@ pitch:
   lower_percentile: 5.0
   upper_percentile: 95.0
   minimum_voiced_frames: 3
-  semitone_reference_hz: 1.0
+  semitone_reference_hz: 100.0
   adaptive:
     enabled: true
     level: "segment"

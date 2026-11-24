@@ -5,10 +5,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 import soundfile as sf
-import yaml
 
-from hindibabynet_prosody.config import load_config
 from hindibabynet_prosody.features.ssl import SSLExtractionResult
 from hindibabynet_prosody.pipeline import extract as extract_pipeline
 from hindibabynet_prosody.pipeline.extract import run_extraction
@@ -85,16 +84,10 @@ class BatchOnlySSLExtractor:
         return results
 
 
-def _write_test_config(tmp_path: Path) -> Path:
-    config_payload = {
+def _test_params() -> dict:
+    """Settings of the tests. The folders come from the temporary config.yaml."""
+    return {
         "project": {"name": "test-prosody", "random_seed": 42},
-        "paths": {
-            "rttm_root": str(tmp_path / "rttm"),
-            "audio_root": str(tmp_path / "audio"),
-            "participant_lookup": str(tmp_path / "participant_lookup.csv"),
-            "output_dir": str(tmp_path / "outputs"),
-            "cache_dir": str(tmp_path / "cache"),
-        },
         "rttm": {
             "file_pattern": "**/rttm.csv",
             "participant_column": "uid",
@@ -153,9 +146,6 @@ def _write_test_config(tmp_path: Path) -> Path:
         "runtime": {"device": "cpu", "batch_size": 1, "num_workers": 0, "strict": False, "log_level": "INFO"},
         "output": {"final_filename": "participant_speaker_acoustic_features.csv", "save_pca_artifacts": True, "save_qc_reports": True},
     }
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(yaml.safe_dump(config_payload, sort_keys=False), encoding="utf-8")
-    return config_path
 
 
 def _make_sine(frequency_hz: float, seconds: float = 0.6, sample_rate: int = 16000) -> np.ndarray:
@@ -163,13 +153,20 @@ def _make_sine(frequency_hz: float, seconds: float = 0.6, sample_rate: int = 160
     return (0.2 * np.sin(2.0 * np.pi * frequency_hz * timeline)).astype(np.float32)
 
 
-def _build_fixture(tmp_path: Path) -> Path:
-    (tmp_path / "audio" / "SRC001").mkdir(parents=True)
-    (tmp_path / "rttm" / "SRC001").mkdir(parents=True)
+def _build_fixture(make_config, params: dict | None = None):
+    """One synthetic participant in the folders of a temporary config. Returns the config."""
+    config = make_config(params=params or _test_params())
+    audio_root = config.paths.audio_root
+    rttm_root = config.paths.rttm_root
+    (audio_root / "SRC001").mkdir(parents=True)
+    (rttm_root / "SRC001").mkdir(parents=True)
     audio = np.concatenate([_make_sine(220.0), _make_sine(140.0), _make_sine(300.0), _make_sine(220.0)])
-    sf.write(tmp_path / "audio" / "SRC001" / "SRC001.wav", audio, 16000)
-    (tmp_path / "participant_lookup.csv").write_text("original_par_id,participant_id\nSRC001,P001\n", encoding="utf-8")
-    (tmp_path / "rttm" / "SRC001" / "rttm.csv").write_text(
+    sf.write(audio_root / "SRC001" / "SRC001.wav", audio, 16000)
+    config.paths.participant_lookup.parent.mkdir(parents=True, exist_ok=True)
+    config.paths.participant_lookup.write_text(
+        "original_par_id,participant_id\nSRC001,P001\n", encoding="utf-8"
+    )
+    (rttm_root / "SRC001" / "rttm.csv").write_text(
         "uid,start_time_s,duration_s,label\n"
         "SRC001,0.0,0.5,FEM\n"
         "SRC001,0.6,0.5,MAL\n"
@@ -177,19 +174,23 @@ def _build_fixture(tmp_path: Path) -> Path:
         "SRC001,1.8,0.4,KCHI\n",
         encoding="utf-8",
     )
-    return _write_test_config(tmp_path)
+    return config
 
 
-def _build_multi_participant_fixture(tmp_path: Path) -> Path:
+def _build_multi_participant_fixture(make_config, params: dict | None = None):
+    """Two synthetic participants in the folders of a temporary config. Returns the config."""
+    config = make_config(params=params or _test_params())
+    audio_root = config.paths.audio_root
+    rttm_root = config.paths.rttm_root
     for source_id, frequencies in {
         "SRC001": [220.0, 140.0, 300.0, 220.0],
         "SRC002": [240.0, 160.0, 320.0, 240.0],
     }.items():
-        (tmp_path / "audio" / source_id).mkdir(parents=True, exist_ok=True)
-        (tmp_path / "rttm" / source_id).mkdir(parents=True, exist_ok=True)
+        (audio_root / source_id).mkdir(parents=True, exist_ok=True)
+        (rttm_root / source_id).mkdir(parents=True, exist_ok=True)
         audio = np.concatenate([_make_sine(frequency_hz) for frequency_hz in frequencies])
-        sf.write(tmp_path / "audio" / source_id / f"{source_id}.wav", audio, 16000)
-        (tmp_path / "rttm" / source_id / "rttm.csv").write_text(
+        sf.write(audio_root / source_id / f"{source_id}.wav", audio, 16000)
+        (rttm_root / source_id / "rttm.csv").write_text(
             "uid,start_time_s,duration_s,label\n"
             f"{source_id},0.0,0.5,FEM\n"
             f"{source_id},0.6,0.5,MAL\n"
@@ -197,11 +198,12 @@ def _build_multi_participant_fixture(tmp_path: Path) -> Path:
             f"{source_id},1.8,0.4,KCHI\n",
             encoding="utf-8",
         )
-    (tmp_path / "participant_lookup.csv").write_text(
+    config.paths.participant_lookup.parent.mkdir(parents=True, exist_ok=True)
+    config.paths.participant_lookup.write_text(
         "original_par_id,participant_id\nSRC001,P001\nSRC002,P002\n",
         encoding="utf-8",
     )
-    return _write_test_config(tmp_path)
+    return config
 
 
 class InlineProcessPoolExecutor:
@@ -227,11 +229,10 @@ class InlineProcessPoolExecutor:
         return future
 
 
-def test_run_extraction_writes_outputs_and_qc(tmp_path: Path) -> None:
-    config = load_config(_build_fixture(tmp_path))
+def test_run_extraction_writes_outputs_and_qc(make_config) -> None:
+    config = _build_fixture(make_config)
     outputs = run_extraction(
         config,
-        overwrite=True,
         ssl_extractors={"wav2vec": FakeSSLExtractor(10.0), "hubert": FakeSSLExtractor(20.0)},
     )
 
@@ -245,37 +246,60 @@ def test_run_extraction_writes_outputs_and_qc(tmp_path: Path) -> None:
     assert len(qc_frame) == 3
     assert "unsupported_speaker_label" in set(skipped_frame["failure_reason"].dropna())
     assert outputs.run_metadata_json.exists()
-    assert (tmp_path / "cache" / "SRC001.joblib").exists()
+    assert (config.paths.cache_dir / "SRC001.joblib").exists()
 
 
-def test_run_extraction_uses_cache_on_resume(tmp_path: Path) -> None:
-    config = load_config(_build_fixture(tmp_path))
-    run_extraction(
+def test_run_extraction_reuses_saved_participant_results(make_config, tmp_path: Path) -> None:
+    config = _build_fixture(make_config)
+    first = run_extraction(
         config,
-        overwrite=True,
         ssl_extractors={"wav2vec": FakeSSLExtractor(10.0), "hubert": FakeSSLExtractor(20.0)},
     )
+    # Earlier results are never replaced, so the first results are moved away.
+    first.final_csv.parent.rename(tmp_path / "first_features")
 
     outputs = run_extraction(
         config,
-        resume=True,
-        overwrite=True,
         ssl_extractors={"wav2vec": FailingSSLExtractor(), "hubert": FailingSSLExtractor()},
     )
 
     assert outputs.final_csv.exists()
 
 
-def test_run_extraction_supports_participant_speaker_adaptation(tmp_path: Path) -> None:
-    config_path = _build_fixture(tmp_path)
-    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    payload["pitch"]["adaptive"]["level"] = "participant_speaker"
-    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    config = load_config(config_path)
+def test_run_extraction_without_cache_calculates_again(make_config, tmp_path: Path) -> None:
+    config = _build_fixture(make_config)
+    first = run_extraction(
+        config,
+        ssl_extractors={"wav2vec": FakeSSLExtractor(10.0), "hubert": FakeSSLExtractor(20.0)},
+    )
+    first.final_csv.parent.rename(tmp_path / "first_features")
+
+    with pytest.raises(AssertionError, match="cache was not used"):
+        run_extraction(
+            config,
+            no_cache=True,
+            ssl_extractors={"wav2vec": FailingSSLExtractor(), "hubert": FailingSSLExtractor()},
+        )
+
+
+def test_run_for_selected_speakers_does_not_save_participant_results(make_config) -> None:
+    config = _build_fixture(make_config)
+    run_extraction(
+        config,
+        speakers=["FEM", "MAL", "OCH"],
+        ssl_extractors={"wav2vec": FakeSSLExtractor(10.0), "hubert": FakeSSLExtractor(20.0)},
+    )
+
+    assert not (config.paths.cache_dir / "SRC001.joblib").exists()
+
+
+def test_run_extraction_supports_participant_speaker_adaptation(make_config) -> None:
+    params = _test_params()
+    params["pitch"]["adaptive"]["level"] = "participant_speaker"
+    config = _build_fixture(make_config, params)
 
     outputs = run_extraction(
         config,
-        overwrite=True,
         ssl_extractors={"wav2vec": FakeSSLExtractor(10.0), "hubert": FakeSSLExtractor(20.0)},
     )
 
@@ -285,18 +309,15 @@ def test_run_extraction_supports_participant_speaker_adaptation(tmp_path: Path) 
     assert "median_adaptive_floor_Hz" in qc_frame.columns
 
 
-def test_run_extraction_uses_batched_ssl_path(tmp_path: Path) -> None:
-    config_path = _build_fixture(tmp_path)
-    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    payload["runtime"]["batch_size"] = 2
-    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    config = load_config(config_path)
+def test_run_extraction_uses_batched_ssl_path(make_config) -> None:
+    params = _test_params()
+    params["runtime"]["batch_size"] = 2
+    config = _build_fixture(make_config, params)
 
     wav2vec = BatchOnlySSLExtractor(10.0)
     hubert = BatchOnlySSLExtractor(20.0)
     outputs = run_extraction(
         config,
-        overwrite=True,
         ssl_extractors={"wav2vec": wav2vec, "hubert": hubert},
     )
 
@@ -305,18 +326,15 @@ def test_run_extraction_uses_batched_ssl_path(tmp_path: Path) -> None:
     assert hubert.calls == 3
 
 
-def test_run_extraction_uses_participant_worker_pool(tmp_path: Path, monkeypatch, caplog) -> None:
-    config_path = _build_multi_participant_fixture(tmp_path)
-    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    payload["runtime"]["num_workers"] = 2
-    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    config = load_config(config_path)
+def test_run_extraction_uses_participant_worker_pool(make_config, monkeypatch, caplog) -> None:
+    params = _test_params()
+    params["runtime"]["num_workers"] = 2
+    config = _build_multi_participant_fixture(make_config, params)
 
     monkeypatch.setattr(extract_pipeline, "_PROCESS_POOL_EXECUTOR", InlineProcessPoolExecutor)
     caplog.set_level("INFO", logger="hindibabynet_prosody.pipeline.extract")
     outputs = run_extraction(
         config,
-        overwrite=True,
         ssl_extractors={"wav2vec": FakeSSLExtractor(10.0), "hubert": FakeSSLExtractor(20.0)},
     )
 

@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "hindibabynet-prosody"
 version = "0.1.0"
 description = "Prosodic and SSL feature extraction pipeline for HindiBabyNet"
-readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
+    "hbn-paths",
     "joblib>=1.5.0",
     "numpy>=2.0,<3",
     "pandas>=2.0,<3",
@@ -16,7 +16,6 @@ dependencies = [
     "protobuf>=5,<7",
     "pydantic>=2.8,<3",
     "pyyaml>=6,<7",
-    "rich>=13,<15",
     "scikit-learn>=1.5,<2",
     "soundfile>=0.12,<1",
     "torch>=2.5,<3",
@@ -34,7 +33,7 @@ dev = [
 ]
 
 [project.scripts]
-hindibabynet-prosody = "hindibabynet_prosody.cli:app"
+hbn-prosody = "hindibabynet_prosody.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -61,3 +60,6 @@ select = ["E", "F", "I", "B", "UP", "N"]
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
+
+[tool.uv.sources]
+hbn-paths = { path = "../shared", editable = true }

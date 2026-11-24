@@ -7,12 +7,6 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class ParticipantMapping:
-    source_participant_id: str
-    participant_id: str
-
-
-@dataclass(frozen=True)
 class NormalizedSegment:
     source_participant_id: str
     participant_id: str | None

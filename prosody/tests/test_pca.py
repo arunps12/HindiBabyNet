@@ -5,13 +5,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from hindibabynet_prosody.config import load_config
 from hindibabynet_prosody.reduction.pca import fit_embedding_pca
 
 
-def test_fit_embedding_pca_projects_three_components(tmp_path: Path) -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    config = load_config(repo_root / "config" / "config.example.yaml")
+def test_fit_embedding_pca_projects_three_components(make_config, tmp_path: Path) -> None:
+    config = make_config()
     frame = pd.DataFrame(
         {
             "participant_id": ["P001", "P002", "P003", "P004"],
@@ -42,9 +40,8 @@ def test_fit_embedding_pca_projects_three_components(tmp_path: Path) -> None:
     assert (tmp_path / "wav2vec_pca.joblib").exists()
 
 
-def test_fit_embedding_pca_requires_enough_rows() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    config = load_config(repo_root / "config" / "config.example.yaml")
+def test_fit_embedding_pca_requires_enough_rows(make_config) -> None:
+    config = make_config()
     frame = pd.DataFrame(
         {
             "participant_id": ["P001", "P002"],

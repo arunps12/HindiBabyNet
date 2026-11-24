@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hindibabynet_prosody.config import load_config
 from hindibabynet_prosody.io.rttm import normalize_segments
 
 
-def test_normalize_segments_maps_supported_speakers(tmp_path: Path) -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    config = load_config(repo_root / "config" / "config.example.yaml")
+def test_normalize_segments_maps_supported_speakers(make_config, tmp_path: Path) -> None:
+    config = make_config()
     rttm_path = tmp_path / "rttm.csv"
     rttm_path.write_text(
         "uid,start_time_s,duration_s,label\n"

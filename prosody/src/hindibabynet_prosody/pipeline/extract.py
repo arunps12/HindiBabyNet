@@ -860,17 +860,29 @@ def _queue_ssl_segment(
         pending_items.clear()
 
 
+def check_output_is_new(config: AppConfig) -> None:
+    """Stop when earlier results exist in the output folder. They are never replaced."""
+    for name in (config.output.final_filename, "run_metadata.json"):
+        existing = config.paths.output_dir / name
+        if existing.exists():
+            raise FileExistsError(
+                f"Earlier prosody features already exist and are not replaced: {existing}\n"
+                "Move the old files, or set another folder for paths.prosody_features in config.yaml."
+            )
+
+
 def run_extraction(
     config: AppConfig,
     *,
     participants: list[str] | None = None,
     speakers: list[str] | None = None,
     device: str | None = None,
-    resume: bool = False,
-    overwrite: bool = False,
     no_cache: bool = False,
     ssl_extractors: dict[str, SSLExtractor] | None = None,
 ) -> ExtractOutputs:
+    check_output_is_new(config)
+    # A run for selected speakers is not complete, so it does not read or write the cache.
+    use_cache = not no_cache and not speakers
     set_global_seed(config.project.random_seed)
     validation = run_validation(config)
     config_hash = stable_hash(config_to_dict(config))
@@ -878,8 +890,6 @@ def run_extraction(
     qc_dir = ensure_directory(output_dir / "qc")
     artifact_dir = ensure_directory(output_dir / "artifacts")
     final_csv = output_dir / config.output.final_filename
-    if final_csv.exists() and not overwrite:
-        raise FileExistsError(f"Refusing to overwrite existing final output: {final_csv}")
 
     selected_device = resolve_torch_device(device or config.runtime.device)
     audio_map = {item.source_participant_id: item for item in validation.audio_resolutions}
@@ -918,7 +928,7 @@ def run_extraction(
     def consume_result(result: ParticipantExtractResult, elapsed_s: float) -> None:
         nonlocal completed_participants
         _merge_participant_result(final_rows, qc_rows, embedding_rows, skipped_rows, result)
-        if not no_cache:
+        if use_cache:
             _save_cache(
                 _cache_path(config, result.task.source_participant_id),
                 {
@@ -946,7 +956,7 @@ def run_extraction(
     pending_tasks: list[tuple[ParticipantTask, float]] = []
     for task in participant_tasks:
         cache_path = _cache_path(config, task.source_participant_id)
-        if resume and not no_cache:
+        if use_cache:
             cached = _load_cache(cache_path, config_hash)
             if cached is not None:
                 completed_participants += 1
@@ -1042,7 +1052,7 @@ def run_extraction(
     write_json(
         {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "git_commit": _git_commit_or_none(output_dir),
+            "git_commit": _git_commit_or_none(Path(__file__).resolve().parent),
             "config_hash": config_hash,
             "python_version": sys.version,
             "package_versions": _package_versions(),

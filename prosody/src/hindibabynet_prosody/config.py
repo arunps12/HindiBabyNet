@@ -1,13 +1,20 @@
-"""YAML-backed configuration models for the prosody pipeline."""
+"""Settings of the prosody feature extraction.
+
+The settings are read from prosody/params.yaml. The data folders are read
+from config.yaml in the project root.
+"""
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 import yaml
+from hbn_paths import Config
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+DEFAULT_PARAMS_PATH = Path(__file__).resolve().parents[2] / "params.yaml"
 
 
 class ProjectConfigSection(BaseModel):
@@ -35,6 +42,7 @@ class MappingConfig(BaseModel):
     strict: bool = True
     source_id_column: str = "original_par_id"
     participant_id_column: str = "participant_id"
+    lookup_file: str = "participant_lookup.csv"
 
 
 class SpeakersConfig(BaseModel):
@@ -79,7 +87,7 @@ class PitchConfig(BaseModel):
     lower_percentile: float = 5.0
     upper_percentile: float = 95.0
     minimum_voiced_frames: int = 3
-    semitone_reference_hz: float = 1.0
+    semitone_reference_hz: float  # no default: the value is always written in params.yaml
     adaptive: AdaptivePitchConfig = Field(default_factory=AdaptivePitchConfig)
     praat: PraatConfig = Field(default_factory=PraatConfig)
 
@@ -177,34 +185,35 @@ class AppConfig(BaseModel):
         return self
 
 
-def load_config(config_path: str | Path | None = None) -> AppConfig:
-    """Load native YAML; only shared 'prosody' sections rebase filesystem paths."""
-    if config_path is None:
-        config_path = os.environ.get("HBN_CONFIG_PATH")
-        if not config_path:
-            raise ValueError("A config path or HBN_CONFIG_PATH is required.")
-    resolved_path = Path(config_path).resolve()
-    with resolved_path.open("r", encoding="utf-8") as handle:
-        raw_config = yaml.safe_load(handle) or {}
-    if not isinstance(raw_config, dict):
-        raise TypeError(f"Expected a top-level mapping in {resolved_path}")
-    if "prosody" in raw_config:
-        section = raw_config["prosody"]
-        if not isinstance(section, dict):
-            raise TypeError(f"Expected a mapping in section 'prosody' of {resolved_path}")
-        raw_config = dict(section)
-        project_root = raw_config.pop("project_root", None)
-        repo_root = (
-            (resolved_path.parent / project_root).resolve()
-            if project_root is not None
-            else Path(__file__).resolve().parents[2]
+def load_config(
+    config_path: str | Path | None = None,
+    params_path: str | Path | None = None,
+) -> AppConfig:
+    """Read the settings from params.yaml and the data folders from config.yaml.
+
+    config_path: config.yaml with the data folders. Default: config.yaml in the project root.
+    params_path: settings of the extraction. Default: prosody/params.yaml.
+    """
+    params_file = Path(params_path) if params_path else DEFAULT_PARAMS_PATH
+    with params_file.open(encoding="utf-8") as handle:
+        settings = yaml.safe_load(handle) or {}
+    if not isinstance(settings, dict):
+        raise ValueError(f"{params_file} must contain named sections (project, rttm, ...).")
+    if "paths" in settings:
+        raise ValueError(
+            f"{params_file} must not contain paths. The data folders are set in config.yaml."
         )
-        if isinstance(raw_config.get("paths"), dict):
-            raw_config["paths"] = {
-                key: (repo_root / value).resolve() if isinstance(value, (str, Path)) else value
-                for key, value in raw_config["paths"].items()
-            }
-    return AppConfig.model_validate(raw_config)
+
+    folders = Config(config_path)
+    mapping = MappingConfig.model_validate(settings.get("mapping") or {})
+    settings["paths"] = {
+        "rttm_root": folders.path("vtc"),
+        "audio_root": folders.path("prepared_audio"),
+        "participant_lookup": folders.path("metadata", mapping.lookup_file),
+        "output_dir": folders.path("prosody_features"),
+        "cache_dir": folders.path("cache", "prosody"),
+    }
+    return AppConfig.model_validate(settings)
 
 
 def config_to_dict(config: AppConfig) -> dict[str, Any]:
