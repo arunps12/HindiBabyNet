@@ -1,16 +1,17 @@
 # HindiBabyNet configuration
 #
 # 1. Copy this file and rename the copy to config.yaml.
-#    config.yaml stays on your computer. It is not uploaded to GitHub.
-# 2. Change raw_audio to the folder with your audio recordings.
+# 2. Change data_dir to the folder where the results should be saved.
+# 3. Change raw_audio to the folder with your audio recordings.
 
-# Main data folder. The prepared audio and all results are saved here.
-data_dir: ../HindiBabyNet-data
+# Folder for the prepared audio and all results. It is made if it does not exist.
+# Windows: D:/HindiBabyNet-data    Ubuntu: /home/yourname/HindiBabyNet-data
+data_dir: /path/to/your/data-folder
 
 paths:
   # Folder with your audio recordings (WAV files).
   # Windows: D:/my_recordings    Ubuntu: /home/yourname/my_recordings
-  raw_audio: D:/my_recordings
+  raw_audio: /path/to/your/audio-recordings
 
   # All other folders have a default place inside data_dir:
   #

@@ -58,14 +58,16 @@ Make your configuration file once. Copy the example file:
 cp config.example.yaml config.yaml
 ```
 
-Open `config.yaml` and change `raw_audio` to the folder with your audio recordings:
+Open `config.yaml` and change two paths: `data_dir` is the folder where the results should be saved, and `raw_audio` is the folder with your audio recordings. For example:
 
 ```yaml
+data_dir: D:/HindiBabyNet-data
+
 paths:
   raw_audio: D:/my_recordings
 ```
 
-You can write a Windows path (`D:/...`) or an Ubuntu path (`/home/yourname/...`). Both work. The prepared audio and the classification results are saved in the data folder (`data_dir`). With the default value this is a folder `HindiBabyNet-data` next to the project folder. To use other places, see section 2 of the main [README](../README.md).
+You can write a Windows path (`D:/...`) or an Ubuntu path (`/home/yourname/...`). Both work. The prepared audio and the classification results are saved in `data_dir`. This folder is made if it does not exist. To save one folder in another place, see section 2 of the main [README](../README.md).
 
 Recordings in the Ubuntu home folder are read much faster than recordings on a Windows drive. If you copy the raw recordings to Ubuntu, for example to `/home/yourname/my_recordings`, write this path as `raw_audio`.
 

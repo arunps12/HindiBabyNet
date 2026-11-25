@@ -33,7 +33,7 @@ Each workflow folder has a file `params.yaml` with the settings of the method (f
 
 ## Folders of the data
 
-Your audio recordings can stay where they are. Everything that the workflows make is saved under one main data folder. This is the default structure:
+Your audio recordings can stay where they are. Everything that the workflows make is saved under one main data folder (`data_dir` in `config.yaml`). This is its structure:
 
 ```
 HindiBabyNet-data/
@@ -75,20 +75,22 @@ install.packages(c("tidyverse", "lme4", "lmerTest", "glmmTMB", "performance", "D
 ## 2. Set the folder of your recordings
 
 1. Copy the file `config.example.yaml` and rename the copy to `config.yaml`. Keep it in the project folder. This file stays on your computer and is not uploaded to GitHub.
-2. Open `config.yaml` and change `raw_audio` to the folder with your audio recordings:
+2. Open `config.yaml` and change two paths: `data_dir` is the folder where the results should be saved, and `raw_audio` is the folder with your audio recordings. For example:
 
 ```yaml
-data_dir: ../HindiBabyNet-data
+data_dir: D:/HindiBabyNet-data
 
 paths:
   raw_audio: D:/my_recordings
 ```
 
-This is all you need for audio preparation and speaker classification. The prepared audio and the classification results are saved in `data_dir`. With the default value this is a folder `HindiBabyNet-data` next to the project folder.
+This is all you need for audio preparation and speaker classification. The prepared audio and the classification results are saved in `data_dir`. This folder is made if it does not exist.
 
-**Another place for the results.** Change `data_dir` to move everything. To move only one folder, remove the `#` in front of its line in `config.yaml` and write your path. For example:
+**Another place for one folder.** All results are saved inside `data_dir`. To save only one folder in another place, remove the `#` in front of its line in `config.yaml` and write your path. For example:
 
 ```yaml
+data_dir: D:/HindiBabyNet-data
+
 paths:
   raw_audio: D:/my_recordings
   prepared_audio: E:/my_data/prepared-audio
