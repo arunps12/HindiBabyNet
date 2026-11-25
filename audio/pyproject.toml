@@ -25,7 +25,8 @@ xgb = [
     "torch==2.5.1",
     "torchaudio==2.5.1",
     "tqdm>=4.64,<5",
-    "webrtcvad>=2,<3",
+    # Ready-built version of webrtcvad (same code, imported as webrtcvad). No C compiler is needed.
+    "webrtcvad-wheels>=2.0.10,<3",
     "xgboost>=3.1.3",
 ]
 

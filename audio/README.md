@@ -324,20 +324,13 @@ Before the first run:
 | Windows PowerShell | `$env:HF_TOKEN = "your_token"` |
 | Ubuntu | `export HF_TOKEN=your_token` |
 
-3. **Install a C compiler.** The package `webrtcvad` is built on your computer when the XGBoost packages are installed.
-
-| Where | What to install |
-| --- | --- |
-| Windows | "Microsoft C++ Build Tools" from <https://visualstudio.microsoft.com/visual-cpp-build-tools/>. Select "Desktop development with C++". |
-| Ubuntu | `sudo apt install build-essential` |
-
 Run. The command is the same in Windows PowerShell and in Ubuntu:
 
 ```
 uv run --project audio --extra xgb hbn-audio classify-xgb
 ```
 
-The first run installs the XGBoost packages. This is a large download. If the installation stops at the package `webrtcvad`, the C compiler is missing (step 3).
+The first run installs the XGBoost packages. This is a large download (several GB). You do not need to install a C compiler.
 
 Output for each prepared recording, in `derived/xgb-classification/<recording>/`: the segments table (`<file name>_segments.parquet`), a Praat TextGrid, a summary (`<file name>_summary.json`), `run_info.json`, and audio files with the speech of the main female speaker, the main male speaker, the child and the background.
 
