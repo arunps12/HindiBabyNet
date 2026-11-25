@@ -312,29 +312,65 @@ XGBoost runs in Windows PowerShell or in Ubuntu.
 
 The trained model is in this repository: `audio/models/xgb_egemaps.pkl`. It is not trained again.
 
-The method has these steps: voice activity detection (WebRTC VAD), speaker diarization (pyannote), eGeMAPS features (openSMILE) for each speech segment, and classification of each segment with the XGBoost model.
+### Steps of the method
 
-Before the first run:
+1. **Speech chunks.** Voice activity detection (WebRTC VAD) cuts the recording into chunks of speech. The parts between the chunks are not used.
+2. **Classification.** Every chunk is classified alone: eGeMAPS features (openSMILE) are calculated for the chunk and the XGBoost model gives the class.
+3. **Merging.** After the classification, chunks that follow each other are merged into one segment when they have the same class and the pause between them is not longer than 0.3 seconds. Chunks are not merged across a chunk of another class. The classified chunks are kept as they are, and the merged segments are saved in a second table.
 
-1. **Access to the diarization model.** The diarization uses the model `pyannote/speaker-diarization-3.1` from Hugging Face. Make a free account on <https://huggingface.co>. Accept the conditions on the pages of the two models <https://huggingface.co/pyannote/segmentation-3.0> and <https://huggingface.co/pyannote/speaker-diarization-3.1>. Then create an access token on <https://huggingface.co/settings/tokens>. The token is needed only to download these models. The XGBoost model does not need it.
-2. **Give the token to the program.** The token is kept until you close the terminal window.
+### Run
 
-| Where | Command |
-| --- | --- |
-| Windows PowerShell | `$env:HF_TOKEN = "your_token"` |
-| Ubuntu | `export HF_TOKEN=your_token` |
-
-Run. The command is the same in Windows PowerShell and in Ubuntu:
+The command is the same in Windows PowerShell and in Ubuntu:
 
 ```
 uv run --project audio --extra xgb hbn-audio classify-xgb
 ```
 
-The first run installs the XGBoost packages. This is a large download (several GB). You do not need to install a C compiler.
+The first run installs the XGBoost packages (about 0.5 GB). You do not need an account, an access token or a C compiler.
 
-Output for each prepared recording, in `derived/xgb-classification/<recording>/`: the segments table (`<file name>_segments.parquet`), a Praat TextGrid, a summary (`<file name>_summary.json`), `run_info.json`, and audio files with the speech of the main female speaker, the main male speaker, the child and the background.
+If the results of a recording are already available, the recording is not run again. Existing results are never changed. If a run was stopped in the middle, the command reports an incomplete folder. Move this folder out of `derived/xgb-classification/` and run again.
+
+### Settings
+
+The settings are in the part `xgb` of `audio/params.yaml`.
+
+| Setting | Value | Meaning |
+| --- | --- | --- |
+| `vad.aggressiveness` | 1 | 0 to 3. A higher value removes more sound that is not clear speech. |
+| `vad.frame_ms` | 30 | The VAD decides for every frame of this length if it is speech (10, 20 or 30 ms). |
+| `vad.min_region_ms` | 150 | Chunks shorter than this are not used. |
+| `vad.min_silence_ms` | 30 | A pause of this length or longer ends a chunk. Shorter pauses stay inside the chunk. With frames of 30 ms, the value 30 means that every frame without speech ends a chunk. |
+| `segmentation.merge_before_classification` | `false` | `true`: chunks with a pause up to `merge_gap_sec` are joined before the classification. The class is not known at this point, so chunks of different speakers can be joined. |
+| `segmentation.merge_after_classification` | `true` | `true`: step 3 is done. `false`: only the table of the classified chunks is written. |
+| `segmentation.merge_gap_sec` | 0.3 | The longest pause, in seconds, between two chunks that are merged. |
+
+The features are calculated in windows of 1 second (`classification.win_sec`) with a step of 0.5 seconds (`classification.hop_sec`). A chunk shorter than 1 second is filled with silence up to 1 second for the features.
+
+### Output
+
+For each prepared recording, in `derived/xgb-classification/<recording>/`:
+
+| File | Content |
+| --- | --- |
+| `<name>_segments.parquet` | the classified chunks, one row per chunk: `start_sec`, `end_sec`, `duration_sec`, `predicted_class`, the probability of each class, and `merged_segment` (the number of the merged segment that the chunk belongs to) |
+| `<name>_merged_segments.parquet` | the merged segments, one row per segment: `start_sec`, `end_sec`, `predicted_class`, `n_chunks`, `speech_duration_sec` and `span_sec` |
+| `<name>_adult_female.wav`, `<name>_adult_male.wav`, `<name>_child.wav`, `<name>_background.wav` | the chunks of one class, one after the other. A file is written only when the class was found. |
+| `<name>.TextGrid` | the classified chunks as a Praat TextGrid |
+| `<name>_summary.json` | the settings, the number and the length of the chunks, and the speech duration per class |
+| `run_info.json` | the start time, the run time and the status of the run |
+
+Two columns of the merged segments give a duration:
+
+- `speech_duration_sec` is the sum of the chunks of the segment. The pauses between the chunks are **not** counted. Use this column for the amount of speech.
+- `span_sec` is the time from the start of the first chunk to the end of the last chunk, with the pauses.
+
+The speech durations in the summary, the TextGrid and the audio files of the classes are made from the chunks, so a pause is never counted as speech.
 
 The XGBoost results and the VTC results are saved in different folders. One method is never used in place of the other.
+
+### Speaker diarization (switched off)
+
+An earlier version of this method used speaker diarization (pyannote) to divide the speech by speaker before the classification, and a second diarization to find the main female and the main male speaker. These steps are switched off, because the VAD chunks are classified directly. The code, the settings and the packages are kept as comments. To use them again, remove the `#` signs at the places marked "Not used at present" in `audio/src/hindibabynet_audio/xgb.py`, `audio/params.yaml` and `audio/pyproject.toml`, and run `uv lock --project audio`.
 
 ## 6. Optional tools
 

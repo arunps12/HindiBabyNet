@@ -4,6 +4,8 @@ This folder has the earlier scientific and technical documents of HindiBabyNet. 
 
 Some of these documents show commands and folder names of an earlier version of the code. For the present commands, use the main [README](../README.md) and [audio/README.md](../audio/README.md).
 
+`xgb_backend.md` and `pipeline_specification.md` describe the XGBoost method with speaker diarization. The present method does not use diarization. It is described in section 5 of [audio/README.md](../audio/README.md).
+
 | Document | Content |
 | --- | --- |
 | `audio_preparation.md` | how the recordings are prepared |
