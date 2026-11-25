@@ -16,18 +16,21 @@ dependencies = [
 
 [project.optional-dependencies]
 xgb = [
-    "huggingface-hub<0.21",
     "joblib>=1.5.3",
-    "matplotlib>=3.7,<3.9",
     "opensmile>=2.6.0",
-    "pyannote-audio>=3.4.0",
-    "python-dotenv>=1.2.1",
-    "torch==2.5.1",
-    "torchaudio==2.5.1",
     "tqdm>=4.64,<5",
     # Ready-built version of webrtcvad (same code, imported as webrtcvad). No C compiler is needed.
     "webrtcvad-wheels>=2.0.10,<3",
     "xgboost>=3.1.3",
+    # Not used at present: packages of the speaker diarization (see src/hindibabynet_audio/xgb.py).
+    # To use it again, remove the "#" of these packages and of the PyTorch lines at the end
+    # of this file, then run: uv lock --project audio
+    # "huggingface-hub<0.21",
+    # "matplotlib>=3.7,<3.9",
+    # "pyannote-audio>=3.4.0",
+    # "python-dotenv>=1.2.1",
+    # "torch==2.5.1",
+    # "torchaudio==2.5.1",
 ]
 
 [project.scripts]
@@ -50,11 +53,12 @@ pythonpath = ["src"]
 [tool.uv]
 index-url = "https://pypi.org/simple"
 
-[[tool.uv.index]]
-name = "pytorch-cu124"
-url = "https://download.pytorch.org/whl/cu124"
+# Not used at present (speaker diarization): download place of PyTorch.
+# [[tool.uv.index]]
+# name = "pytorch-cu124"
+# url = "https://download.pytorch.org/whl/cu124"
 
 [tool.uv.sources]
 hbn-paths = { path = "../shared", editable = true }
-torch = { index = "pytorch-cu124" }
-torchaudio = { index = "pytorch-cu124" }
+# torch = { index = "pytorch-cu124" }
+# torchaudio = { index = "pytorch-cu124" }

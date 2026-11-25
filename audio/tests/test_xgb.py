@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -12,11 +15,11 @@ import soundfile as sf
 joblib = pytest.importorskip("joblib")
 pytest.importorskip("xgboost")
 pytest.importorskip("opensmile")
-pytest.importorskip("torch")
 pytest.importorskip("praatio")
 
 from hbn_paths import Config  # noqa: E402
 from hindibabynet_audio import xgb  # noqa: E402
+from hindibabynet_audio.params import load_params  # noqa: E402
 
 CLASS_ORDER = ["adult_male", "adult_female", "child", "background"]
 
@@ -25,15 +28,12 @@ PARAMS = {
     "xgb": {
         "class_names": CLASS_ORDER,
         "egemaps_dim": 88,
-        "vad": {"aggressiveness": 2, "frame_ms": 30, "min_region_ms": 300},
-        "diarization": {
-            "model": "pyannote/speaker-diarization-3.1",
-            "chunk_sec": 900.0,
-            "overlap_sec": 10.0,
-            "min_speakers": 2,
-            "max_speakers": 4,
+        "vad": {"aggressiveness": 1, "frame_ms": 30, "min_region_ms": 150, "min_silence_ms": 30},
+        "segmentation": {
+            "merge_before_classification": False,
+            "merge_after_classification": True,
+            "merge_gap_sec": 0.3,
         },
-        "segmentation": {"merge_gap_sec": 0.3, "min_segment_sec": 0.2},
         "classification": {"win_sec": 1.0, "hop_sec": 0.5},
     }
 }
@@ -217,14 +217,79 @@ def test_classify_segments_with_a_fixed_model(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Voice activity detection, chunks, intersection, merging, streams
+# Voice activity detection, merging, streams
 # ---------------------------------------------------------------------------
+
+FRAME = 480  # samples of one 30 ms frame at 16 kHz
+
+
+@pytest.fixture
+def fake_vad(monkeypatch):
+    """Replace WebRTC VAD: a frame is speech when it has a sample that is not zero."""
+
+    class Vad:
+        def __init__(self, aggressiveness):
+            self.aggressiveness = aggressiveness
+
+        def is_speech(self, data: bytes, sr: int) -> bool:
+            return any(data)
+
+    monkeypatch.setitem(sys.modules, "webrtcvad", types.SimpleNamespace(Vad=Vad))
+
+
+def write_frames(path: Path, sounds: list[tuple[int, int, float]], n_frames: int) -> Path:
+    """Write a 16 kHz recording of n_frames frames. sounds: (first frame, frame after the
+    last one, sample value); all other frames are silence."""
+    samples = np.zeros(n_frames * FRAME, dtype=np.float32)
+    for first, after_last, value in sounds:
+        samples[first * FRAME:after_last * FRAME] = value
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(str(path), samples, 16000, format="WAV", subtype="PCM_16")
+    return path
+
+
+def test_speech_runs_and_the_pause_setting():
+    S, n = True, False
+    #        0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
+    flags = [n, S, S, n, S, n, n, S, n, n, n, S, n, n, n, n]
+
+    # Every frame without speech ends a chunk (min_silence_ms up to one frame).
+    each_frame = [(1, 3), (4, 5), (7, 8), (11, 12)]
+    assert list(xgb.speech_runs(iter(flags), 30, 0)) == each_frame
+    assert list(xgb.speech_runs(iter(flags), 30, 30)) == each_frame
+    # A pause of one frame (30 ms) stays inside the chunk, two frames (60 ms) end it.
+    assert list(xgb.speech_runs(iter(flags), 30, 60)) == [(1, 5), (7, 8), (11, 12)]
+    # Pauses of 30, 60 and 90 ms stay inside the chunk; 120 ms ends it.
+    assert list(xgb.speech_runs(iter(flags), 30, 100)) == [(1, 12)]
+    # A chunk never ends with silence, and speech up to the last frame is kept.
+    assert list(xgb.speech_runs(iter([S, n, S]), 30, 100)) == [(0, 3)]
+    assert list(xgb.speech_runs(iter([n, n]), 30, 30)) == []
+
+
+def test_vad_chunks_with_minimum_length_and_pause(tmp_path: Path, fake_vad):
+    # Speech in the frames 10-19 (300 ms), 21-23 (90 ms) and 40-44 (150 ms).
+    wav = write_frames(tmp_path / "rec.wav", [(10, 20, 0.5), (21, 24, 0.5), (40, 45, 0.5)], 60)
+
+    chunks = xgb.webrtc_vad_regions(wav, aggressiveness=1, frame_ms=30, min_region_ms=150,
+                                    min_silence_ms=30)
+    # The chunk of 90 ms is shorter than min_region_ms and is not used.
+    assert chunks == [pytest.approx((0.30, 0.60)), pytest.approx((1.20, 1.35))]
+
+    # With a longer pause setting the pause of 30 ms stays inside the first chunk.
+    chunks = xgb.webrtc_vad_regions(wav, aggressiveness=1, frame_ms=30, min_region_ms=150,
+                                    min_silence_ms=60)
+    assert chunks == [pytest.approx((0.30, 0.72)), pytest.approx((1.20, 1.35))]
+
+    assert xgb.webrtc_vad_regions(wav, min_region_ms=300) == [pytest.approx((0.30, 0.60))]
+
 
 def test_vad_finds_no_speech_in_silence(tmp_path: Path):
     pytest.importorskip("webrtcvad")
     wav = tmp_path / "silence.wav"
     sf.write(str(wav), np.zeros(16000, dtype=np.float32), 16000, subtype="PCM_16")
     assert xgb.webrtc_vad_regions(wav, aggressiveness=2, frame_ms=30, min_region_ms=300) == []
+    assert xgb.webrtc_vad_regions(wav, aggressiveness=1, frame_ms=30, min_region_ms=150,
+                                  min_silence_ms=30) == []
 
     wrong_rate = tmp_path / "wrong_rate.wav"
     sf.write(str(wrong_rate), np.zeros(44100, dtype=np.float32), 44100, subtype="PCM_16")
@@ -232,64 +297,138 @@ def test_vad_finds_no_speech_in_silence(tmp_path: Path):
         xgb.webrtc_vad_regions(wrong_rate)
 
 
-def test_make_chunks():
-    assert xgb._make_chunks(25.0, 10.0, 2.0) == [(0, 0.0, 10.0), (1, 8.0, 18.0), (2, 16.0, 25.0)]
-    assert xgb._make_chunks(5.0, 10.0, 2.0) == [(0, 0.0, 5.0)]
-    with pytest.raises(AssertionError):
-        xgb._make_chunks(25.0, 10.0, 10.0)
+def test_chunk_statistics():
+    statistics = xgb.chunk_statistics([0.5, 0.5, 1.0, 2.0])
+
+    assert statistics["n_chunks"] == 4
+    assert statistics["total_sec"] == pytest.approx(4.0)
+    assert statistics["mean_sec"] == pytest.approx(1.0)
+    assert statistics["median_sec"] == pytest.approx(0.75)
+    assert (statistics["min_sec"], statistics["max_sec"]) == (0.5, 2.0)
+    assert statistics["percent_shorter_than_1s"] == pytest.approx(50.0)
+    assert xgb.chunk_statistics([]) == {"n_chunks": 0, "total_sec": 0.0}
 
 
-def test_intersect_turns_with_vad():
-    turns = pd.DataFrame(
-        {
-            "chunk_id": [0, 0, 0],
-            "speaker_id_local": ["A", "B", "A"],
-            "start_sec": [0.0, 3.0, 6.8],
-            "end_sec": [2.0, 6.0, 7.5],
-        }
-    )
-    vad = [(5.0, 7.0), (1.0, 4.0)]
-
-    out = xgb.intersect_turns_with_vad(turns, vad, min_keep_sec=0.5)
-
-    assert list(out.columns) == ["start_sec", "end_sec", "duration_sec", "chunk_id", "speaker_id_local"]
-    assert out[["start_sec", "end_sec", "speaker_id_local"]].to_dict(orient="records") == [
-        {"start_sec": 1.0, "end_sec": 2.0, "speaker_id_local": "A"},
-        {"start_sec": 3.0, "end_sec": 4.0, "speaker_id_local": "B"},
-        {"start_sec": 5.0, "end_sec": 6.0, "speaker_id_local": "B"},
-    ]
-    assert list(out["duration_sec"]) == [1.0, 1.0, 1.0]
-
-    # without a minimum length the short part (6.8-7.0 s) is kept
-    assert len(xgb.intersect_turns_with_vad(turns, vad)) == 4
-    # no speech or no turns: empty table with the same columns
-    assert xgb.intersect_turns_with_vad(turns, []).empty
-    assert list(xgb.intersect_turns_with_vad(turns.iloc[0:0], vad).columns) == list(out.columns)
-
-
-def test_merge_close_segments():
-    df = pd.DataFrame(
-        {
-            "chunk_id": [0, 0, 0, 0, 1],
-            "speaker_id_local": ["A", "B", "A", "A", "A"],
-            "start_sec": [0.0, 2.1, 1.2, 3.0, 4.1],
-            "end_sec": [1.0, 2.5, 2.0, 4.0, 5.0],
-        }
-    )
+def chunk_table(rows: list[tuple[float, float, str]]) -> pd.DataFrame:
+    df = pd.DataFrame(rows, columns=["start_sec", "end_sec", "predicted_class"])
     df["duration_sec"] = df["end_sec"] - df["start_sec"]
+    return df
 
-    out = xgb.merge_close_segments(df, gap_thresh=0.3)
 
-    # A 0.0-1.0 and A 1.2-2.0 are merged (gap 0.2 s). A 3.0-4.0 is too far away.
-    # A 4.1-5.0 is in another chunk and is not merged.
-    assert out[["chunk_id", "speaker_id_local", "start_sec", "end_sec", "n_merged"]].to_dict(orient="records") == [
-        {"chunk_id": 0, "speaker_id_local": "A", "start_sec": 0.0, "end_sec": 2.0, "n_merged": 2},
-        {"chunk_id": 0, "speaker_id_local": "B", "start_sec": 2.1, "end_sec": 2.5, "n_merged": 1},
-        {"chunk_id": 0, "speaker_id_local": "A", "start_sec": 3.0, "end_sec": 4.0, "n_merged": 1},
-        {"chunk_id": 1, "speaker_id_local": "A", "start_sec": 4.1, "end_sec": 5.0, "n_merged": 1},
+def test_merge_chunks_of_the_same_class():
+    df = chunk_table([
+        (0.0, 1.0, "adult_female"),
+        (1.2, 2.0, "adult_female"),   # pause 0.2 s, same class: merged with the first
+        (2.3, 3.0, "adult_female"),   # pause exactly 0.3 s: merged
+        (3.33, 4.0, "adult_female"),  # pause 0.33 s: a new segment
+        (4.1, 4.5, "child"),          # another class: a new segment
+        (4.6, 5.0, "adult_female"),   # the child chunk lies between: not merged with 3.33-4.0
+        (5.1, 5.5, "adult_female"),   # pause 0.1 s, same class: merged
+    ])
+    before = df.copy()
+
+    number, merged = xgb.merge_chunks(df, gap_sec=0.3, same_class=True)
+
+    assert list(number) == [0, 0, 0, 1, 2, 3, 3]
+    assert list(merged.columns) == [
+        "merged_segment", "start_sec", "end_sec", "predicted_class",
+        "n_chunks", "speech_duration_sec", "span_sec",
     ]
-    assert list(out["duration_sec"]) == pytest.approx([2.0, 0.4, 1.0, 0.9])
-    assert xgb.merge_close_segments(df.iloc[0:0]).empty
+    assert list(merged["merged_segment"]) == [0, 1, 2, 3]
+    assert list(merged["predicted_class"]) == ["adult_female", "adult_female", "child", "adult_female"]
+    assert list(merged["start_sec"]) == [0.0, 3.33, 4.1, 4.6]
+    assert list(merged["end_sec"]) == [3.0, 4.0, 4.5, 5.5]
+    assert list(merged["n_chunks"]) == [3, 1, 1, 2]
+    # The speech duration is the sum of the chunks. The pauses are not counted.
+    assert list(merged["speech_duration_sec"]) == pytest.approx([2.5, 0.67, 0.4, 0.8])
+    assert list(merged["span_sec"]) == pytest.approx([3.0, 0.67, 0.4, 0.9])
+    assert merged["speech_duration_sec"].sum() == pytest.approx(df["duration_sec"].sum())
+    # The classified chunks are not changed.
+    pd.testing.assert_frame_equal(df, before)
+
+    # Another limit, and chunks that are not in time order.
+    number, merged = xgb.merge_chunks(df.iloc[::-1], gap_sec=0.05, same_class=True)
+    assert len(merged) == 7 and list(number.sort_index()) == [0, 1, 2, 3, 4, 5, 6]
+
+    number, merged = xgb.merge_chunks(df.iloc[0:0], gap_sec=0.3, same_class=True)
+    assert number.empty and merged.empty and "predicted_class" in merged.columns
+
+
+def test_merge_chunks_before_the_classification_does_not_look_at_a_class():
+    df = chunk_table([(0.0, 1.0, "a"), (1.2, 2.0, "b"), (2.5, 3.0, "a")]).drop(
+        columns="predicted_class"
+    )
+
+    number, merged = xgb.merge_chunks(df, gap_sec=0.3, same_class=False)
+
+    assert list(number) == [0, 0, 1]
+    assert list(merged.columns) == [
+        "merged_segment", "start_sec", "end_sec", "n_chunks", "speech_duration_sec", "span_sec"
+    ]
+    assert list(merged["speech_duration_sec"]) == pytest.approx([1.8, 0.5])
+    assert list(merged["span_sec"]) == pytest.approx([2.0, 0.5])
+
+
+# Not used at present: tests of the speaker diarization functions (see xgb.py).
+#
+# def test_make_chunks():
+#     assert xgb._make_chunks(25.0, 10.0, 2.0) == [(0, 0.0, 10.0), (1, 8.0, 18.0), (2, 16.0, 25.0)]
+#     assert xgb._make_chunks(5.0, 10.0, 2.0) == [(0, 0.0, 5.0)]
+#     with pytest.raises(AssertionError):
+#         xgb._make_chunks(25.0, 10.0, 10.0)
+#
+#
+# def test_intersect_turns_with_vad():
+#     turns = pd.DataFrame(
+#         {
+#             "chunk_id": [0, 0, 0],
+#             "speaker_id_local": ["A", "B", "A"],
+#             "start_sec": [0.0, 3.0, 6.8],
+#             "end_sec": [2.0, 6.0, 7.5],
+#         }
+#     )
+#     vad = [(5.0, 7.0), (1.0, 4.0)]
+#
+#     out = xgb.intersect_turns_with_vad(turns, vad, min_keep_sec=0.5)
+#
+#     assert list(out.columns) == ["start_sec", "end_sec", "duration_sec", "chunk_id", "speaker_id_local"]
+#     assert out[["start_sec", "end_sec", "speaker_id_local"]].to_dict(orient="records") == [
+#         {"start_sec": 1.0, "end_sec": 2.0, "speaker_id_local": "A"},
+#         {"start_sec": 3.0, "end_sec": 4.0, "speaker_id_local": "B"},
+#         {"start_sec": 5.0, "end_sec": 6.0, "speaker_id_local": "B"},
+#     ]
+#     assert list(out["duration_sec"]) == [1.0, 1.0, 1.0]
+#
+#     # without a minimum length the short part (6.8-7.0 s) is kept
+#     assert len(xgb.intersect_turns_with_vad(turns, vad)) == 4
+#     # no speech or no turns: empty table with the same columns
+#     assert xgb.intersect_turns_with_vad(turns, []).empty
+#     assert list(xgb.intersect_turns_with_vad(turns.iloc[0:0], vad).columns) == list(out.columns)
+#
+#
+# def test_merge_close_segments():
+#     df = pd.DataFrame(
+#         {
+#             "chunk_id": [0, 0, 0, 0, 1],
+#             "speaker_id_local": ["A", "B", "A", "A", "A"],
+#             "start_sec": [0.0, 2.1, 1.2, 3.0, 4.1],
+#             "end_sec": [1.0, 2.5, 2.0, 4.0, 5.0],
+#         }
+#     )
+#     df["duration_sec"] = df["end_sec"] - df["start_sec"]
+#
+#     out = xgb.merge_close_segments(df, gap_thresh=0.3)
+#
+#     # A 0.0-1.0 and A 1.2-2.0 are merged (gap 0.2 s). A 3.0-4.0 is too far away.
+#     # A 4.1-5.0 is in another chunk and is not merged.
+#     assert out[["chunk_id", "speaker_id_local", "start_sec", "end_sec", "n_merged"]].to_dict(orient="records") == [
+#         {"chunk_id": 0, "speaker_id_local": "A", "start_sec": 0.0, "end_sec": 2.0, "n_merged": 2},
+#         {"chunk_id": 0, "speaker_id_local": "B", "start_sec": 2.1, "end_sec": 2.5, "n_merged": 1},
+#         {"chunk_id": 0, "speaker_id_local": "A", "start_sec": 3.0, "end_sec": 4.0, "n_merged": 1},
+#         {"chunk_id": 1, "speaker_id_local": "A", "start_sec": 4.1, "end_sec": 5.0, "n_merged": 1},
+#     ]
+#     assert list(out["duration_sec"]) == pytest.approx([2.0, 0.4, 1.0, 0.9])
+#     assert xgb.merge_close_segments(df.iloc[0:0]).empty
 
 
 def test_build_class_stream():
@@ -353,7 +492,7 @@ def snapshot(folder: Path) -> dict[str, bytes]:
     return {str(p.relative_to(folder)): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
 
 
-COMPLETE = ["{id}_main_female.wav", "{id}_main_male.wav", "{id}_summary.json", "{id}.TextGrid"]
+COMPLETE = ["{id}_segments.parquet", "{id}_summary.json", "{id}.TextGrid"]
 
 
 @pytest.fixture
@@ -362,14 +501,13 @@ def mocked_steps(monkeypatch):
     calls: list[str] = []
     loaded: list[str] = []
 
-    def fake_classify(wav_path, participant, out_dir, settings, model, diar_pipeline, extractor):
+    def fake_classify(wav_path, participant, out_dir, settings, model, extractor):
         calls.append(participant)
         if participant.startswith("BAD"):
             raise RuntimeError("synthetic failure")
         return {"n_classified_segments": 3, "total_speech_sec": 7200.0}
 
     monkeypatch.setattr(xgb, "load_model", lambda *args, **kwargs: loaded.append("model") or "model")
-    monkeypatch.setattr(xgb, "load_diarization_pipeline", lambda name: loaded.append(name) or "pipeline")
     monkeypatch.setattr(xgb, "EGemapsExtractor", lambda **kwargs: "extractor")
     monkeypatch.setattr(xgb, "classify_recording", fake_classify)
     calls_and_loaded = {"calls": calls, "loaded": loaded}
@@ -388,12 +526,13 @@ def test_is_complete(tmp_path: Path):
 
     assert sorted(p.name for p in xgb.output_files("P1", out_dir).values()) == sorted(
         [
-            "P1_main_female.wav",
-            "P1_main_male.wav",
+            "P1_adult_female.wav",
+            "P1_adult_male.wav",
             "P1_child.wav",
             "P1_background.wav",
             "P1.TextGrid",
             "P1_segments.parquet",
+            "P1_merged_segments.parquet",
             "P1_summary.json",
             "run_info.json",
         ]
@@ -416,7 +555,7 @@ def test_run_skips_complete_refuses_incomplete_and_leaves_vtc_alone(tmp_path: Pa
     # P2 counts as failed, P3 is the only participant that is run
     assert result == 1
     assert mocked_steps["calls"] == ["P3"]
-    assert mocked_steps["loaded"] == ["model", "pyannote/speaker-diarization-3.1"]
+    assert mocked_steps["loaded"] == ["model"]  # no diarization model is loaded
     assert snapshot(complete_dir) == before["complete"]
     assert snapshot(incomplete_dir) == before["incomplete"]
     assert snapshot(vtc_dir) == before["vtc"]
@@ -512,3 +651,222 @@ def test_run_with_other_file_names_and_places(tmp_path: Path, mocked_steps, caps
     # All recordings of one participant can be selected by the participant name.
     assert xgb.run(NoVtcConfig(config), PARAMS, participant="P2") == 1  # incomplete folder
     assert mocked_steps["calls"] == ["REC_0002", "REC_0001"]
+
+
+# ---------------------------------------------------------------------------
+# One complete run on a made-up recording
+# ---------------------------------------------------------------------------
+
+class LevelModel:
+    """Stand-in model: the class is given by the sample value of the chunk
+    (0.1 adult_male, 0.2 adult_female, 0.3 child, 0.4 background)."""
+
+    def predict_proba(self, X):
+        index = np.clip(np.rint(X[:, 0] * 10).astype(int) - 1, 0, 3)
+        return np.eye(4, dtype=np.float32)[index]
+
+
+FEM, CHILD = 0.2, 0.3
+# (first frame, frame after the last one, sample value). One frame is 30 ms.
+SOUNDS = [
+    (10, 30, FEM),      # 1: 0.30-0.90 s
+    (35, 50, FEM),      # 2: 1.05-1.50 s, pause 0.15 s            -> merged with 1
+    (60, 80, CHILD),    # 3: 1.80-2.40 s, another class
+    (83, 100, FEM),     # 4: 2.49-3.00 s
+    (110, 120, FEM),    # 5: 3.30-3.60 s, pause exactly 0.30 s    -> merged with 4
+    (121, 127, CHILD),  # 6: 3.63-3.81 s, another class
+    (128, 140, FEM),    # 7: 3.84-4.20 s, chunk 6 lies between     -> not merged with 5
+    (150, 160, FEM),    # 8: 4.50-4.80 s, pause 0.30 s            -> merged with 7
+    (171, 180, FEM),    # 9: 5.13-5.40 s, pause 0.33 s            -> a new segment
+    (190, 200, FEM),    # 10: 5.70-6.00 s, pause 0.30 s           -> merged with 9
+    (220, 224, FEM),    # 120 ms: shorter than min_region_ms, not used
+]
+CHUNKS = [(first * 0.03, after_last * 0.03) for first, after_last, _ in SOUNDS[:10]]
+SPEECH_SEC = sum(end - start for start, end in CHUNKS)  # 3.87 s
+
+
+@pytest.fixture
+def made_up_run(tmp_path: Path, fake_vad, monkeypatch):
+    """A made-up recording and a function that classifies it with other settings."""
+    wav = write_frames(tmp_path / "prepared" / "P1.wav", SOUNDS, 240)
+    # Stand-in features: the sample value at the start of the window.
+    monkeypatch.setattr(
+        xgb, "extract_egemaps_for_window",
+        lambda extractor, audio, sr, start, end: np.full(88, audio[int(round(start * sr))]),
+    )
+
+    def run(name: str, **segmentation) -> tuple[dict, Path]:
+        settings = {**PARAMS["xgb"], "segmentation": {**PARAMS["xgb"]["segmentation"], **segmentation}}
+        out_dir = tmp_path / "xgb" / name
+        summary = xgb.classify_recording(wav, "P1", out_dir, settings, LevelModel(), None)
+        return summary, out_dir
+
+    return run
+
+
+def read_textgrid_tiers(path: Path) -> dict[str, list[tuple[float, float]]]:
+    from praatio import textgrid as tgio
+
+    grid = tgio.openTextgrid(str(path), includeEmptyIntervals=False)
+    return {
+        name: [(float(start), float(end)) for start, end, _ in grid.getTier(name).entries]
+        for name in grid.tierNames
+    }
+
+
+def test_every_vad_chunk_is_classified_alone_and_then_merged(made_up_run):
+    summary, out_dir = made_up_run("default")
+
+    # Table 1: one row for every VAD chunk, as it was classified.
+    chunks = pd.read_parquet(out_dir / "P1_segments.parquet")
+    assert list(chunks["start_sec"]) == pytest.approx([start for start, _ in CHUNKS])
+    assert list(chunks["end_sec"]) == pytest.approx([end for _, end in CHUNKS])
+    assert list(chunks["duration_sec"]) == pytest.approx([end - start for start, end in CHUNKS])
+    fem, child = "adult_female", "child"
+    assert list(chunks["predicted_class"]) == [fem, fem, child, fem, fem, child, fem, fem, fem, fem]
+    assert list(chunks["merged_segment"]) == [0, 0, 1, 2, 2, 3, 4, 4, 5, 5]
+    assert {"n_windows", "predicted_confidence", "probs_adult_female"} <= set(chunks.columns)
+
+    # Table 2: chunks of the same class that follow each other with a pause up to 0.3 s.
+    merged = pd.read_parquet(out_dir / "P1_merged_segments.parquet")
+    assert list(merged["merged_segment"]) == [0, 1, 2, 3, 4, 5]
+    assert list(merged["predicted_class"]) == [fem, child, fem, child, fem, fem]
+    assert list(merged["n_chunks"]) == [2, 1, 2, 1, 2, 2]
+    assert list(merged["start_sec"]) == pytest.approx([0.30, 1.80, 2.49, 3.63, 3.84, 5.13])
+    assert list(merged["end_sec"]) == pytest.approx([1.50, 2.40, 3.60, 3.81, 4.80, 6.00])
+    # The pauses between merged chunks are not counted as speech.
+    assert list(merged["speech_duration_sec"]) == pytest.approx([1.05, 0.60, 0.81, 0.18, 0.66, 0.57])
+    assert list(merged["span_sec"]) == pytest.approx([1.20, 0.60, 1.11, 0.18, 0.96, 0.87])
+    assert merged["speech_duration_sec"].sum() == pytest.approx(SPEECH_SEC)
+    assert chunks["duration_sec"].sum() == pytest.approx(SPEECH_SEC)
+
+    # The TextGrid has the chunks: a pause inside a merged segment is not labelled.
+    tiers = read_textgrid_tiers(out_dir / "P1.TextGrid")
+    assert list(tiers) == ["FEM", "MAL", "CHILD", "BACKGROUND"]
+    assert tiers["FEM"] == [pytest.approx(CHUNKS[i]) for i in (0, 1, 3, 4, 6, 7, 8, 9)]
+    assert tiers["CHILD"] == [pytest.approx(CHUNKS[i]) for i in (2, 5)]
+    assert tiers["MAL"] == [] and tiers["BACKGROUND"] == []
+
+    # One audio file for every class that was found; the results are complete without
+    # the files of the classes that were not found.
+    assert sorted(path.name for path in out_dir.iterdir()) == [
+        "P1.TextGrid", "P1_adult_female.wav", "P1_child.wav",
+        "P1_merged_segments.parquet", "P1_segments.parquet", "P1_summary.json",
+    ]
+    assert xgb.is_complete("P1", out_dir)
+    female = sf.info(str(out_dir / "P1_adult_female.wav"))
+    # all female chunks (3.09 s), each followed by 0.15 s of silence
+    assert female.duration == pytest.approx(3.09 + 8 * 0.15, abs=0.001)
+
+    saved = json.loads((out_dir / "P1_summary.json").read_text(encoding="utf-8"))
+    assert saved == json.loads(json.dumps(summary))
+    assert summary["n_vad_chunks"] == 10 and summary["n_classified_segments"] == 10
+    assert summary["n_merged_segments"] == 6
+    assert summary["total_speech_sec"] == pytest.approx(SPEECH_SEC)
+    assert summary["class_durations"] == pytest.approx(
+        {"adult_male": 0.0, "adult_female": 3.09, "child": 0.78, "background": 0.0}
+    )
+    assert summary["class_counts"] == {"adult_male": 0, "adult_female": 8, "child": 2, "background": 0}
+    assert summary["merged_class_counts"] == {
+        "adult_male": 0, "adult_female": 4, "child": 2, "background": 0
+    }
+    assert summary["vad_chunk_statistics"]["percent_shorter_than_1s"] == pytest.approx(100.0)
+    assert summary["settings"]["vad"] == PARAMS["xgb"]["vad"]
+    assert summary["settings"]["segmentation"] == PARAMS["xgb"]["segmentation"]
+
+
+def test_merging_can_be_switched_off_or_done_before_the_classification(made_up_run):
+    # No merging: only the table of the classified chunks.
+    summary, out_dir = made_up_run("no_merge", merge_after_classification=False)
+    chunks = pd.read_parquet(out_dir / "P1_segments.parquet")
+    assert len(chunks) == 10 and "merged_segment" not in chunks.columns
+    assert not (out_dir / "P1_merged_segments.parquet").exists()
+    assert summary["n_merged_segments"] is None and summary["merged_segments"] is None
+    assert xgb.is_complete("P1", out_dir)
+
+    # Another limit for the pause: 0.15 s merges only the chunks 1 and 2.
+    summary, _ = made_up_run("small_gap", merge_gap_sec=0.15)
+    assert summary["n_merged_segments"] == 9
+
+    # Merging before the classification joins chunks without looking at a class.
+    summary, out_dir = made_up_run(
+        "before", merge_before_classification=True, merge_after_classification=False
+    )
+    chunks = pd.read_parquet(out_dir / "P1_segments.parquet")
+    assert list(chunks["n_chunks"]) == [8, 2]
+    assert list(chunks["start_sec"]) == pytest.approx([0.30, 5.13])
+    assert list(chunks["end_sec"]) == pytest.approx([4.80, 6.00])
+    # Also here the duration is the speech of the chunks, without the pauses.
+    assert list(chunks["duration_sec"]) == pytest.approx([3.30, 0.57])
+    assert summary["n_vad_chunks"] == 10 and summary["n_classified_segments"] == 2
+    assert summary["total_speech_sec"] == pytest.approx(SPEECH_SEC)
+
+
+def test_recording_without_speech_gives_complete_empty_results(tmp_path: Path, fake_vad):
+    wav = write_frames(tmp_path / "prepared" / "P1.wav", [], 100)
+    out_dir = tmp_path / "xgb" / "P1"
+
+    summary = xgb.classify_recording(wav, "P1", out_dir, PARAMS["xgb"], LevelModel(), None)
+
+    assert summary["n_vad_chunks"] == 0 and summary["total_speech_sec"] == 0.0
+    assert summary["n_merged_segments"] == 0
+    assert pd.read_parquet(out_dir / "P1_segments.parquet").empty
+    assert xgb.is_complete("P1", out_dir)
+    assert not list(out_dir.glob("*.wav"))
+
+
+def test_a_stopped_run_is_not_recorded_as_a_success(tmp_path: Path, monkeypatch):
+    def stopped(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(xgb, "classify_recording", stopped)
+    out_dir = tmp_path / "P1"
+
+    with pytest.raises(KeyboardInterrupt):
+        xgb.run_participant(tmp_path / "P1.wav", "P1", out_dir, PARAMS["xgb"], "model", "extractor")
+
+    info = json.loads((out_dir / "run_info.json").read_text(encoding="utf-8"))
+    assert info["status"] == "interrupted"
+    assert not xgb.is_complete("P1", out_dir)
+
+
+# ---------------------------------------------------------------------------
+# Settings and switched-off diarization
+# ---------------------------------------------------------------------------
+
+def test_settings_of_params_yaml():
+    settings = load_params()["xgb"]
+
+    assert settings["vad"] == {
+        "aggressiveness": 1, "frame_ms": 30, "min_region_ms": 150, "min_silence_ms": 30
+    }
+    assert settings["segmentation"] == {
+        "merge_before_classification": False,
+        "merge_after_classification": True,
+        "merge_gap_sec": 0.3,
+    }
+    assert settings["classification"] == {"win_sec": 1.0, "hop_sec": 0.5}
+    assert "diarization" not in settings  # kept as a comment in the file
+    xgb.check_settings(settings)
+    assert settings == PARAMS["xgb"]
+
+
+def test_a_missing_setting_is_named(tmp_path: Path):
+    config = make_config(tmp_path)
+    add_prepared_audio(config, "P1")
+    settings = {**PARAMS["xgb"], "vad": {"aggressiveness": 1, "frame_ms": 30, "min_region_ms": 150}}
+
+    with pytest.raises(ValueError, match="xgb.vad.min_silence_ms"):
+        xgb.run(config, {"xgb": settings})
+    assert not config.path("xgb").exists()
+
+
+def test_diarization_code_and_packages_are_switched_off():
+    source = Path(xgb.__file__).read_text(encoding="utf-8")
+    active = [line for line in source.splitlines() if not line.lstrip().startswith("#")]
+    used = [line for line in active if re.search(r"\b(torch|pyannote|dotenv|diar_pipeline)\b", line)]
+    assert used == []
+    # The code is kept as comments.
+    for name in ("load_diarization_pipeline", "diarize_wav", "extract_main_speaker_audio"):
+        assert f"# def {name}(" in source
+        assert not hasattr(xgb, name)

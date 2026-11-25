@@ -26,25 +26,40 @@ xgb:
   class_names: ["adult_male", "adult_female", "child", "background"]
   egemaps_dim: 88
 
+  # Voice activity detection (WebRTC VAD). It cuts the recording into speech chunks.
   vad:
-    aggressiveness: 2
+    # 0 to 3. A higher value removes more sound that is not clear speech.
+    aggressiveness: 1
+    # Length of one VAD frame: 10, 20 or 30 ms.
     frame_ms: 30
-    min_region_ms: 300
-
-  diarization:
-    model: "pyannote/speaker-diarization-3.1"
-    chunk_sec: 900.0
-    overlap_sec: 10.0
-    min_speakers: 2
-    max_speakers: 4
+    # Chunks shorter than this are not used.
+    min_region_ms: 150
+    # A pause of this length or longer ends a chunk. Shorter pauses stay inside the chunk.
+    # With frames of 30 ms, the value 30 means: every frame without speech ends a chunk.
+    min_silence_ms: 30
 
   segmentation:
+    # true: chunks with a pause up to merge_gap_sec are joined before the classification.
+    merge_before_classification: false
+    # true: after the classification, chunks that follow each other, have the same class
+    # and a pause up to merge_gap_sec are merged in a second table.
+    merge_after_classification: true
     merge_gap_sec: 0.3
-    min_segment_sec: 0.2
 
   classification:
     win_sec: 1.0
     hop_sec: 0.5
+
+  # Not used at present: speaker diarization (see audio/src/hindibabynet_audio/xgb.py).
+  # To use it again, remove the "#" here, in xgb.py and in audio/pyproject.toml.
+  # diarization:
+  #   model: "pyannote/speaker-diarization-3.1"
+  #   chunk_sec: 900.0
+  #   overlap_sec: 10.0
+  #   min_speakers: 2
+  #   max_speakers: 4
+  # segmentation:
+  #   min_segment_sec: 0.2
 
 vtc:
   batch_size: 32
