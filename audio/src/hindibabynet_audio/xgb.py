@@ -6,7 +6,7 @@ Steps for one prepared recording (16 kHz mono WAV):
      ->  adult_male / adult_female / child / background
   3. Chunks that follow each other, have the same class and a short pause between
      them are merged in a second table. The classified chunks stay as they are.
-  4. Write one audio file per class, the TextGrid, the two tables and the summary
+  4. Write the two tables (CSV), the TextGrid and the summary
 
 Speaker diarization is not used at present. Its two steps (speaker turns before the
 classification, main female and main male speaker after it) are kept as comments in
@@ -861,22 +861,19 @@ def check_settings(settings: dict) -> None:
 
 def output_files(participant: str, out_dir: Path) -> Dict[str, Path]:
     """Names of the result files of one recording."""
-    # One audio file per class: <name>_adult_male.wav, <name>_adult_female.wav, ...
-    files = {f"{name}_wav": out_dir / f"{participant}_{name}.wav" for name in CLASS_NAMES}
-    files.update(
-        {
-            "textgrid": out_dir / f"{participant}.TextGrid",
-            "segments": out_dir / f"{participant}_segments.parquet",
-            "merged_segments": out_dir / f"{participant}_merged_segments.parquet",
-            "summary": out_dir / f"{participant}_summary.json",
-            "run_info": out_dir / "run_info.json",
-        }
-    )
+    files = {
+        "textgrid": out_dir / f"{participant}.TextGrid",
+        "segments": out_dir / f"{participant}_segments.csv",
+        "merged_segments": out_dir / f"{participant}_merged_segments.csv",
+        "summary": out_dir / f"{participant}_summary.json",
+        "run_info": out_dir / "run_info.json",
+    }
+    # Not used at present: one audio file per class (<name>_adult_male.wav, ...).
+    # files.update({f"{name}_wav": out_dir / f"{participant}_{name}.wav" for name in CLASS_NAMES})
     return files
 
 
 # Results are complete when these files exist. They are written for every recording.
-# (The audio file of a class is written only if the recording has speech of this class.)
 REQUIRED_FILES = ("segments", "textgrid", "summary")
 
 
@@ -996,14 +993,13 @@ def classify_recording(
             merged_counts[cn] = int((merged_df["predicted_class"] == cn).sum())
         print(f"    merged segments: {len(merged_df)}")
 
-    # --- Step 4: One audio file per class (all chunks of the class) ---
-    print("  step 4: audio file of every class")
-    for cn in class_names:
-        stream_audio, _, _ = build_class_stream(classified_df, audio_16k, sr_16k, cn)
-        if len(stream_audio) > 0:
-            write_stream_wav(stream_audio, sr_16k, files[f"{cn}_wav"])
-        else:
-            print(f"    note: no {cn} chunks, no {files[f'{cn}_wav'].name} written")
+    # Not used at present: one audio file per class (all chunks of the class).
+    # for cn in class_names:
+    #     stream_audio, _, _ = build_class_stream(classified_df, audio_16k, sr_16k, cn)
+    #     if len(stream_audio) > 0:
+    #         write_stream_wav(stream_audio, sr_16k, files[f"{cn}_wav"])
+    #     else:
+    #         print(f"    note: no {cn} chunks, no {files[f'{cn}_wav'].name} written")
 
     # Not used at present: main female and main male speaker (second diarization).
     # tmp_secondary = out_dir.parent / "_tmp_secondary" / participant
@@ -1035,9 +1031,9 @@ def classify_recording(
     #     ignore_index=True,
     # )
 
-    # --- Step 5: TextGrid, tables and summary ---
+    # --- Step 4: Tables, TextGrid and summary ---
     # The TextGrid has the classified chunks, so a pause is never shown as speech.
-    print("  step 5: TextGrid, segment tables and summary")
+    print("  step 4: segment tables (CSV), TextGrid and summary")
     write_textgrid(
         df=classified_df,
         duration_sec=full_duration,
@@ -1045,9 +1041,10 @@ def classify_recording(
         tier_map=TIER_MAP,
     )
 
-    classified_df.to_parquet(files["segments"], index=False, engine="pyarrow")
+    # CSV files, one row per chunk or segment. Numbers are written with 6 decimals.
+    classified_df.round(6).to_csv(files["segments"], index=False)
     if merged_df is not None:
-        merged_df.to_parquet(files["merged_segments"], index=False, engine="pyarrow")
+        merged_df.round(6).to_csv(files["merged_segments"], index=False)
 
     total_speech = float(classified_df["duration_sec"].sum())
     summary = {
@@ -1066,7 +1063,7 @@ def classify_recording(
         "merged_class_counts": merged_counts,
         "segments": str(files["segments"]),
         "merged_segments": None if merged_df is None else str(files["merged_segments"]),
-        **{f"{cn}_wav": str(files[f"{cn}_wav"]) for cn in class_names},
+        # **{f"{cn}_wav": str(files[f"{cn}_wav"]) for cn in class_names},  # not used at present
         "textgrid": str(files["textgrid"]),
     }
     with open(files["summary"], "w", encoding="utf-8") as f:

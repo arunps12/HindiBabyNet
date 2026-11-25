@@ -2,7 +2,7 @@
 
 ``write_textgrid`` is used by the XGBoost classification. ``run`` is an optional
 tool: it makes a TextGrid from the classification results that already exist
-(VTC ``rttm.csv`` or XGBoost ``<participant>_segments.parquet``).
+(VTC ``rttm.csv`` or XGBoost ``<participant>_segments.csv``).
 """
 from __future__ import annotations
 
@@ -203,7 +203,7 @@ def results_file(config, method: str, participant: str) -> Path:
     if method == "vtc":
         return config.path("vtc", *parts, "rttm.csv")
     if method == "xgb":
-        return config.path("xgb", *parts, f"{parts[-1]}_segments.parquet")
+        return config.path("xgb", *parts, f"{parts[-1]}_segments.csv")
     raise ValueError(f"Unknown method: {method}. Use one of {METHODS}.")
 
 
@@ -214,7 +214,7 @@ def find_results(config, method: str) -> list[tuple[str, Path]]:
     root = config.path(method)
     if not root.is_dir():
         return []
-    pattern = "rttm.csv" if method == "vtc" else "*_segments.parquet"
+    pattern = "rttm.csv" if method == "vtc" else "*_segments.csv"
     found = []
     for segment_path in root.rglob(pattern):
         name = segment_path.parent.relative_to(root).as_posix()

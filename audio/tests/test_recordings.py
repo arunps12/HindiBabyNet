@@ -90,11 +90,13 @@ def test_textgrid_for_results_in_sub_folders(make_config, params, capsys):
     config = make_config()
     write_file(config.path("vtc", "P1", "20250201", "REC_0001", "rttm.csv"), RTTM_CSV)
     write_file(config.path("vtc", "REC_0002", "rttm.csv"), RTTM_CSV)
-    segments = config.path("xgb", "P1", "REC_0003", "REC_0003_segments.parquet")
+    segments = config.path("xgb", "P1", "REC_0003", "REC_0003_segments.csv")
     segments.parent.mkdir(parents=True)
     pd.DataFrame(
         {"start_sec": [0.0], "end_sec": [0.5], "predicted_class": ["adult_male"]}
-    ).to_parquet(segments, index=False)
+    ).to_csv(segments, index=False)
+    # The table of the merged segments is not taken as the results of a recording.
+    (segments.parent / "REC_0003_merged_segments.csv").write_text("merged_segment\n", encoding="utf-8")
 
     assert textgrid.find_results(config, "vtc") == [
         ("P1/20250201/REC_0001", config.path("vtc", "P1", "20250201", "REC_0001", "rttm.csv")),

@@ -338,8 +338,8 @@ The settings are in the part `xgb` of `audio/params.yaml`.
 | --- | --- | --- |
 | `vad.aggressiveness` | 1 | 0 to 3. A higher value removes more sound that is not clear speech. |
 | `vad.frame_ms` | 30 | The VAD decides for every frame of this length if it is speech (10, 20 or 30 ms). |
-| `vad.min_region_ms` | 150 | Chunks shorter than this are not used. |
-| `vad.min_silence_ms` | 30 | A pause of this length or longer ends a chunk. Shorter pauses stay inside the chunk. With frames of 30 ms, the value 30 means that every frame without speech ends a chunk. |
+| `vad.min_region_ms` | 90 | Chunks shorter than this are not used. |
+| `vad.min_silence_ms` | 60 | A pause of this length or longer ends a chunk. Shorter pauses stay inside the chunk. With frames of 30 ms, the value 60 means that one frame without speech stays inside the chunk, and two or more such frames after each other end the chunk. |
 | `segmentation.merge_before_classification` | `false` | `true`: chunks with a pause up to `merge_gap_sec` are joined before the classification. The class is not known at this point, so chunks of different speakers can be joined. |
 | `segmentation.merge_after_classification` | `true` | `true`: step 3 is done. `false`: only the table of the classified chunks is written. |
 | `segmentation.merge_gap_sec` | 0.3 | The longest pause, in seconds, between two chunks that are merged. |
@@ -348,13 +348,12 @@ The features are calculated in windows of 1 second (`classification.win_sec`) wi
 
 ### Output
 
-For each prepared recording, in `derived/xgb-classification/<recording>/`:
+For each prepared recording, in `derived/xgb-classification/<recording>/`. The two tables are CSV files, like the `rttm.csv` of VTC:
 
 | File | Content |
 | --- | --- |
-| `<name>_segments.parquet` | the classified chunks, one row per chunk: `start_sec`, `end_sec`, `duration_sec`, `predicted_class`, the probability of each class, and `merged_segment` (the number of the merged segment that the chunk belongs to) |
-| `<name>_merged_segments.parquet` | the merged segments, one row per segment: `start_sec`, `end_sec`, `predicted_class`, `n_chunks`, `speech_duration_sec` and `span_sec` |
-| `<name>_adult_female.wav`, `<name>_adult_male.wav`, `<name>_child.wav`, `<name>_background.wav` | the chunks of one class, one after the other. A file is written only when the class was found. |
+| `<name>_segments.csv` | the classified chunks, one row per chunk: `start_sec`, `end_sec`, `duration_sec`, `predicted_class`, the probability of each class, and `merged_segment` (the number of the merged segment that the chunk belongs to) |
+| `<name>_merged_segments.csv` | the merged segments, one row per segment: `start_sec`, `end_sec`, `predicted_class`, `n_chunks`, `speech_duration_sec` and `span_sec` |
 | `<name>.TextGrid` | the classified chunks as a Praat TextGrid |
 | `<name>_summary.json` | the settings, the number and the length of the chunks, and the speech duration per class |
 | `run_info.json` | the start time, the run time and the status of the run |
@@ -364,7 +363,7 @@ Two columns of the merged segments give a duration:
 - `speech_duration_sec` is the sum of the chunks of the segment. The pauses between the chunks are **not** counted. Use this column for the amount of speech.
 - `span_sec` is the time from the start of the first chunk to the end of the last chunk, with the pauses.
 
-The speech durations in the summary, the TextGrid and the audio files of the classes are made from the chunks, so a pause is never counted as speech.
+The speech durations in the summary and the TextGrid are made from the chunks, so a pause is never counted as speech. Audio files of the classes are not written.
 
 The XGBoost results and the VTC results are saved in different folders. One method is never used in place of the other.
 

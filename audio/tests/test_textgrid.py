@@ -198,7 +198,7 @@ def test_run_writes_textgrid_and_leaves_rttm_unchanged(tmp_path: Path, capsys):
 def test_run_reads_xgb_segments(tmp_path: Path):
     pytest.importorskip("praatio")
     config = make_config(tmp_path)
-    segments = config.path("xgb", "P1", "P1_segments.parquet")
+    segments = config.path("xgb", "P1", "P1_segments.csv")
     segments.parent.mkdir(parents=True)
     pd.DataFrame(
         {
@@ -206,7 +206,7 @@ def test_run_reads_xgb_segments(tmp_path: Path):
             "end_sec": [0.5, 1.5, 2.5],
             "predicted_class": ["adult_male", "child", "background"],
         }
-    ).to_parquet(segments, index=False)
+    ).to_csv(segments, index=False)
 
     assert textgrid.run(config, PARAMS, "xgb", participant="P1") == 0
 

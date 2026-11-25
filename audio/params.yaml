@@ -35,7 +35,8 @@ xgb:
     # Chunks shorter than this are not used.
     min_region_ms: 90
     # A pause of this length or longer ends a chunk. Shorter pauses stay inside the chunk.
-    # With frames of 60 ms, the value 60 means: every frame without speech ends a chunk.
+    # With frames of 30 ms, the value 60 means: one frame without speech (30 ms) stays
+    # inside the chunk, two or more such frames after each other end the chunk.
     min_silence_ms: 60
 
   segmentation:

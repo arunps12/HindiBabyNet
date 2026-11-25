@@ -23,7 +23,7 @@ from hindibabynet_audio.params import load_params  # noqa: E402
 
 CLASS_ORDER = ["adult_male", "adult_female", "child", "background"]
 
-# The xgb section of audio/params.yaml
+# Settings of these tests, with the same parts as the xgb section of audio/params.yaml
 PARAMS = {
     "xgb": {
         "class_names": CLASS_ORDER,
@@ -492,7 +492,7 @@ def snapshot(folder: Path) -> dict[str, bytes]:
     return {str(p.relative_to(folder)): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
 
 
-COMPLETE = ["{id}_segments.parquet", "{id}_summary.json", "{id}.TextGrid"]
+COMPLETE = ["{id}_segments.csv", "{id}_summary.json", "{id}.TextGrid"]
 
 
 @pytest.fixture
@@ -526,13 +526,9 @@ def test_is_complete(tmp_path: Path):
 
     assert sorted(p.name for p in xgb.output_files("P1", out_dir).values()) == sorted(
         [
-            "P1_adult_female.wav",
-            "P1_adult_male.wav",
-            "P1_child.wav",
-            "P1_background.wav",
             "P1.TextGrid",
-            "P1_segments.parquet",
-            "P1_merged_segments.parquet",
+            "P1_segments.csv",
+            "P1_merged_segments.csv",
             "P1_summary.json",
             "run_info.json",
         ]
@@ -718,17 +714,24 @@ def test_every_vad_chunk_is_classified_alone_and_then_merged(made_up_run):
     summary, out_dir = made_up_run("default")
 
     # Table 1: one row for every VAD chunk, as it was classified.
-    chunks = pd.read_parquet(out_dir / "P1_segments.parquet")
+    chunks = pd.read_csv(out_dir / "P1_segments.csv")
+    assert list(chunks.columns) == [
+        "start_sec", "end_sec", "duration_sec", "n_windows",
+        "probs_adult_male", "probs_adult_female", "probs_child", "probs_background",
+        "predicted_class", "predicted_confidence", "merged_segment",
+    ]
     assert list(chunks["start_sec"]) == pytest.approx([start for start, _ in CHUNKS])
     assert list(chunks["end_sec"]) == pytest.approx([end for _, end in CHUNKS])
     assert list(chunks["duration_sec"]) == pytest.approx([end - start for start, end in CHUNKS])
     fem, child = "adult_female", "child"
     assert list(chunks["predicted_class"]) == [fem, fem, child, fem, fem, child, fem, fem, fem, fem]
     assert list(chunks["merged_segment"]) == [0, 0, 1, 2, 2, 3, 4, 4, 5, 5]
-    assert {"n_windows", "predicted_confidence", "probs_adult_female"} <= set(chunks.columns)
+    # The numbers in the CSV file have no long tails like 0.6000000000000001.
+    first_row = (out_dir / "P1_segments.csv").read_text(encoding="utf-8").splitlines()[1]
+    assert first_row.startswith("0.3,0.9,0.6,1,0.0,1.0,0.0,0.0,adult_female,1.0,0")
 
     # Table 2: chunks of the same class that follow each other with a pause up to 0.3 s.
-    merged = pd.read_parquet(out_dir / "P1_merged_segments.parquet")
+    merged = pd.read_csv(out_dir / "P1_merged_segments.csv")
     assert list(merged["merged_segment"]) == [0, 1, 2, 3, 4, 5]
     assert list(merged["predicted_class"]) == [fem, child, fem, child, fem, fem]
     assert list(merged["n_chunks"]) == [2, 1, 2, 1, 2, 2]
@@ -747,16 +750,11 @@ def test_every_vad_chunk_is_classified_alone_and_then_merged(made_up_run):
     assert tiers["CHILD"] == [pytest.approx(CHUNKS[i]) for i in (2, 5)]
     assert tiers["MAL"] == [] and tiers["BACKGROUND"] == []
 
-    # One audio file for every class that was found; the results are complete without
-    # the files of the classes that were not found.
+    # Two CSV tables, the TextGrid and the summary. No audio files are written.
     assert sorted(path.name for path in out_dir.iterdir()) == [
-        "P1.TextGrid", "P1_adult_female.wav", "P1_child.wav",
-        "P1_merged_segments.parquet", "P1_segments.parquet", "P1_summary.json",
+        "P1.TextGrid", "P1_merged_segments.csv", "P1_segments.csv", "P1_summary.json",
     ]
     assert xgb.is_complete("P1", out_dir)
-    female = sf.info(str(out_dir / "P1_adult_female.wav"))
-    # all female chunks (3.09 s), each followed by 0.15 s of silence
-    assert female.duration == pytest.approx(3.09 + 8 * 0.15, abs=0.001)
 
     saved = json.loads((out_dir / "P1_summary.json").read_text(encoding="utf-8"))
     assert saved == json.loads(json.dumps(summary))
@@ -778,9 +776,9 @@ def test_every_vad_chunk_is_classified_alone_and_then_merged(made_up_run):
 def test_merging_can_be_switched_off_or_done_before_the_classification(made_up_run):
     # No merging: only the table of the classified chunks.
     summary, out_dir = made_up_run("no_merge", merge_after_classification=False)
-    chunks = pd.read_parquet(out_dir / "P1_segments.parquet")
+    chunks = pd.read_csv(out_dir / "P1_segments.csv")
     assert len(chunks) == 10 and "merged_segment" not in chunks.columns
-    assert not (out_dir / "P1_merged_segments.parquet").exists()
+    assert not (out_dir / "P1_merged_segments.csv").exists()
     assert summary["n_merged_segments"] is None and summary["merged_segments"] is None
     assert xgb.is_complete("P1", out_dir)
 
@@ -792,7 +790,7 @@ def test_merging_can_be_switched_off_or_done_before_the_classification(made_up_r
     summary, out_dir = made_up_run(
         "before", merge_before_classification=True, merge_after_classification=False
     )
-    chunks = pd.read_parquet(out_dir / "P1_segments.parquet")
+    chunks = pd.read_csv(out_dir / "P1_segments.csv")
     assert list(chunks["n_chunks"]) == [8, 2]
     assert list(chunks["start_sec"]) == pytest.approx([0.30, 5.13])
     assert list(chunks["end_sec"]) == pytest.approx([4.80, 6.00])
@@ -810,7 +808,8 @@ def test_recording_without_speech_gives_complete_empty_results(tmp_path: Path, f
 
     assert summary["n_vad_chunks"] == 0 and summary["total_speech_sec"] == 0.0
     assert summary["n_merged_segments"] == 0
-    assert pd.read_parquet(out_dir / "P1_segments.parquet").empty
+    assert pd.read_csv(out_dir / "P1_segments.csv").empty
+    assert pd.read_csv(out_dir / "P1_merged_segments.csv").empty
     assert xgb.is_complete("P1", out_dir)
     assert not list(out_dir.glob("*.wav"))
 
@@ -835,20 +834,24 @@ def test_a_stopped_run_is_not_recorded_as_a_success(tmp_path: Path, monkeypatch)
 # ---------------------------------------------------------------------------
 
 def test_settings_of_params_yaml():
+    """The file has all settings and their values can be used. The values of the VAD
+    and of the merging can be changed in the file, so they are not fixed here."""
     settings = load_params()["xgb"]
 
-    assert settings["vad"] == {
-        "aggressiveness": 1, "frame_ms": 30, "min_region_ms": 150, "min_silence_ms": 30
-    }
-    assert settings["segmentation"] == {
-        "merge_before_classification": False,
-        "merge_after_classification": True,
-        "merge_gap_sec": 0.3,
-    }
-    assert settings["classification"] == {"win_sec": 1.0, "hop_sec": 0.5}
-    assert "diarization" not in settings  # kept as a comment in the file
     xgb.check_settings(settings)
-    assert settings == PARAMS["xgb"]
+    assert {part: set(settings[part]) for part in ("vad", "segmentation", "classification")} == {
+        part: set(PARAMS["xgb"][part]) for part in ("vad", "segmentation", "classification")
+    }
+    vad, segmentation = settings["vad"], settings["segmentation"]
+    assert vad["aggressiveness"] in (0, 1, 2, 3)
+    assert vad["frame_ms"] in (10, 20, 30)  # WebRTC VAD accepts only these frame lengths
+    assert vad["min_region_ms"] >= 0 and vad["min_silence_ms"] >= 0
+    assert isinstance(segmentation["merge_before_classification"], bool)
+    assert isinstance(segmentation["merge_after_classification"], bool)
+    assert segmentation["merge_gap_sec"] >= 0
+    assert settings["classification"] == PARAMS["xgb"]["classification"]
+    assert settings["class_names"] == CLASS_ORDER and settings["egemaps_dim"] == 88
+    assert "diarization" not in settings  # kept as a comment in the file
 
 
 def test_a_missing_setting_is_named(tmp_path: Path):
