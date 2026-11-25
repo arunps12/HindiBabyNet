@@ -19,9 +19,9 @@ def must_not_run(*args, **kwargs):
     pytest.fail("VTC must not be started")
 
 
-def prepared_wav(config, participant: str) -> Path:
-    """Write a placeholder for the prepared WAV file of one participant."""
-    path = config.path("prepared_audio", participant, f"{participant}.wav")
+def prepared_wav(config, participant: str, relative: str | None = None) -> Path:
+    """Write a placeholder for a prepared WAV file (default: <participant>.wav)."""
+    path = config.path("prepared_audio", *(relative or f"{participant}.wav").split("/"))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"placeholder for prepared audio")
     return path
@@ -55,19 +55,26 @@ def vtc_repo(tmp_path, monkeypatch) -> Path:
 
 @pytest.fixture
 def fake_vtc(monkeypatch) -> list:
-    """Replace the VTC program by a function that writes the two results. Returns the calls."""
+    """Replace the VTC program by a function that writes the two results. Returns the calls.
+
+    Like VTC, it takes every WAV file of the input folder and names the results after it.
+    """
     calls = []
 
     def fake_run(command, **options):
-        calls.append((command, options))
+        folder = Path(command[command.index("--wavs") + 1])
+        links = sorted(folder.iterdir())
+        # What VTC finds in its input folder: file name -> the file behind the link.
+        calls.append((command, options, {link.name: link.resolve() for link in links}))
         output = Path(command[command.index("--output") + 1])
-        name = Path(command[command.index("--wavs") + 1]).name
         (output / "rttm").mkdir(parents=True, exist_ok=True)
-        (output / "rttm" / f"{name}.rttm").write_text("SPEAKER\n", encoding="utf-8")
+        rows = ""
+        for link in links:
+            name = link.stem
+            (output / "rttm" / f"{name}.rttm").write_text("SPEAKER\n", encoding="utf-8")
+            rows += f"{name},0.0,1.5,FEM\n{name},2.0,0.5,KCHI\n{name},3.0,0.7,MAL\n"
         (output / "rttm.csv").write_text(
-            "uid,start_time_s,duration_s,label\n"
-            f"{name},0.0,1.5,FEM\n{name},2.0,0.5,KCHI\n{name},3.0,0.7,MAL\n",
-            encoding="utf-8",
+            "uid,start_time_s,duration_s,label\n" + rows, encoding="utf-8"
         )
         return subprocess.CompletedProcess(command, 0)
 
@@ -161,16 +168,20 @@ def test_run_writes_run_info_and_uses_the_settings(
 
     assert vtc.run(config, params) == 0
 
-    # One call: the folder of the participant as input, VTC folder as working directory.
-    (command, options), = fake_vtc
+    # One call: VTC gets a temporary folder with one link to the prepared file, and the
+    # VTC folder as working directory.
+    (command, options, seen), = fake_vtc
+    link_dir = Path(command[4])
     assert command == [
         "uv", "run", "scripts/infer.py",
-        "--wavs", str(wav.parent),
+        "--wavs", str(link_dir),
         "--output", str(results),
         "--device", "cuda",
         "--batch_size", "32",
     ]
-    assert Path(command[4]).is_absolute() and Path(command[6]).is_absolute()
+    assert seen == {"P1.wav": wav.resolve()}
+    assert not link_dir.exists()  # removed after the run
+    assert link_dir.is_absolute() and Path(command[6]).is_absolute()
     assert options["cwd"] == str(vtc_repo)
     # The VTC messages go to the console: nothing is captured.
     assert not {"capture_output", "stdout", "stderr"} & set(options)
@@ -199,10 +210,58 @@ def test_run_writes_run_info_and_uses_the_settings(
 
     # The prepared audio is not copied or changed, and nothing is written for XGBoost.
     assert sorted(path.name for path in wav.parent.iterdir()) == ["P1.wav"]
+    assert wav.read_bytes() == b"placeholder for prepared audio"
     assert not config.path("xgb").exists()
     assert sorted(path.name for path in config.data_dir.joinpath("derived").iterdir()) == [
         "prepared-audio", "vtc-classification"
     ]
+
+
+@ubuntu_only
+def test_other_file_names_and_places_of_the_prepared_audio(
+    make_config, params, vtc_repo, fake_vtc, capsys
+):
+    config = make_config(audio={"vtc_repo": vtc_repo})
+    single = prepared_wav(config, "REC_0001", "REC_0001.WAV")  # name kept, capital ending
+    nested = prepared_wav(config, "P1", "P1/20250201/REC_0002.WAV")  # not joined
+    own_folder = prepared_wav(config, "P2", "P2/P2.wav")  # one folder per recording
+    (single.parent / "REC_0001_preparation.json").write_text("{}", encoding="utf-8")
+    # Existing results of P2, as VTC wrote them before: they are accepted and not run again.
+    complete_results(config.path("vtc", "P2"), "P2")
+
+    assert vtc.run(config, params) == 0
+
+    # Every file is given to VTC alone, with a small .wav ending.
+    assert [seen for _, _, seen in fake_vtc] == [
+        {"REC_0002.wav": nested.resolve()}, {"REC_0001.wav": single.resolve()}
+    ]
+    assert vtc.results_complete(config.path("vtc", "REC_0001"))
+    assert config.path("vtc", "REC_0001", "rttm", "REC_0001.rttm").is_file()
+    assert vtc.results_complete(config.path("vtc", "P1", "20250201", "REC_0002"))
+    info = json.loads(
+        config.path("vtc", "P1", "20250201", "REC_0002", "run_info.json").read_text("utf-8")
+    )
+    assert info["participant_id"] == "P1/20250201/REC_0002"
+    assert info["input_wav"] == str(nested)
+    output = capsys.readouterr().out
+    assert "P2: results already available, not run again" in output
+    assert "Summary: 2 classified, 1 already available, 0 error" in output
+    assert own_folder.read_bytes() == b"placeholder for prepared audio"
+
+    # All recordings of one participant can be selected by the participant name.
+    assert vtc.run(config, params, participant="P1") == 0
+    assert "P1/20250201/REC_0002: results already available" in capsys.readouterr().out
+
+
+@ubuntu_only
+def test_two_prepared_files_with_the_same_name_are_an_error(make_config, params, vtc_repo):
+    config = make_config(audio={"vtc_repo": vtc_repo})
+    prepared_wav(config, "P1", "P1.wav")
+    prepared_wav(config, "P1", "P1/P1.wav")
+
+    with pytest.raises(ValueError, match="same name P1"):
+        vtc.run(config, params)
+    assert not config.path("vtc").exists()
 
 
 @ubuntu_only
@@ -213,7 +272,7 @@ def test_default_device_and_other_batch_size(make_config, params, vtc_repo, fake
 
     assert vtc.run(config, params) == 0
 
-    (command, _), = fake_vtc
+    (command, _, _), = fake_vtc
     assert command[command.index("--device") + 1] == "cpu"
     assert command[command.index("--batch_size") + 1] == "8"
     info = json.loads(config.path("vtc", "P1", "run_info.json").read_text(encoding="utf-8"))

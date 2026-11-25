@@ -1,7 +1,7 @@
 """Command line of the audio workflow.
 
 Main commands:
-  hbn-audio prepare [--check]   one prepared WAV file per participant
+  hbn-audio prepare [--check]   prepared WAV files from the raw recordings
   hbn-audio classify-vtc        speaker classification with VTC (in Ubuntu)
   hbn-audio classify-xgb        speaker classification with XGBoost
 
@@ -11,6 +11,7 @@ Optional tools:
   hbn-audio evaluate --method vtc|xgb                    compare with the manual labels
 
 The data folders are read from config.yaml in the project root (or --config).
+--participant takes the name of a participant or of one prepared recording.
 """
 
 from __future__ import annotations
@@ -81,14 +82,15 @@ def build_parser() -> argparse.ArgumentParser:
             command.add_argument("--method", choices=["vtc", "xgb"], required=True,
                                  help="classification results to use")
         command.add_argument("--participant", metavar="ID", default=None,
-                             required=participant_required, help="only this participant")
+                             required=participant_required,
+                             help="only this participant or recording")
         if limit:
             command.add_argument("--limit", metavar="N", type=int, default=None,
-                                 help="only the first N participants in name order")
+                                 help="only the first N recordings in name order")
         return command
 
     prepare = add("prepare", _prepare,
-                  "Prepare one WAV file per participant from the first recording day.")
+                  "Prepare the raw recordings (settings in audio/params.yaml).")
     prepare.add_argument("--check", action="store_true",
                          help="only report raw and prepared audio; nothing is written")
     add("classify-vtc", _classify_vtc, "Speaker classification with VTC (run it in Ubuntu).")

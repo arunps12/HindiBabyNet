@@ -5,9 +5,16 @@
 raw_audio:
   extensions: [".wav", ".WAV"]
   date_format: "%Y%m%d"
+  # How the raw recordings are organised: auto, participants or files.
+  # auto finds participant folders, date folders and single files by itself.
+  structure: auto
 
 audio_preparation:
+  # true: the WAV files of one participant are joined to one file.
+  # false: every WAV file is prepared as its own file.
   join_multiple_files: true
+  # first: only the first recording day of a participant. all: all days.
+  recording_days: first
   combine_gap_sec: 0.0
   resample: true
   target_sr: 16000

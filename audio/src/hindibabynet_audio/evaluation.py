@@ -14,6 +14,7 @@ import pandas as pd
 import soundfile as sf
 
 from hbn_paths import new_output
+from hindibabynet_audio.recordings import prepared_recordings
 from hindibabynet_audio.textgrid import load_segment_table, results_file
 
 # One annotation file per participant: <annotations>/<participant>/speaker_class_annotations.csv
@@ -193,12 +194,14 @@ def run_annotation(config, params, method: str, participant: str) -> int:
     """Label sampled segments of one participant by ear. Return 0 if it worked, else 1."""
     settings = params["annotation"]
     segment_path = results_file(config, method, participant)
-    audio_path = config.path("prepared_audio", participant, f"{participant}.wav")
+    prepared = dict(prepared_recordings(config.path("prepared_audio")))
+    audio_path = prepared.get(participant)
     if not segment_path.is_file():
         print(f"{participant}: no {method} classification results found ({segment_path}).")
         return 1
-    if not audio_path.is_file():
-        print(f"{participant}: prepared recording not found ({audio_path}).")
+    if audio_path is None:
+        print(f"{participant}: prepared recording not found "
+              f"in {config.path('prepared_audio')}.")
         return 1
 
     df = load_segment_table(segment_path, backend=method).copy()
@@ -212,7 +215,7 @@ def run_annotation(config, params, method: str, participant: str) -> int:
     )
 
     # An existing file is continued only when it holds the same segments.
-    output_csv = config.path("annotations", participant, ANNOTATION_FILE)
+    output_csv = config.path("annotations", *participant.split("/"), ANNOTATION_FILE)
     if output_csv.exists():
         if not _same_segments(sampled_df, pd.read_csv(output_csv), method):
             print(
@@ -318,10 +321,11 @@ def run_evaluation(config, params, method: str, participant: str | None = None) 
     annotation_root = config.path("annotations")
 
     if participant is not None:
-        annotation_files = [annotation_root / participant / ANNOTATION_FILE]
-        output_dir = config.results("classification-evaluation", method, participant)
+        parts = participant.split("/")
+        annotation_files = [annotation_root.joinpath(*parts) / ANNOTATION_FILE]
+        output_dir = config.results("classification-evaluation", method, *parts)
     else:
-        annotation_files = sorted(annotation_root.glob(f"*/{ANNOTATION_FILE}"))
+        annotation_files = sorted(annotation_root.rglob(ANNOTATION_FILE))
         output_dir = config.results("classification-evaluation", method, "summary")
 
     frames = []

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -91,7 +92,9 @@ def find_audio_file(
             direct_candidate = parent / f"{participant_source_id}{extension}"
             if direct_candidate.exists() and direct_candidate.is_file():
                 candidates.append(direct_candidate)
-        candidates = sorted(candidates, key=lambda candidate: candidate.as_posix())
+        # On Windows P001.wav and P001.WAV are the same file: it is counted once.
+        unique = {os.path.normcase(candidate.as_posix()): candidate for candidate in candidates}
+        candidates = sorted(unique.values(), key=lambda candidate: candidate.as_posix())
 
     if not candidates:
         return AudioDiscoveryResult(selected_path=None)

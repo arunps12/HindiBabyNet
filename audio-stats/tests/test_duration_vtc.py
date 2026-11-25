@@ -76,6 +76,23 @@ def test_resolve_recording_duration_falls_back_when_no_valid_session_dirs(tmp_pa
     assert result.audio_file_count == 2
 
 
+def test_resolve_recording_duration_reads_a_prepared_file_without_its_own_folder(tmp_path: Path) -> None:
+    # Prepared audio as it is written by hbn-audio prepare: <prepared_audio>/P001.wav
+    _write_test_wav(tmp_path / "P001.wav", seconds=2.5)
+
+    result = resolve_recording_duration(
+        tmp_path,
+        "P001",
+        [".wav", ".WAV"],
+        participant_folder_name="{par_id}",
+        recording_duration_source="audio_file",
+    )
+
+    assert result.matched_audio is True
+    assert result.duration_sec == 2.5
+    assert result.warning_message is None
+
+
 def test_normalize_vtc_label_maps_expected_values() -> None:
     assert normalize_vtc_label("FEM") == "adult_female"
     assert normalize_vtc_label("mal") == "adult_male"

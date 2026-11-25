@@ -1,13 +1,16 @@
 """Speaker classification with VTC (Voice Type Classifier 2.0).
 
 VTC is a separate program (https://github.com/LAAC-LSCP/VTC) that is installed
-in Ubuntu. This module starts VTC for the prepared WAV file of each participant
-and checks that the results are complete. The VTC results are not changed.
+in Ubuntu. This module starts VTC for every prepared WAV file and checks that
+the results are complete. The VTC results are not changed.
 
-Input:    <prepared_audio>/<participant>/<participant>.wav
-Results:  <vtc>/<participant>/rttm/<participant>.rttm
-          <vtc>/<participant>/rttm.csv      (uid, start_time_s, duration_s, label)
-          <vtc>/<participant>/run_info.json (written by this module)
+Input:    every WAV file in <prepared_audio>, for example <participant>.wav
+Results:  <vtc>/<recording>/rttm/<file name>.rttm
+          <vtc>/<recording>/rttm.csv      (uid, start_time_s, duration_s, label)
+          <vtc>/<recording>/run_info.json (written by this module)
+
+<recording> is the place of the prepared file without the file ending, for
+example P001 for P001.wav (see recordings.py).
 
 Labels of VTC: FEM (adult female), MAL (adult male), KCHI (key child),
 OCH (other child).
@@ -23,11 +26,14 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from hbn_paths import local_path
+
+from hindibabynet_audio.recordings import prepared_recordings, select
 
 
 def build_command(
@@ -119,8 +125,6 @@ def classify_participant(
     if problem:
         raise ValueError(problem)
 
-    # VTC reads all WAV files of the folder. The folder of a participant holds one WAV file.
-    command = build_command(repo, wav_path.parent, output_dir, device, batch_size)
     print(f"{participant}: VTC started (device {device}, batch size {batch_size})")
     output_dir.mkdir(parents=True)
     # VTC has its own Python environment; the environment of this program is not passed on.
@@ -129,8 +133,14 @@ def classify_participant(
 
     started = _now()
     clock = time.monotonic()
-    # The messages of VTC are shown in the console as they come.
-    finished = subprocess.run(command, cwd=str(repo), env=environment)
+    # VTC classifies all WAV files of the folder it gets and names the results after the
+    # file. So it gets a temporary folder with one link to the prepared file. The prepared
+    # file is not copied or changed, and the link is removed at the end.
+    with tempfile.TemporaryDirectory(prefix="hbn-vtc-") as link_dir:
+        os.symlink(wav_path.resolve(), Path(link_dir) / f"{wav_path.stem}.wav")
+        command = build_command(repo, link_dir, output_dir, device, batch_size)
+        # The messages of VTC are shown in the console as they come.
+        finished = subprocess.run(command, cwd=str(repo), env=environment)
     runtime = round(time.monotonic() - clock, 2)
 
     if finished.returncode != 0:
@@ -167,7 +177,7 @@ def classify_participant(
 
 
 def run(config, params: dict, participant: str | None = None, limit: int | None = None) -> int:
-    """Run VTC for all participants with prepared audio. Returns the exit code."""
+    """Run VTC for all prepared recordings. Returns the exit code."""
     if os.name == "nt":
         print("VTC runs only in Ubuntu (WSL). Open Ubuntu and run the same command there.")
         return 1
@@ -184,30 +194,23 @@ def run(config, params: dict, participant: str | None = None, limit: int | None 
         print(f"Prepared audio folder not found: {prepared_root}. "
               f"Check data_dir and paths.prepared_audio in {config.file}.")
         return 1
-    names = sorted(
-        entry.name for entry in prepared_root.iterdir()
-        if (entry / f"{entry.name}.wav").is_file()
-    )
-    if participant is not None:
-        names = [name for name in names if name == participant]
-    if limit is not None:
-        names = names[:limit]
-    if not names:
+    recordings = select(prepared_recordings(prepared_root), participant, limit)
+    if not recordings:
         if participant is not None:
-            print(f"No prepared audio of participant {participant} was found in {prepared_root}.")
+            print(f"No prepared audio of {participant} was found in {prepared_root}.")
         else:
             print(f"No prepared audio was found in {prepared_root}.")
         return 1
 
     problem = setup_problem(repo)
     counts = {"classified": 0, "already available": 0, "error": 0}
-    for name in names:
+    for name, wav_path in recordings:
         try:
             result, text = classify_participant(
-                name, prepared_root / name / f"{name}.wav", vtc_root / name,
+                name, wav_path, vtc_root.joinpath(*name.split("/")),
                 repo, device, batch_size, problem,
             )
-        except Exception as error:  # one participant with an error does not stop the others
+        except Exception as error:  # one recording with an error does not stop the others
             result, text = "error", f"error - {error}"
         counts[result] += 1
         print(f"{name}: {text}")

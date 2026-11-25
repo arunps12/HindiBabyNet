@@ -1,20 +1,34 @@
-"""Prepare one WAV file per participant from the raw recordings of the first day.
+"""Prepare the raw recordings: join, one channel, resample, normalise.
 
-Raw recordings:  <raw_audio>/<participant>/<YYYYMMDD>/*.WAV
-Prepared audio:  <prepared_audio>/<participant>/<participant>.wav
-Record:          <prepared_audio>/<participant>/<participant>_preparation.json
+The raw recordings can be organised in different ways (raw_audio.structure):
 
-Only the earliest recording day of a participant is used. The WAV files of that
-day are joined in name order, changed to one channel, resampled and normalised.
-Other files of the day (for example the .ASR files of the recorder) are not read.
-The raw recordings are only read. Prepared audio that exists is never replaced.
+    <raw_audio>/<participant>/<YYYYMMDD>/*.WAV   participant folders with recording days
+    <raw_audio>/<participant>/*.WAV              participant folders without dates
+    <raw_audio>/*.WAV                            single files, no participant folder
+    <raw_audio> is one WAV file                  a single file
+
+With joining (audio_preparation.join_multiple_files) the files of one participant
+give one prepared file <participant>.wav. The first recording day or all days are
+used (audio_preparation.recording_days). Files are joined in the order of the date
+folders and then of the file names. Without joining, and for single files, every
+WAV file is prepared as its own file and keeps its name and its folder.
+
+Prepared audio:  <prepared_audio>/<participant>.wav or <prepared_audio>/<same path>
+Record:          <name of the prepared file>_preparation.json, next to it
+
+Recordings of different participants are never joined. Other files (for example
+the .ASR files of the recorder) are not read. The raw recordings are only read.
+Prepared audio that exists is never replaced.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
+from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -24,9 +38,12 @@ import soundfile as sf
 from hbn_paths import new_output
 from scipy.signal import resample_poly
 
+from hindibabynet_audio.recordings import prepared_recordings, recording_id, select
+
 # Settings of the audio_preparation part of params.yaml and their types.
 SETTING_TYPES = {
     "join_multiple_files": bool,
+    "recording_days": str,
     "combine_gap_sec": float,
     "resample": bool,
     "target_sr": int,
@@ -34,6 +51,10 @@ SETTING_TYPES = {
     "normalize": bool,
     "target_peak_dbfs": float,
 }
+STRUCTURES = ("auto", "participants", "files")
+RECORDING_DAYS = ("first", "all")
+# How the raw files of a prepared recording were found.
+DAYS, FOLDER, SINGLE = "recording days", "participant folder", "single file"
 # The check reports a difference between raw and prepared duration above this value.
 DURATION_TOLERANCE_SEC = 1.0
 
@@ -370,7 +391,7 @@ def header_duration(paths: list[Path]) -> float | None:
 
 
 # ---------------------------------------------------------------------------
-# Prepared audio and its record
+# Settings
 # ---------------------------------------------------------------------------
 
 
@@ -380,13 +401,264 @@ def preparation_settings(params: dict) -> dict:
     missing = [key for key in SETTING_TYPES if key not in section]
     if missing:
         raise ValueError(f"params.yaml: audio_preparation has no value for {', '.join(missing)}")
-    return {key: kind(section[key]) for key, kind in SETTING_TYPES.items()}
+    settings = {key: kind(section[key]) for key, kind in SETTING_TYPES.items()}
+    if settings["recording_days"] not in RECORDING_DAYS:
+        raise ValueError(
+            "params.yaml: audio_preparation.recording_days must be first or all, "
+            f"not {settings['recording_days']}"
+        )
+    return settings
 
 
-def output_paths(prepared_root: Path, participant: str) -> tuple[Path, Path]:
-    """Prepared WAV file and preparation record of one participant."""
-    folder = prepared_root / participant
-    return folder / f"{participant}.wav", folder / f"{participant}_preparation.json"
+def raw_structure(params: dict) -> str:
+    """The raw_audio.structure setting of params.yaml (auto if it is not written)."""
+    structure = str((params.get("raw_audio") or {}).get("structure", "auto"))
+    if structure not in STRUCTURES:
+        raise ValueError(
+            "params.yaml: raw_audio.structure must be auto, participants or files, "
+            f"not {structure}"
+        )
+    return structure
+
+
+# ---------------------------------------------------------------------------
+# Raw recordings: which raw files give which prepared file
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Recording:
+    """One planned prepared file and the raw WAV files it is made from."""
+
+    recording_id: str  # for example P001, REC_0001 or P001/20250323/REC_0001
+    output: Path | None = None  # prepared WAV file, relative to the prepared audio folder
+    sources: list[Path] = field(default_factory=list)  # raw WAV files in join order
+    base: Path | None = None  # raw audio folder; the source names are written from here
+    participant: str | None = None  # name of the participant folder; None for a single file
+    structure: str = ""  # DAYS, FOLDER or SINGLE
+    joined: bool = False  # True: one file per participant, named <participant>.wav
+    dates: list[str] = field(default_factory=list)  # date folders that are used
+    all_dates: list[str] = field(default_factory=list)  # all date folders of the participant
+    error: str | None = None  # the reason if this entry cannot be prepared
+
+
+def _is_wav(path: Path, allowed: set[str]) -> bool:
+    return path.is_file() and path.suffix.lower() in allowed
+
+
+def _name_order(path: Path) -> tuple[str, str]:
+    """Order of the WAV files of one folder: by file name, as in select_first_day."""
+    return (path.stem, path.name)
+
+
+def participant_files(
+    folder: Path, extensions: list[str], date_format: str, structure: str, recording_days: str
+) -> tuple[str, list[str], list[str], list[Path]]:
+    """The WAV files of one participant folder in join order.
+
+    Returns how the files are organised (DAYS or FOLDER), the date folders that are
+    used, all date folders, and the files. A ValueError gives the reason if the
+    files cannot be selected in a sure way.
+    """
+    allowed = {extension.lower() for extension in extensions}
+    dates = date_folders(folder, date_format)
+    wavs = [path for path in folder.rglob("*") if _is_wav(path, allowed)]
+    outside = [
+        path for path in wavs
+        if not (path.parent.parent == folder and path.parent.name in dates)
+    ]
+
+    # All WAV files are directly inside date folders: recording days.
+    if dates and not outside:
+        if recording_days == "first":
+            date, files = select_first_day(folder, extensions, date_format)
+            return DAYS, [date], dates, files
+        used, files = [], []
+        for date in dates:
+            day_files = sorted(
+                (path for path in wavs if path.parent.name == date), key=_name_order
+            )
+            if day_files:
+                used.append(date)
+                files.extend(day_files)
+        if not files:
+            raise ValueError(f"the date folders of {folder} have no WAV file")
+        return DAYS, used, dates, files
+
+    if structure == "auto":
+        if dates:
+            raise ValueError(
+                f"{len(outside)} WAV file(s) are not directly inside a date folder, for example "
+                f"{outside[0].relative_to(folder)}; correct the folder names, or set "
+                "raw_audio.structure in audio/params.yaml"
+            )
+        deeper = [path for path in wavs if path.parent != folder]
+        if deeper:
+            raise ValueError(
+                "WAV files are in sub-folders that are not recording dates (8 digits, for "
+                f"example 20250131), for example {deeper[0].relative_to(folder)}. It is not "
+                "clear how the recordings are organised: set raw_audio.structure to "
+                "participants or files in audio/params.yaml"
+            )
+
+    # A participant folder without recording days.
+    if recording_days == "first":
+        raise ValueError(
+            f"no date folder (8 digits, for example 20250131) in {folder}, so the first "
+            "recording day cannot be selected. To use all WAV files of this folder, set "
+            "audio_preparation.recording_days to all in audio/params.yaml"
+        )
+    files = sorted(
+        wavs, key=lambda path: (path.relative_to(folder).parts[:-1], *_name_order(path))
+    )
+    return FOLDER, [], dates, files
+
+
+def plan_recordings(
+    raw_root: Path, settings: dict, extensions: list[str], date_format: str, structure: str
+) -> tuple[list[Recording], list[str]]:
+    """Look at the raw audio folder and return the planned prepared files in name order.
+
+    An entry that cannot be used is returned with its reason (error). The second
+    result has notes about folders that are not used. Nothing is written.
+    """
+    allowed = {extension.lower() for extension in extensions}
+
+    def single(path: Path, base: Path) -> Recording:
+        relative = path.relative_to(base)
+        return Recording(recording_id(relative), relative, [path], base, structure=SINGLE)
+
+    if raw_root.is_file():
+        if not _is_wav(raw_root, allowed):
+            raise ValueError(f"raw_audio is a file, but not a WAV file: {raw_root}")
+        return [single(raw_root, raw_root.parent)], []
+
+    if structure == "files":
+        files = sorted(
+            (path for path in raw_root.rglob("*") if _is_wav(path, allowed)),
+            key=lambda path: path.relative_to(raw_root).parts,
+        )
+        return [single(path, raw_root) for path in files], []
+
+    items: list[Recording] = []
+    notes: list[str] = []
+    for entry in sorted(raw_root.iterdir(), key=lambda path: path.name):
+        name = entry.name
+        if _is_wav(entry, allowed):
+            if structure == "participants":
+                items.append(Recording(name, error=(
+                    "the file is not inside a participant folder "
+                    "(raw_audio.structure is participants)"
+                )))
+            else:
+                items.append(single(entry, raw_root))
+            continue
+        if not entry.is_dir():
+            continue
+        has_wav = any(_is_wav(path, allowed) for path in entry.rglob("*"))
+        if not has_wav and not date_folders(entry, date_format):
+            notes.append(f"{name}: no WAV file in this folder, it is not used")
+            continue
+        try:
+            if structure == "auto" and is_date(name, date_format):
+                raise ValueError(
+                    "the folder name is a date, so the participant is not known. Set "
+                    "raw_audio.structure to participants or files in audio/params.yaml"
+                )
+            found, used, all_dates, files = participant_files(
+                entry, extensions, date_format, structure, settings["recording_days"]
+            )
+        except ValueError as error:
+            items.append(Recording(name, participant=name, error=str(error)))
+            continue
+        if settings["join_multiple_files"]:
+            items.append(Recording(
+                name, Path(f"{name}.wav"), files, raw_root, name, found, True, used, all_dates
+            ))
+        else:
+            for path in files:
+                relative = path.relative_to(raw_root)
+                day = [path.parent.name] if found == DAYS else []
+                items.append(Recording(
+                    recording_id(relative), relative, [path], raw_root, name, found,
+                    False, day, all_dates,
+                ))
+    return items, notes
+
+
+def mark_conflicts(items: list[Recording]) -> None:
+    """Two recordings must not give the same prepared file or the same recording ID.
+
+    Names that differ only in capital letters count as the same, because they are
+    the same file on Windows. All recordings of such a group get an error.
+    """
+    groups: dict[tuple[str, str], list[Recording]] = defaultdict(list)
+    for item in items:
+        if item.error is None:
+            groups[("file", item.output.as_posix().lower())].append(item)
+            groups[("name", item.recording_id.lower())].append(item)
+    for group in groups.values():
+        if len(group) > 1:
+            origins = ", ".join(
+                f"folder {item.participant}" if item.joined
+                else item.sources[0].relative_to(item.base).as_posix()
+                for item in group
+            )
+            for item in group:
+                item.error = (
+                    f"more than one recording would get the prepared file "
+                    f"{group[0].output.as_posix()}: {origins}. Rename one of them. "
+                    "Nothing was prepared for them"
+                )
+
+
+def describe(recording: Recording, recording_days: str) -> str:
+    """Short text: how the raw files of this recording were found."""
+    if recording.structure == SINGLE:
+        return "single file"
+    count = f"{len(recording.sources)} WAV file(s)"
+    if recording.structure == DAYS and recording_days == "first":
+        text = (
+            f"first day {recording.dates[0]} | {count} | "
+            f"{len(recording.all_dates) - 1} later date(s)"
+        )
+    elif recording.structure == DAYS:
+        text = f"all days, here {', '.join(recording.dates)} | {count}"
+    else:
+        text = f"participant folder without dates | {count}"
+    return text if recording.joined else text + " | not joined"
+
+
+def order_note(recording: Recording) -> str | None:
+    """A note if the join order by file name differs from the order by number."""
+
+    def by_number(name: str) -> list:
+        return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", name)]
+
+    for folder in dict.fromkeys(path.parent for path in recording.sources):
+        names = [path.name for path in recording.sources if path.parent == folder]
+        if sorted(names, key=by_number) != names:
+            shown = ", ".join(names[:4]) + (", ..." if len(names) > 4 else "")
+            return (
+                f"the files are joined in the order of their names ({shown}). The order by "
+                "number is different. Rename the files if this order is not right"
+            )
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Prepared audio and its record
+# ---------------------------------------------------------------------------
+
+
+def record_file(wav_path: Path) -> Path:
+    """Preparation record of a prepared WAV file: next to it, <name>_preparation.json."""
+    return wav_path.with_name(f"{wav_path.stem}_preparation.json")
+
+
+def source_names(recording: Recording) -> list[str]:
+    """Paths of the raw files from the raw audio folder, as they are written in the record."""
+    return [path.relative_to(recording.base).as_posix() for path in recording.sources]
 
 
 def read_record(record_path: Path) -> dict:
@@ -399,21 +671,25 @@ def read_record(record_path: Path) -> dict:
     return record
 
 
-def record_differences(record: dict, date: str, wavs: list[Path], settings: dict) -> list[str]:
-    """Compare a preparation record with the first day folder and the settings of today."""
+def record_differences(record: dict, recording: Recording, settings: dict) -> list[str]:
+    """Compare a preparation record with the raw files and the settings of today."""
     differences = []
     try:
-        if record.get("selected_date") != date:
+        if record.get("selected_dates") != recording.dates:
             differences.append(
-                f"date in the record {record.get('selected_date')}, first day now {date}"
+                f"date folders in the record {record.get('selected_dates')}, "
+                f"now {recording.dates}"
             )
-        recorded = [(item["name"], item["size_bytes"]) for item in record["source_files"]]
-        present = [(path.name, path.stat().st_size) for path in wavs]
+        recorded = [(item["path"], item["size_bytes"]) for item in record["source_files"]]
+        present = [
+            (name, path.stat().st_size)
+            for name, path in zip(source_names(recording), recording.sources)
+        ]
         if [name for name, _ in recorded] != [name for name, _ in present]:
             differences.append(
                 "source files in the record: "
                 + ", ".join(name for name, _ in recorded)
-                + "; WAV files in the first day folder now: "
+                + "; WAV files that are selected now: "
                 + ", ".join(name for name, _ in present)
             )
         elif recorded != present:
@@ -432,17 +708,21 @@ def record_differences(record: dict, date: str, wavs: list[Path], settings: dict
     return differences
 
 
-def prepare_participant(
-    participant: str,
-    raw_root: Path,
+def prepare_recording(
+    recording: Recording,
     prepared_root: Path,
+    existing: dict[str, Path],
     cache_root: Path,
     settings: dict,
-    extensions: list[str],
-    date_format: str,
 ) -> tuple[str, str]:
-    """Prepare one participant. Returns the result (prepared, reused, kept) and a short text."""
-    wav_path, record_path = output_paths(prepared_root, participant)
+    """Prepare one recording. Returns the result (prepared, reused, kept) and a short text.
+
+    existing: prepared files that are already there (recording ID in small letters -> file).
+    A prepared file with the same ID is used where it is, also in another sub-folder.
+    """
+    name = recording.recording_id
+    wav_path = existing.get(name.lower(), prepared_root / recording.output)
+    record_path = record_file(wav_path)
     part_path = wav_path.with_name(wav_path.name + ".part")
 
     # Prepared audio that exists is never replaced.
@@ -458,12 +738,10 @@ def prepare_participant(
             "it is kept and was not checked against the raw recordings"
         )
 
-    participant_dir = raw_root / participant
-    date, wavs = select_first_day(participant_dir, extensions, date_format)
-    print(f"{participant}: first day {date}, {len(wavs)} WAV file(s)")
+    print(f"{name}: {describe(recording, settings['recording_days'])}")
 
     if wav_path.exists():
-        differences = record_differences(read_record(record_path), date, wavs, settings)
+        differences = record_differences(read_record(record_path), recording, settings)
         if differences:
             raise ValueError(
                 f"prepared audio exists in {wav_path.parent} but its record does not match: "
@@ -472,25 +750,37 @@ def prepare_participant(
             )
         return "reused", "already prepared"
 
-    for path in wavs:
+    note = order_note(recording)
+    if note:
+        print(f"{name}: note - {note}")
+    first_day = recording.structure == DAYS and settings["recording_days"] == "first"
+    for path in recording.sources:
         try:
             check_wav(path)
         except (RuntimeError, OSError, ValueError) as error:
             raise ValueError(
-                f"WAV file of the first day cannot be used: {path} ({error}). "
-                "Later days are not used."
+                f"WAV file{' of the first day' if first_day else ''} cannot be used: "
+                f"{path} ({error})." + (" Later days are not used." if first_day else "")
             ) from error
     sources = [
-        {"name": path.name, "size_bytes": path.stat().st_size, "sha256": sha256(path)}
-        for path in wavs
+        {"path": source, "size_bytes": path.stat().st_size, "sha256": sha256(path)}
+        for source, path in zip(source_names(recording), recording.sources)
     ]
-    ignored = sorted(entry.name for entry in wavs[0].parent.iterdir() if entry not in wavs)
+    ignored = []
+    if recording.joined:
+        # Other files in the folders of the joined WAV files, for example .ASR files.
+        ignored = sorted(
+            entry.relative_to(recording.base).as_posix()
+            for folder in dict.fromkeys(path.parent for path in recording.sources)
+            for entry in folder.iterdir()
+            if entry.is_file() and entry not in recording.sources
+        )
 
     # Temporary files are written to the cache folder and removed at the end.
-    work_dir = cache_root / "audio-prepare" / participant
+    work_dir = cache_root / "audio-prepare" / name.replace("/", "__")
     shutil.rmtree(work_dir, ignore_errors=True)
     try:
-        prepared = prepare_audio(participant, wavs, settings, work_dir)
+        prepared = prepare_audio(work_dir.name, recording.sources, settings, work_dir)
         info = sf.info(str(prepared))
         new_output(wav_path)
         # The file gets its final name only when it is complete.
@@ -500,9 +790,12 @@ def prepare_participant(
         shutil.rmtree(work_dir, ignore_errors=True)
 
     record = {
-        "participant": participant,
-        "selected_date": date,
-        "date_folders": date_folders(participant_dir, date_format),
+        "recording_id": name,
+        "participant": recording.participant,
+        "structure": recording.structure,
+        "joined": recording.joined,
+        "selected_dates": recording.dates,
+        "date_folders": recording.all_dates,
         "source_files": sources,
         "ignored_files": ignored,
         "settings": settings,
@@ -525,33 +818,14 @@ def prepare_participant(
 # ---------------------------------------------------------------------------
 
 
-def check_participant(
-    participant: str,
-    raw_root: Path,
-    raw_found: bool,
-    prepared_root: Path,
-    settings: dict,
-    extensions: list[str],
-    date_format: str,
+def check_recording(
+    recording: Recording, prepared_root: Path, existing: dict[str, Path], settings: dict
 ) -> tuple[str, bool]:
-    """Describe one participant in one line. Only folder lists and file headers are read."""
-    wav_path, record_path = output_paths(prepared_root, participant)
-    participant_dir = raw_root / participant
-
-    date, wavs, raw_duration = None, [], None
-    if not raw_found:
-        raw_text = "raw folder not reachable"
-    elif not participant_dir.is_dir():
-        raw_text = "no raw folder"
-    else:
-        try:
-            date, wavs = select_first_day(participant_dir, extensions, date_format)
-            later = len(date_folders(participant_dir, date_format)) - 1
-            raw_text = f"first day {date} | {len(wavs)} WAV file(s) | {later} later date(s)"
-            raw_duration = header_duration(wavs)
-        except ValueError as error:
-            raw_text = f"first day cannot be used: {error}"
-
+    """Describe one planned recording in one line. Only file headers are read."""
+    name = recording.recording_id
+    wav_path = existing.get(name.lower(), prepared_root / recording.output)
+    record_path = record_file(wav_path)
+    raw_duration = header_duration(recording.sources)
     has_wav = wav_path.is_file()
     prepared_duration = header_duration([wav_path]) if has_wav else None
 
@@ -559,11 +833,9 @@ def check_participant(
         record_text = "none"
     elif not has_wav:
         record_text = "without WAV"
-    elif date is None:
-        record_text = "present, not compared"
     else:
         try:
-            differences = record_differences(read_record(record_path), date, wavs, settings)
+            differences = record_differences(read_record(record_path), recording, settings)
             record_text = "differs: " + "; ".join(differences) if differences else "matches"
         except ValueError:
             record_text = "not readable"
@@ -574,9 +846,9 @@ def check_participant(
         and abs(raw_duration - prepared_duration) > DURATION_TOLERANCE_SEC
     )
     line = (
-        f"{participant}: {raw_text} | prepared WAV {'yes' if has_wav else 'no'} | "
-        f"record {record_text} | "
-        f"first day {_seconds(raw_duration)}, prepared {_seconds(prepared_duration)}"
+        f"{name}: {describe(recording, settings['recording_days'])} | "
+        f"prepared WAV {'yes' if has_wav else 'no'} | record {record_text} | "
+        f"raw {_seconds(raw_duration)}, prepared {_seconds(prepared_duration)}"
     )
     if flagged:
         line += " | DURATION DIFFERS"
@@ -592,71 +864,84 @@ def _seconds(value: float | None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _sub_folders(root: Path) -> list[str]:
-    if not root.is_dir():
-        return []
-    return sorted(entry.name for entry in root.iterdir() if entry.is_dir())
-
-
-def _choose(names: list[str], participant: str | None, limit: int | None) -> list[str]:
-    """One participant, or the first N in name order."""
-    if participant is not None:
-        names = [name for name in names if name == participant]
-    if limit is not None:
-        names = names[:limit]
-    return names
-
-
 def run(config, params: dict, participant: str | None = None, limit: int | None = None,
         check: bool = False) -> int:
-    """Prepare the audio of all participants (or check it). Returns the exit code."""
+    """Prepare the raw recordings (or check them). Returns the exit code."""
     raw_root = config.path("raw_audio")
     prepared_root = config.path("prepared_audio")
     settings = preparation_settings(params)
+    structure = raw_structure(params)
     extensions = list(params["raw_audio"]["extensions"])
     date_format = str(params["raw_audio"]["date_format"])
-    raw_found = raw_root.is_dir()
+    raw_found = raw_root.exists()
+
+    prepared = prepared_recordings(prepared_root)
+    existing = {name.lower(): path for name, path in prepared}
+    items: list[Recording] = []
+    notes: list[str] = []
+    if raw_found:
+        items, notes = plan_recordings(raw_root, settings, extensions, date_format, structure)
+        mark_conflicts(items)
+    chosen = select(items, participant, limit, key=lambda item: item.recording_id)
 
     if check:
         if not raw_found:
             print(f"Raw audio folder is not reachable: {raw_root}. "
                   "Only the prepared files are reported.")
-        found = set(_sub_folders(raw_root)) | set(_sub_folders(prepared_root))
-        names = _choose(sorted(found), participant, limit)
+        for note in notes:
+            print(note)
         n_flagged = 0
-        for name in names:
-            line, flagged = check_participant(
-                name, raw_root, raw_found, prepared_root, settings, extensions, date_format
-            )
+        for item in chosen:
+            if item.error:
+                state = "yes" if item.recording_id.lower() in existing else "no"
+                print(f"{item.recording_id}: cannot be prepared - {item.error} | "
+                      f"prepared WAV {state}")
+                continue
+            note = order_note(item) if item.joined else None
+            if note:
+                print(f"{item.recording_id}: note - {note}")
+            line, flagged = check_recording(item, prepared_root, existing, settings)
             n_flagged += flagged
             print(line)
-        print(f"Checked {len(names)} participant(s); {n_flagged} with a duration difference "
-              f"above {DURATION_TOLERANCE_SEC:g} s. Nothing was written.")
+        # Prepared files that have no raw recording.
+        planned = {item.recording_id.lower() for item in items}
+        others = [] if limit is not None else select(
+            [entry for entry in prepared if entry[0].lower() not in planned], participant, None
+        )
+        reason = "no raw recording" if raw_found else "raw folder not reachable"
+        for name, path in others:
+            record_text = "present, not compared" if record_file(path).is_file() else "none"
+            print(f"{name}: {reason} | prepared WAV yes | record {record_text} | "
+                  f"raw -, prepared {_seconds(header_duration([path]))}")
+        print(f"Checked {len(chosen) + len(others)} recording(s); {n_flagged} with a duration "
+              f"difference above {DURATION_TOLERANCE_SEC:g} s. Nothing was written.")
         return 0
 
     if not raw_found:
         print(f"Raw audio folder not found: {raw_root}. "
               f"Check data_dir and paths.raw_audio in {config.file}.")
         return 1
-    names = _choose(_sub_folders(raw_root), participant, limit)
-    if not names:
+    for note in notes:
+        print(note)
+    if not chosen:
         if participant is not None:
-            print(f"Participant {participant} was not found in {raw_root}.")
+            print(f"{participant} was not found in {raw_root}.")
         else:
-            print(f"No participant folder was found in {raw_root}.")
+            print(f"No WAV file was found in {raw_root}.")
         return 1
 
     counts = {"prepared": 0, "reused": 0, "kept": 0, "error": 0}
-    for name in names:
+    for item in chosen:
         try:
-            result, text = prepare_participant(
-                name, raw_root, prepared_root, config.path("cache"),
-                settings, extensions, date_format,
+            if item.error:
+                raise ValueError(item.error)
+            result, text = prepare_recording(
+                item, prepared_root, existing, config.path("cache"), settings
             )
-        except Exception as error:  # one participant with an error does not stop the others
+        except Exception as error:  # one recording with an error does not stop the others
             result, text = "error", str(error)
         counts[result] += 1
-        print(f"{name}: {result} - {text}")
+        print(f"{item.recording_id}: {result} - {text}")
 
     print(f"Prepared audio folder: {prepared_root}")
     print("Summary: " + ", ".join(f"{number} {result}" for result, number in counts.items()))

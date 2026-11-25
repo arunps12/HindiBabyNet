@@ -36,6 +36,7 @@ import xgboost  # noqa: F401  (needed by joblib to read the model file)
 from scipy.signal import resample_poly
 from tqdm.auto import tqdm
 
+from hindibabynet_audio.recordings import prepared_recordings, select
 from hindibabynet_audio.textgrid import intervals_to_df, write_textgrid
 
 # The one trained model: audio/models/xgb_egemaps.pkl
@@ -1030,41 +1031,32 @@ def run_participant(
 
 
 def find_prepared_audio(config) -> List[Tuple[str, Path]]:
-    """All participants with a prepared WAV <participant>/<participant>.wav, in name order."""
-    root = config.path("prepared_audio")
-    if not root.is_dir():
-        return []
-    return [
-        (d.name, d / f"{d.name}.wav")
-        for d in sorted(root.iterdir())
-        if d.is_dir() and (d / f"{d.name}.wav").is_file()
-    ]
+    """All prepared WAV files as (recording ID, file), in the order of the IDs."""
+    return prepared_recordings(config.path("prepared_audio"))
 
 
 def run(config, params, participant: str | None = None, limit: int | None = None) -> int:
     """Classify the prepared recordings. Return 0 if nothing failed, else 1."""
     settings = params["xgb"]
 
-    participants = find_prepared_audio(config)
-    if participant is not None:
-        participants = [item for item in participants if item[0] == participant]
-    if limit is not None:
-        participants = participants[:limit]
+    participants = select(find_prepared_audio(config), participant, limit)
     if not participants:
         print(f"No prepared recording found in {config.path('prepared_audio')}.")
         return 1
 
-    # Existing results are never replaced.
-    to_run: List[Tuple[str, Path, Path]] = []
+    # Existing results are never replaced. The result files start with the last
+    # part of the recording ID (P001 for P001, REC_0001 for P001/REC_0001).
+    to_run: List[Tuple[str, str, Path, Path]] = []
     available = 0
     failed: List[str] = []
     for pid, wav_path in participants:
-        out_dir = config.path("xgb", pid)
-        if is_complete(pid, out_dir):
+        out_dir = config.path("xgb", *pid.split("/"))
+        prefix = out_dir.name
+        if is_complete(prefix, out_dir):
             print(f"{pid}: results already available, not run again ({out_dir})")
             available += 1
         elif out_dir.exists():
-            files = output_files(pid, out_dir)
+            files = output_files(prefix, out_dir)
             missing = [files[name].name for name in REQUIRED_FILES if not files[name].exists()]
             print(
                 f"{pid}: ERROR, the output folder exists but is incomplete "
@@ -1073,7 +1065,7 @@ def run(config, params, participant: str | None = None, limit: int | None = None
             )
             failed.append(pid)
         else:
-            to_run.append((pid, wav_path, out_dir))
+            to_run.append((pid, prefix, wav_path, out_dir))
 
     done = 0
     if to_run:
@@ -1091,11 +1083,11 @@ def run(config, params, participant: str | None = None, limit: int | None = None
             print(f"ERROR, the models could not be loaded, no participant was run: {exc}")
             return 1
 
-        for pid, wav_path, out_dir in to_run:
+        for pid, prefix, wav_path, out_dir in to_run:
             print(f"{pid}: started")
             try:
                 summary = run_participant(
-                    wav_path, pid, out_dir, settings, model, diar_pipeline, extractor
+                    wav_path, prefix, out_dir, settings, model, diar_pipeline, extractor
                 )
             except Exception as exc:
                 traceback.print_exc()

@@ -488,3 +488,27 @@ def test_run_stops_when_the_model_cannot_be_loaded(tmp_path: Path, mocked_steps,
     assert xgb.run(NoVtcConfig(config), PARAMS) == 1
     assert mocked_steps["calls"] == []
     assert not config.path("xgb").exists()
+
+
+def test_run_with_other_file_names_and_places(tmp_path: Path, mocked_steps, capsys):
+    config = make_config(tmp_path)
+    root = config.path("prepared_audio")
+    for place in ("P1.wav", "REC_0001.WAV", "P2/20250201/REC_0002.WAV"):
+        (root / place).parent.mkdir(parents=True, exist_ok=True)
+        sf.write(str(root / place), tone(0.5), 16000, format="WAV", subtype="PCM_16")
+    (root / "P1_preparation.json").write_text("{}", encoding="utf-8")
+    add_results(config, "P1", COMPLETE)  # existing results are accepted
+
+    assert xgb.run(NoVtcConfig(config), PARAMS) == 0
+
+    # The result files start with the file name; the folder is the place of the recording.
+    assert mocked_steps["calls"] == ["REC_0002", "REC_0001"]
+    assert config.path("xgb", "P2", "20250201", "REC_0002", "run_info.json").is_file()
+    assert config.path("xgb", "REC_0001", "run_info.json").is_file()
+    out = capsys.readouterr().out
+    assert "P1: results already available" in out
+    assert "P2/20250201/REC_0002: finished" in out
+
+    # All recordings of one participant can be selected by the participant name.
+    assert xgb.run(NoVtcConfig(config), PARAMS, participant="P2") == 1  # incomplete folder
+    assert mocked_steps["calls"] == ["REC_0002", "REC_0001"]

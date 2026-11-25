@@ -28,6 +28,16 @@ def resolve_audio_for_source(config: AppConfig, source_participant_id: str) -> A
     if not candidates and participant_dir.exists():
         for extension in config.audio.extensions:
             candidates.extend(sorted(participant_dir.glob(f"*{extension}")))
+    if not candidates and config.paths.audio_root.is_dir():
+        # The prepared file is saved directly in the audio folder: <audio_root>/<id>.wav
+        extensions = {extension.lower() for extension in config.audio.extensions}
+        candidates = sorted(
+            path
+            for path in config.paths.audio_root.iterdir()
+            if path.is_file()
+            and path.stem == source_participant_id
+            and path.suffix.lower() in extensions
+        )
 
     if not candidates:
         return AudioResolution(source_participant_id, None, None, "audio_file_missing")

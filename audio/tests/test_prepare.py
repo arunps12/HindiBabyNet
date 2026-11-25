@@ -24,9 +24,19 @@ def day(config, participant: str, date: str) -> Path:
 
 
 def outputs(config, participant: str) -> tuple[Path, Path]:
-    """Prepared WAV file and preparation record of one participant."""
-    folder = config.path("prepared_audio", participant)
+    """Prepared WAV file and preparation record of one participant (joined audio)."""
+    folder = config.path("prepared_audio")
     return folder / f"{participant}.wav", folder / f"{participant}_preparation.json"
+
+
+def prepared_files(config) -> list[str]:
+    """All files in the prepared audio folder, with their sub-folders."""
+    root = config.path("prepared_audio")
+    return sorted(path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file())
+
+
+def record_of(wav: Path) -> dict:
+    return json.loads(prepare.record_file(wav).read_text(encoding="utf-8"))
 
 
 def listing(root: Path) -> list:
@@ -90,13 +100,15 @@ def test_only_the_earliest_date_is_used_and_later_dates_are_never_read(
     assert {path.parent for path in opened if raw_root in path.parents} == {first}
     wav, record_path = outputs(config, "P1")
     record = json.loads(record_path.read_text(encoding="utf-8"))
-    assert record["selected_date"] == "20250201"
+    assert record["selected_dates"] == ["20250201"]
     assert record["date_folders"] == ["20250201", "20250305"]
-    assert [item["name"] for item in record["source_files"]] == ["a.WAV", "b.WAV"]
+    assert [item["path"] for item in record["source_files"]] == [
+        "P1/20250201/a.WAV", "P1/20250201/b.WAV"
+    ]
     assert sf.info(str(wav)).duration == pytest.approx(1.0, abs=0.01)
 
 
-def test_no_date_folder_is_an_error(make_config, params, write_wav, capsys):
+def test_sub_folders_that_are_not_dates_are_an_error(make_config, params, write_wav, capsys):
     config = make_config()
     write_wav(config.path("raw_audio", "P1", "session_a", "x.WAV"))
 
@@ -105,8 +117,7 @@ def test_no_date_folder_is_an_error(make_config, params, write_wav, capsys):
     assert prepare.run(config, params) == 1
 
     line = line_of(capsys.readouterr().out, "P1")
-    assert "error" in line and "no date folder" in line
-    assert str(config.path("raw_audio", "P1")) in line
+    assert "error" in line and "not clear" in line and "raw_audio.structure" in line
     assert not config.path("prepared_audio").exists()
 
 
@@ -256,20 +267,47 @@ def test_files_are_joined_in_name_order_with_the_gap(make_config, params):
     assert sr == 8000
 
 
-def test_several_files_are_an_error_when_joining_is_switched_off(
+def test_without_joining_every_file_of_the_first_day_keeps_its_name_and_folder(
     make_config, params, write_wav, capsys
 ):
     config = make_config()
     first = day(config, "P1", "20250201")
-    write_wav(first / "a.WAV")
-    write_wav(first / "b.WAV")
+    write_wav(first / "REC_0001.WAV", seconds=0.2)
+    write_wav(first / "REC_0002.WAV", seconds=0.4)
+    write_wav(day(config, "P1", "20250305") / "REC_0003.WAV")
+    # Another participant has a file with the same name.
+    write_wav(day(config, "P2", "20250201") / "REC_0001.WAV", seconds=0.3)
     params["audio_preparation"]["join_multiple_files"] = False
 
-    assert prepare.run(config, params) == 1
+    assert prepare.run(config, params) == 0
 
-    assert "join_multiple_files" in line_of(capsys.readouterr().out, "P1")
-    assert not config.path("prepared_audio").exists()
-    assert not config.path("cache", "audio-prepare", "P1").exists()
+    # No joined file, the later day is not used, the same name in two folders is kept apart.
+    assert prepared_files(config) == [
+        "P1/20250201/REC_0001.WAV", "P1/20250201/REC_0001_preparation.json",
+        "P1/20250201/REC_0002.WAV", "P1/20250201/REC_0002_preparation.json",
+        "P2/20250201/REC_0001.WAV", "P2/20250201/REC_0001_preparation.json",
+    ]
+    root = config.path("prepared_audio")
+    durations = {
+        name: sf.info(str(root / name)).duration
+        for name in prepared_files(config) if name.endswith(".WAV")
+    }
+    assert durations == pytest.approx({
+        "P1/20250201/REC_0001.WAV": 0.2, "P1/20250201/REC_0002.WAV": 0.4,
+        "P2/20250201/REC_0001.WAV": 0.3,
+    }, abs=0.01)
+    record = record_of(root / "P1" / "20250201" / "REC_0002.WAV")
+    assert record["recording_id"] == "P1/20250201/REC_0002"
+    assert record["participant"] == "P1" and record["joined"] is False
+    assert record["selected_dates"] == ["20250201"]
+    assert [item["path"] for item in record["source_files"]] == ["P1/20250201/REC_0002.WAV"]
+    output = capsys.readouterr().out
+    assert "not joined" in output
+    assert "Summary: 3 prepared, 0 reused, 0 kept, 0 error" in output
+
+    # One participant can be selected by its name.
+    assert prepare.run(config, params, participant="P2") == 0
+    assert "Summary: 0 prepared, 1 reused, 0 kept, 0 error" in capsys.readouterr().out
 
 
 def test_preparation_record(make_config, params, write_wav, write_asr):
@@ -287,23 +325,28 @@ def test_preparation_record(make_config, params, write_wav, write_asr):
 
     wav, record_path = outputs(config, "P1")
     record = json.loads(record_path.read_text(encoding="utf-8"))
+    assert record["recording_id"] == "P1"
     assert record["participant"] == "P1"
-    assert record["selected_date"] == "20250201"
+    assert record["structure"] == "recording days" and record["joined"] is True
+    assert record["selected_dates"] == ["20250201"]
     assert record["date_folders"] == ["20250201", "20250307"]
-    assert [item["name"] for item in record["source_files"]] == ["a.WAV", "b.WAV"]
+    assert [item["path"] for item in record["source_files"]] == [
+        "P1/20250201/a.WAV", "P1/20250201/b.WAV"
+    ]
     for item in record["source_files"]:
-        content = (first / item["name"]).read_bytes()
+        content = (raw_root / item["path"]).read_bytes()
         assert item["size_bytes"] == len(content)
         assert item["sha256"] == hashlib.sha256(content).hexdigest()
-    assert record["ignored_files"] == ["a.ASR", "b.ASR"]
+    assert record["ignored_files"] == ["P1/20250201/a.ASR", "P1/20250201/b.ASR"]
     assert record["settings"] == params["audio_preparation"]
+    assert record["settings"]["recording_days"] == "first"
     assert record["output"]["file"] == "P1.wav"
     assert record["output"]["duration_sec"] == pytest.approx(0.75, abs=0.01)
     assert record["output"]["sample_rate"] == 16000
     assert record["output"]["channels"] == 1
     assert record["prepared_at"]
 
-    # The folder of the participant holds the WAV file and the record only.
+    # The prepared audio folder holds the WAV file and the record only.
     assert sorted(path.name for path in wav.parent.iterdir()) == [
         "P1.wav", "P1_preparation.json"
     ]
@@ -425,13 +468,13 @@ def test_check_writes_nothing_and_flags_a_duration_difference(
     output = capsys.readouterr().out
     line = line_of(output, "P1")
     for text in ("first day 20250201", "2 WAV file(s)", "1 later date(s)", "prepared WAV yes",
-                 "record none", "first day 1.0 s, prepared 3.0 s", "DURATION DIFFERS"):
+                 "record none", "raw 1.0 s, prepared 3.0 s", "DURATION DIFFERS"):
         assert text in line
     line = line_of(output, "P2")
     assert "1 WAV file(s)" in line and "0 later date(s)" in line
     assert "prepared WAV no" in line and "DURATION DIFFERS" not in line
     line = line_of(output, "P3")
-    assert "no raw folder" in line and "prepared WAV yes" in line
+    assert "no raw recording" in line and "prepared WAV yes" in line
     assert "DURATION DIFFERS" not in line
     assert "Nothing was written" in output
 
@@ -487,3 +530,298 @@ def test_participant_and_limit_select_the_participants(make_config, params, writ
     capsys.readouterr()
     assert prepare.run(config, params, participant="P9") == 1
     assert "P9" in capsys.readouterr().out
+
+
+# --- other folder structures --------------------------------------------------
+
+
+def constant(path: Path, value: float, frames: int = 800) -> Path:
+    """Write a short WAV file (8 kHz, one channel) where every sample has the same value."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(str(path), np.full(frames, value), 8000, format="WAV", subtype="PCM_16")
+    return path
+
+
+def keep_samples(params: dict) -> None:
+    """Switch off resampling and normalisation, so that the joined samples can be compared."""
+    params["audio_preparation"].update(resample=False, convert_to_mono=False, normalize=False)
+
+
+def test_participant_folders_without_dates_need_all_days(make_config, params, capsys):
+    config = make_config()
+    constant(config.path("raw_audio", "P1", "REC_0002.WAV"), 0.5)
+    constant(config.path("raw_audio", "P1", "REC_0001.WAV"), 0.25)
+    constant(config.path("raw_audio", "P2", "REC_0003.WAV"), -0.25)
+    keep_samples(params)
+
+    # Default: first recording day. Without date folders nothing is selected.
+    assert prepare.run(config, params) == 1
+    output = capsys.readouterr().out
+    for participant in ("P1", "P2"):
+        line = line_of(output, participant)
+        assert "error" in line and "no date folder" in line and "recording_days" in line
+    assert not config.path("prepared_audio").exists()
+
+    params["audio_preparation"]["recording_days"] = "all"
+    assert prepare.run(config, params) == 0
+
+    assert prepared_files(config) == [
+        "P1.wav", "P1_preparation.json", "P2.wav", "P2_preparation.json"
+    ]
+    samples, _ = sf.read(str(outputs(config, "P1")[0]))
+    np.testing.assert_array_equal(samples, np.concatenate([np.full(800, 0.25), np.full(800, 0.5)]))
+    record = record_of(outputs(config, "P1")[0])
+    assert record["structure"] == "participant folder" and record["joined"] is True
+    assert record["selected_dates"] == [] and record["date_folders"] == []
+    assert [item["path"] for item in record["source_files"]] == [
+        "P1/REC_0001.WAV", "P1/REC_0002.WAV"
+    ]
+    assert "participant folder without dates" in capsys.readouterr().out
+
+
+def test_files_directly_in_the_raw_folder_are_prepared_one_by_one(
+    make_config, params, write_wav, capsys
+):
+    config = make_config()
+    raw_root = config.path("raw_audio")
+    write_wav(raw_root / "REC_0001.WAV", seconds=0.2)
+    write_wav(raw_root / "REC_0002.WAV", seconds=0.4)
+    write_wav(raw_root / "talk.wav", seconds=0.3)
+    (raw_root / "notes.txt").write_text("not a recording", encoding="utf-8")
+
+    # Joining is switched on, but single files have no participant: they are not joined.
+    assert prepare.run(config, params) == 0
+
+    assert prepared_files(config) == [
+        "REC_0001.WAV", "REC_0001_preparation.json",
+        "REC_0002.WAV", "REC_0002_preparation.json",
+        "talk.wav", "talk_preparation.json",
+    ]
+    wav = config.path("prepared_audio", "REC_0002.WAV")
+    info = sf.info(str(wav))
+    assert (info.samplerate, info.channels) == (16000, 1)
+    assert info.duration == pytest.approx(0.4, abs=0.01)
+    record = record_of(wav)
+    assert record["recording_id"] == "REC_0002"
+    assert record["participant"] is None  # no participant name is made up
+    assert record["structure"] == "single file" and record["joined"] is False
+    assert [item["path"] for item in record["source_files"]] == ["REC_0002.WAV"]
+    assert "Summary: 3 prepared, 0 reused, 0 kept, 0 error" in capsys.readouterr().out
+
+    assert prepare.run(config, params, participant="talk") == 0
+    assert "Summary: 0 prepared, 1 reused, 0 kept, 0 error" in capsys.readouterr().out
+
+
+def test_raw_audio_can_be_one_wav_file(make_config, params, write_wav, tmp_path, capsys):
+    source = write_wav(tmp_path / "my_recordings" / "REC_0001.WAV", seconds=0.3)
+    write_wav(tmp_path / "my_recordings" / "REC_0002.WAV")  # not named in config.yaml
+    config = make_config(paths={"raw_audio": source})
+
+    assert prepare.run(config, params, check=True) == 0
+    assert "REC_0001: single file" in capsys.readouterr().out
+    assert not config.path("prepared_audio").exists()
+
+    assert prepare.run(config, params) == 0
+    assert prepared_files(config) == ["REC_0001.WAV", "REC_0001_preparation.json"]
+
+
+def test_one_raw_folder_can_hold_different_structures(make_config, params, write_wav, capsys):
+    config = make_config()
+    raw_root = config.path("raw_audio")
+    write_wav(day(config, "P1", "20250201") / "a.WAV", seconds=0.2)
+    write_wav(raw_root / "REC_0001.WAV", seconds=0.2)
+    (raw_root / "documents").mkdir()
+    (raw_root / "documents" / "consent.txt").write_text("no recording", encoding="utf-8")
+
+    assert prepare.run(config, params) == 0
+
+    assert prepared_files(config) == [
+        "P1.wav", "P1_preparation.json", "REC_0001.WAV", "REC_0001_preparation.json"
+    ]
+    output = capsys.readouterr().out
+    assert "documents: no WAV file in this folder, it is not used" in output
+    assert "Summary: 2 prepared, 0 reused, 0 kept, 0 error" in output
+
+
+def test_all_recording_days_are_joined_in_date_order_and_then_name_order(make_config, params):
+    config = make_config()
+    constant(day(config, "P1", "20250305") / "a.WAV", 0.75)
+    constant(day(config, "P1", "20250201") / "z.WAV", 0.5)
+    constant(day(config, "P1", "20250201") / "b.WAV", 0.25)
+    day(config, "P1", "20250210")  # a day without recordings
+    keep_samples(params)
+    params["audio_preparation"]["recording_days"] = "all"
+
+    assert prepare.run(config, params) == 0
+
+    wav = outputs(config, "P1")[0]
+    samples, _ = sf.read(str(wav))
+    np.testing.assert_array_equal(
+        samples, np.concatenate([np.full(800, 0.25), np.full(800, 0.5), np.full(800, 0.75)])
+    )
+    record = record_of(wav)
+    assert record["selected_dates"] == ["20250201", "20250305"]
+    assert record["date_folders"] == ["20250201", "20250210", "20250305"]
+    assert [item["path"] for item in record["source_files"]] == [
+        "P1/20250201/b.WAV", "P1/20250201/z.WAV", "P1/20250305/a.WAV"
+    ]
+
+    # A record of all days does not match the setting "first day": nothing is replaced.
+    params["audio_preparation"]["recording_days"] = "first"
+    before = wav.read_bytes()
+    assert prepare.run(config, params) == 1
+    assert wav.read_bytes() == before
+
+
+def test_without_joining_all_days_and_folders_without_dates(make_config, params, write_wav):
+    config = make_config()
+    write_wav(day(config, "P1", "20250201") / "a.WAV", seconds=0.2)
+    write_wav(day(config, "P1", "20250305") / "a.WAV", seconds=0.2)
+    write_wav(config.path("raw_audio", "P2", "a.WAV"), seconds=0.2)
+    params["audio_preparation"].update(join_multiple_files=False, recording_days="all")
+
+    assert prepare.run(config, params) == 0
+
+    assert [name for name in prepared_files(config) if name.endswith(".WAV")] == [
+        "P1/20250201/a.WAV", "P1/20250305/a.WAV", "P2/a.WAV"
+    ]
+    assert record_of(config.path("prepared_audio", "P2", "a.WAV"))["recording_id"] == "P2/a"
+
+
+def test_two_recordings_for_one_prepared_file_are_an_error(
+    make_config, params, write_wav, capsys
+):
+    config = make_config()
+    # The joined audio of the folder P1 and the single file P1.WAV would be the same file
+    # on Windows (P1.wav and P1.WAV).
+    write_wav(day(config, "P1", "20250201") / "a.WAV", seconds=0.2)
+    write_wav(config.path("raw_audio", "P1.WAV"), seconds=0.2)
+    write_wav(day(config, "P2", "20250201") / "a.WAV", seconds=0.2)
+
+    assert prepare.run(config, params) == 1
+
+    output = capsys.readouterr().out
+    assert output.count("more than one recording would get the prepared file") == 2
+    assert "Summary: 1 prepared, 0 reused, 0 kept, 2 error" in output
+    assert prepared_files(config) == ["P2.wav", "P2_preparation.json"]
+
+
+@pytest.mark.parametrize("case", ["date_as_first_folder", "files_and_sub_folders"])
+def test_structure_that_is_not_clear_is_an_error_until_it_is_set(
+    make_config, params, write_wav, capsys, case
+):
+    config = make_config()
+    raw_root = config.path("raw_audio")
+    if case == "date_as_first_folder":
+        # <date>/<file>: the first folder is a date, not a participant.
+        files = ["20250201/REC_0001.WAV", "20250201/REC_0002.WAV"]
+        folder, reason = "20250201", "the folder name is a date"
+    else:
+        files = ["P1/REC_0001.WAV", "P1/part_2/REC_0002.WAV"]
+        folder, reason = "P1", "not clear"
+    for name in files:
+        write_wav(raw_root / name, seconds=0.2)
+    params["audio_preparation"]["recording_days"] = "all"
+
+    assert prepare.run(config, params) == 1
+    line = line_of(capsys.readouterr().out, folder)
+    assert "error" in line and reason in line and "raw_audio.structure" in line
+    assert not config.path("prepared_audio").exists()
+
+    # files: every WAV file is its own recording and keeps its place.
+    params["raw_audio"]["structure"] = "files"
+    assert prepare.run(config, params) == 0
+    assert [name for name in prepared_files(config) if name.endswith(".WAV")] == files
+
+
+def test_structure_participants_joins_all_files_below_each_folder(
+    make_config, params, capsys
+):
+    config = make_config()
+    raw_root = config.path("raw_audio")
+    constant(raw_root / "P1" / "session_b" / "x.WAV", 0.75)
+    constant(raw_root / "P1" / "session_a" / "y.WAV", 0.5)
+    constant(raw_root / "P1" / "first.WAV", 0.25)
+    constant(raw_root / "loose.WAV", -0.5)
+    keep_samples(params)
+    params["raw_audio"]["structure"] = "participants"
+    params["audio_preparation"]["recording_days"] = "all"
+
+    assert prepare.run(config, params) == 1  # the loose file has no participant folder
+
+    output = capsys.readouterr().out
+    assert "not inside a participant folder" in line_of(output, "loose.WAV")
+    assert prepared_files(config) == ["P1.wav", "P1_preparation.json"]
+    # Order: files of the folder first, then the sub-folders in name order.
+    samples, _ = sf.read(str(outputs(config, "P1")[0]))
+    np.testing.assert_array_equal(
+        samples, np.concatenate([np.full(800, 0.25), np.full(800, 0.5), np.full(800, 0.75)])
+    )
+
+
+def test_join_order_is_the_name_order_and_a_note_tells_when_numbers_differ(
+    make_config, params, capsys
+):
+    config = make_config()
+    first = day(config, "P1", "20250201")
+    constant(first / "REC_2.WAV", 0.5)
+    constant(first / "REC_10.WAV", 0.25)
+    keep_samples(params)
+
+    assert prepare.run(config, params, check=True) == 0
+    assert "P1: note - the files are joined in the order of their names" in capsys.readouterr().out
+
+    assert prepare.run(config, params) == 0
+    assert "REC_10.WAV, REC_2.WAV" in capsys.readouterr().out
+    samples, _ = sf.read(str(outputs(config, "P1")[0]))
+    np.testing.assert_array_equal(samples, np.concatenate([np.full(800, 0.25), np.full(800, 0.5)]))
+
+
+def test_prepared_audio_in_its_own_folder_is_found_and_kept(
+    make_config, params, write_wav, capsys
+):
+    config = make_config()
+    write_wav(day(config, "P1", "20250201") / "a.WAV")
+    # One folder per recording: <prepared_audio>/P1/P1.wav
+    old = write_wav(config.path("prepared_audio", "P1", "P1.wav"), sr=16000, channels=1)
+    before = (old.read_bytes(), old.stat().st_mtime_ns)
+
+    assert prepare.run(config, params) == 0
+
+    assert "kept" in line_of(capsys.readouterr().out, "P1")
+    assert prepared_files(config) == ["P1/P1.wav"]
+    assert (old.read_bytes(), old.stat().st_mtime_ns) == before
+
+
+def test_check_shows_the_structures_and_writes_nothing(
+    make_config, params, write_wav, tmp_path, capsys
+):
+    config = make_config()
+    write_wav(day(config, "P1", "20250201") / "a.WAV", seconds=0.5)
+    write_wav(config.path("raw_audio", "P2", "a.WAV"), seconds=0.5)
+    write_wav(config.path("raw_audio", "REC_0001.WAV"), seconds=0.5)
+    before = listing(tmp_path)
+
+    assert prepare.run(config, params, check=True) == 0
+
+    output = capsys.readouterr().out
+    assert "first day 20250201" in line_of(output, "P1")
+    line = line_of(output, "P2")
+    assert "cannot be prepared" in line and "recording_days" in line
+    assert "single file" in line_of(output, "REC_0001")
+    assert "Checked 3 recording(s)" in output and "Nothing was written" in output
+    assert listing(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    "section, key, value",
+    [("audio_preparation", "recording_days", "second"), ("raw_audio", "structure", "mixed")],
+)
+def test_unknown_setting_values_are_refused(make_config, params, write_wav, section, key, value):
+    config = make_config()
+    write_wav(day(config, "P1", "20250201") / "a.WAV")
+    params[section][key] = value
+
+    with pytest.raises(ValueError, match=key):
+        prepare.run(config, params)
+    assert not config.path("prepared_audio").exists()

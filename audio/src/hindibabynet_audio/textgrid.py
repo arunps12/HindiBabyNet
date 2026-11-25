@@ -18,6 +18,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in non-xgb environme
 
 from hbn_paths import new_output
 
+from hindibabynet_audio.recordings import select
+
 # ============================================================================
 # Writing a TextGrid
 # ============================================================================
@@ -196,27 +198,29 @@ def load_segment_table(path: str | Path, backend: str, child_label: str = "key_c
 
 
 def results_file(config, method: str, participant: str) -> Path:
-    """Segment file of one participant. The file is only read."""
+    """Segment file of one recording (recording ID, for example P001). The file is only read."""
+    parts = participant.split("/")
     if method == "vtc":
-        return config.path("vtc", participant, "rttm.csv")
+        return config.path("vtc", *parts, "rttm.csv")
     if method == "xgb":
-        return config.path("xgb", participant, f"{participant}_segments.parquet")
+        return config.path("xgb", *parts, f"{parts[-1]}_segments.parquet")
     raise ValueError(f"Unknown method: {method}. Use one of {METHODS}.")
 
 
 def find_results(config, method: str) -> list[tuple[str, Path]]:
-    """All participants that have classification results of this method, in name order."""
+    """All recordings that have classification results of this method, in name order."""
     if method not in METHODS:
         raise ValueError(f"Unknown method: {method}. Use one of {METHODS}.")
     root = config.path(method)
     if not root.is_dir():
         return []
+    pattern = "rttm.csv" if method == "vtc" else "*_segments.parquet"
     found = []
-    for folder in sorted(root.iterdir()):
-        segment_path = results_file(config, method, folder.name)
-        if folder.is_dir() and segment_path.is_file():
-            found.append((folder.name, segment_path))
-    return found
+    for segment_path in root.rglob(pattern):
+        name = segment_path.parent.relative_to(root).as_posix()
+        if name != "." and segment_path == results_file(config, method, name):
+            found.append((name, segment_path))
+    return sorted(found)
 
 
 # ============================================================================
@@ -224,7 +228,7 @@ def find_results(config, method: str) -> list[tuple[str, Path]]:
 # ============================================================================
 
 def run(config, params, method: str, participant: str | None = None, limit: int | None = None) -> int:
-    """Write <textgrids>/<method>/<participant>.TextGrid. Return 0 if nothing failed, else 1."""
+    """Write <textgrids>/<method>/<recording>.TextGrid. Return 0 if nothing failed, else 1."""
     if tgio is None:
         print("praatio is not installed. It is needed to write TextGrid files.")
         return 1
@@ -233,11 +237,7 @@ def run(config, params, method: str, participant: str | None = None, limit: int 
     tiers += [name for name in EXTRA_TIERS if name not in tiers]
     tier_map = {name: name for name in tiers}
 
-    inputs = find_results(config, method)
-    if participant is not None:
-        inputs = [item for item in inputs if item[0] == participant]
-    if limit is not None:
-        inputs = inputs[:limit]
+    inputs = select(find_results(config, method), participant, limit)
     if not inputs:
         print(f"No {method} classification results found in {config.path(method)}.")
         return 1
