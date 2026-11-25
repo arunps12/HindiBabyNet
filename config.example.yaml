@@ -9,10 +9,11 @@
 
 # Main data folder. All other folders have a default place inside it:
 #
-#   raw/audio/                    raw recordings: <participant>/<YYYYMMDD>/*.WAV
+#   raw/audio/                    raw recordings, for example <participant>/<YYYYMMDD>/*.WAV
+#                                 (other structures: see audio/README.md, section 4)
 #   raw/cdi/                      CDI questionnaire exports and word_mapping.csv
 #   raw/metadata/                 metadata_cleaned.xlsx, participant_lookup.csv
-#   derived/prepared-audio/       one prepared WAV file per participant
+#   derived/prepared-audio/       prepared WAV files, for example <participant>.wav
 #   derived/vtc-classification/   VTC speaker classification results
 #   derived/xgb-classification/   XGBoost speaker classification results
 #   derived/prosody-features/     acoustic and prosodic features

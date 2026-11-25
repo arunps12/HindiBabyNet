@@ -36,11 +36,11 @@ All data is under one main data folder. This is the recommended structure:
 ```
 HindiBabyNet-data/
 ├── raw/
-│   ├── audio/                    raw recordings: <participant>/<YYYYMMDD>/*.WAV
+│   ├── audio/                    raw recordings, for example <participant>/<YYYYMMDD>/*.WAV
 │   ├── cdi/                      CDI questionnaire exports and word_mapping.csv
 │   └── metadata/                 metadata_cleaned.xlsx, participant_lookup.csv
 ├── derived/
-│   ├── prepared-audio/           one prepared WAV file per participant
+│   ├── prepared-audio/           prepared WAV files, for example <participant>.wav
 │   ├── vtc-classification/       VTC results
 │   ├── xgb-classification/       XGBoost results
 │   ├── prosody-features/         acoustic and prosodic features
@@ -119,6 +119,8 @@ This workflow runs in Ubuntu. All steps are explained in [audio/README.md](audio
 
 If the prepared audio files are already available, you do not need to prepare them again. If VTC results are already available, you do not need to run VTC again. Set `prepared_audio` and `vtc` in `config.yaml` to these folders and go to the next workflow.
 
+The raw recordings can be organised in different ways: participant folders with date folders (as in HindiBabyNet), participant folders without dates, WAV files in one folder, or one WAV file. You do not need to change your folders. Joining of the files and the selection of the first recording day are settings in `audio/params.yaml`. See section 4 of [audio/README.md](audio/README.md).
+
 ### cdi
 
 - Where: Windows PowerShell (or Ubuntu), in the project folder.
@@ -167,7 +169,7 @@ There are two steps.
 **Step 1: prepare the dataset.** Skip this step if the files `final_master.csv`, `input_long.csv` and `input_output_long.csv` are already in `derived/statistical-data/`.
 
 - Where: Windows PowerShell, in the project folder.
-- Input: the VTC results, the metadata file, and the raw recordings (the command reads the duration of the first recording day).
+- Input: the VTC results, the metadata file, and the raw recordings (the command reads the duration of the first recording day). If your raw recordings have no date folders, set `recording_duration_source: audio_file` in `audio-stats/params.yaml`. The duration is then read from the prepared audio.
 
 ```
 uv run --project audio-stats hbn-audio-stats
