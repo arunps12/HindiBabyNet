@@ -42,7 +42,7 @@ ffmpeg -version
 git lfs version
 ```
 
-## 3. Open the project folder in Ubuntu
+## 3. Open the project folder and set the folder of your recordings
 
 The Windows drives are under `/mnt` in Ubuntu. The folder `C:\Users\yourname\Projects\HindiBabyNet` is `/mnt/c/Users/yourname/Projects/HindiBabyNet`.
 
@@ -50,9 +50,24 @@ The Windows drives are under `/mnt` in Ubuntu. The folder `C:\Users\yourname\Pro
 cd /mnt/c/Users/yourname/Projects/HindiBabyNet
 ```
 
-Run all `hbn-audio` commands from this folder. They read the data folders from `config.yaml` (see the main [README](../README.md)). You can write Windows paths (`D:/...`) or Ubuntu paths (`/home/yourname/...`) in `config.yaml`. Both work.
+Run all `hbn-audio` commands from this folder.
 
-Recordings in the Ubuntu home folder are read much faster than recordings on a Windows drive. If you copy the raw recordings to Ubuntu, for example to `/home/yourname/hindinet_data/RawAudioData`, write this path as `raw_audio` in `config.yaml`.
+Make your configuration file once. Copy the example file:
+
+```bash
+cp config.example.yaml config.yaml
+```
+
+Open `config.yaml` and change `raw_audio` to the folder with your audio recordings:
+
+```yaml
+paths:
+  raw_audio: D:/my_recordings
+```
+
+You can write a Windows path (`D:/...`) or an Ubuntu path (`/home/yourname/...`). Both work. The prepared audio and the classification results are saved in the data folder (`data_dir`). With the default value this is a folder `HindiBabyNet-data` next to the project folder. To use other places, see section 2 of the main [README](../README.md).
+
+Recordings in the Ubuntu home folder are read much faster than recordings on a Windows drive. If you copy the raw recordings to Ubuntu, for example to `/home/yourname/my_recordings`, write this path as `raw_audio`.
 
 ## 4. Prepare the audio
 

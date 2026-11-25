@@ -12,6 +12,8 @@ HindiBabyNet is a research project on the language environment and early languag
 
 The repository has only code. The research data is not part of it. You can keep the data in any folder, also outside this project.
 
+Most users need only the `audio` workflow: it prepares audio recordings and classifies the speakers. It works with your own recordings. The other four workflows are mainly for reproducing the results of the HindiBabyNet study.
+
 ## Folders of the project
 
 ```
@@ -31,28 +33,24 @@ Each workflow folder has a file `params.yaml` with the settings of the method (f
 
 ## Folders of the data
 
-All data is under one main data folder. This is the recommended structure:
+Your audio recordings can stay where they are. Everything that the workflows make is saved under one main data folder. This is the default structure:
 
 ```
 HindiBabyNet-data/
-├── raw/
-│   ├── audio/                    raw recordings, for example <participant>/<YYYYMMDD>/*.WAV
-│   ├── cdi/                      CDI questionnaire exports and word_mapping.csv
-│   └── metadata/                 metadata_cleaned.xlsx, participant_lookup.csv
 ├── derived/
-│   ├── prepared-audio/           prepared WAV files, for example <participant>.wav
+│   ├── prepared-audio/           prepared WAV files
 │   ├── vtc-classification/       VTC results
 │   ├── xgb-classification/       XGBoost results
-│   ├── prosody-features/         acoustic and prosodic features
-│   └── statistical-data/         prepared datasets for audio-stats
-├── results/
-│   ├── cdi/
-│   ├── audio-stats/
-│   └── prosody-stats/
+│   ├── prosody-features/         prosodic features                      (research)
+│   └── statistical-data/         datasets for audio-stats               (research)
+├── raw/
+│   ├── cdi/                      CDI questionnaires, word_mapping.csv   (research)
+│   └── metadata/                 participant information                (research)
+├── results/                      tables, figures and reports            (research)
 └── cache/                        temporary files
 ```
 
-`raw` has the original data. `derived` has files that one workflow makes and another workflow reads. `results` has the final tables, figures and reports.
+The commands make the output folders themselves. For audio preparation and speaker classification you need only the first three folders of `derived`. The folders marked "(research)" are used by the CDI, prosody and statistical workflows of the HindiBabyNet study.
 
 ## 1. Install the software
 
@@ -74,31 +72,36 @@ install.packages(c("tidyverse", "lme4", "lmerTest", "glmmTMB", "performance", "D
                    "knitr", "rmarkdown", "car", "readxl"))
 ```
 
-## 2. Set the data folders
+## 2. Set the folder of your recordings
 
-Copy the file `config.example.yaml` and name the copy `config.yaml`. Keep it in the project folder. This file stays on your computer and is not uploaded to GitHub.
-
-Open `config.yaml` and change `data_dir` to your main data folder:
-
-```yaml
-data_dir: D:/HindiBabyNet-data
-```
-
-If your data has the structure shown above, this is all. If a folder is stored in another place, write it under `paths`. For example, if you already have prepared audio and VTC results in other folders:
+1. Copy the file `config.example.yaml` and rename the copy to `config.yaml`. Keep it in the project folder. This file stays on your computer and is not uploaded to GitHub.
+2. Open `config.yaml` and change `raw_audio` to the folder with your audio recordings:
 
 ```yaml
-data_dir: D:/HindiBabyNet-data
+data_dir: ../HindiBabyNet-data
+
 paths:
-  raw_audio: /home/yourname/hindinet_data/RawAudioData
-  prepared_audio: E:/HindiNet/Audio_data_processing
-  vtc: E:/HindiNet/Classification_outputs/VTC
+  raw_audio: D:/my_recordings
 ```
+
+This is all you need for audio preparation and speaker classification. The prepared audio and the classification results are saved in `data_dir`. With the default value this is a folder `HindiBabyNet-data` next to the project folder.
+
+**Another place for the results.** Change `data_dir` to move everything. To move only one folder, remove the `#` in front of its line in `config.yaml` and write your path. For example:
+
+```yaml
+paths:
+  raw_audio: D:/my_recordings
+  prepared_audio: E:/my_data/prepared-audio
+  vtc: E:/my_data/vtc-classification
+```
+
+**Reproducing the HindiBabyNet results.** The CDI, prosody and statistical workflows also need the questionnaire files in `raw/cdi/` and the participant files in `raw/metadata/` of the data folder. Their paths are in the last part of `config.yaml`. You do not need them for audio preparation and speaker classification.
 
 Some rules for the paths:
 
 - Use `/` in the paths, also on Windows.
 - A path without a drive letter starts from the folder of `config.yaml`. For example `../HindiBabyNet-data` is a folder next to the project folder.
-- A Windows path like `C:/data` also works in Ubuntu. An Ubuntu path like `/home/yourname/data` also works in Windows and RStudio.
+- A Windows path like `C:/data` also works in Ubuntu. An Ubuntu path like `/home/yourname/data` also works in Windows and RStudio. If your Ubuntu has another name than "Ubuntu", add a line `wsl_distro: Ubuntu-22.04` (with your name) to `config.yaml`.
 - A network folder (`//server/share/...`) works on Windows. In Ubuntu you must mount it first.
 
 You never need to change a Python or R file to change a data location.

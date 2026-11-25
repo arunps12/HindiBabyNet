@@ -1,55 +1,49 @@
 # HindiBabyNet configuration
 #
-# Copy this file to config.yaml and change the paths. config.yaml stays on your
-# computer and is not uploaded to GitHub.
-#
-# The research data does not need to be inside this project folder. It can be on
-# another disk, an external hard drive, a network folder or in Ubuntu (WSL).
-# A relative path starts from the folder where config.yaml is saved.
+# 1. Copy this file and rename the copy to config.yaml.
+#    config.yaml stays on your computer. It is not uploaded to GitHub.
+# 2. Change raw_audio to the folder with your audio recordings.
 
-# Main data folder. All other folders have a default place inside it:
-#
-#   raw/audio/                    raw recordings, for example <participant>/<YYYYMMDD>/*.WAV
-#                                 (other structures: see audio/README.md, section 4)
-#   raw/cdi/                      CDI questionnaire exports and word_mapping.csv
-#   raw/metadata/                 metadata_cleaned.xlsx, participant_lookup.csv
-#   derived/prepared-audio/       prepared WAV files, for example <participant>.wav
-#   derived/vtc-classification/   VTC speaker classification results
-#   derived/xgb-classification/   XGBoost speaker classification results
-#   derived/prosody-features/     acoustic and prosodic features
-#   derived/statistical-data/     prepared datasets for the audio statistics
-#   derived/textgrids/            optional: Praat TextGrid files
-#   derived/manual-annotations/   optional: manual speaker labels
-#   results/                      results of cdi, audio-stats and prosody-stats
-#   cache/                        temporary files
+# Main data folder. The prepared audio and all results are saved here.
 data_dir: ../HindiBabyNet-data
 
-# Use this part only if a folder is stored in another place.
-# Remove the "#" in front of the line and write your own path.
 paths:
-  # raw_audio: D:/HindiBabyNet/RawAudioData
-  # raw_cdi: D:/HindiBabyNet/cdi-raw
-  # word_mapping: D:/HindiBabyNet/cdi-raw/word_mapping.csv
-  # metadata: D:/HindiBabyNet/metadata
-  # prepared_audio: D:/HindiBabyNet/prepared-audio
-  # vtc: D:/HindiBabyNet/vtc-classification
-  # xgb: D:/HindiBabyNet/xgb-classification
-  # prosody_features: D:/HindiBabyNet/prosody-features
-  # statistical_data: D:/HindiBabyNet/statistical-data
-  # textgrids: D:/HindiBabyNet/textgrids
-  # annotations: D:/HindiBabyNet/manual-annotations
-  # results: D:/HindiBabyNet/results
-  # cache: D:/HindiBabyNet/cache
+  # Folder with your audio recordings (WAV files).
+  # Windows: D:/my_recordings    Ubuntu: /home/yourname/my_recordings
+  raw_audio: D:/my_recordings
 
-# Path examples
-#   Windows:        D:/HindiBabyNet/RawAudioData
-#   Ubuntu (WSL):   /home/yourname/hindinet_data/RawAudioData
-#   Network folder: //server/share/HindiBabyNet/RawAudioData
-#
-# A Windows path such as C:/data is also understood in Ubuntu (it becomes
-# /mnt/c/data). An Ubuntu path such as /home/yourname/data is also understood
-# in Windows and RStudio. If your Ubuntu is not named "Ubuntu", write its name:
-# wsl_distro: Ubuntu-22.04
+  # All other folders have a default place inside data_dir:
+  #
+  #   derived/prepared-audio/        prepared WAV files
+  #   derived/vtc-classification/    VTC results
+  #   derived/xgb-classification/    XGBoost results
+  #   derived/textgrids/             Praat TextGrid files (optional)
+  #   derived/manual-annotations/    manual speaker labels (optional)
+  #   cache/                         temporary files
+  #
+  # To save a folder in another place, remove the "#" and write your path.
+  # prepared_audio: D:/my_data/prepared-audio
+  # vtc: D:/my_data/vtc-classification
+  # xgb: D:/my_data/xgb-classification
+  # textgrids: D:/my_data/textgrids
+  # annotations: D:/my_data/manual-annotations
+  # cache: D:/my_data/cache
+
+  # Only needed to reproduce the HindiBabyNet research results
+  # (CDI, prosody and statistical analysis):
+  #
+  #   raw/cdi/                       CDI questionnaire exports and word_mapping.csv
+  #   raw/metadata/                  metadata_cleaned.xlsx, participant_lookup.csv
+  #   derived/prosody-features/      prosodic features
+  #   derived/statistical-data/      datasets for the audio statistics
+  #   results/                       tables, figures and reports
+  #
+  # raw_cdi: D:/my_data/cdi
+  # word_mapping: D:/my_data/cdi/word_mapping.csv
+  # metadata: D:/my_data/metadata
+  # prosody_features: D:/my_data/prosody-features
+  # statistical_data: D:/my_data/statistical-data
+  # results: D:/my_data/results
 
 # Speaker classification with VTC (runs in Ubuntu).
 audio:
