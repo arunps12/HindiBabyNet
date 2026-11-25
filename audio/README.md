@@ -42,7 +42,7 @@ ffmpeg -version
 git lfs version
 ```
 
-## 3. Open the project folder and set the folder of your recordings
+## 3. Open the project folder and set your folders
 
 The Windows drives are under `/mnt` in Ubuntu. The folder `C:\Users\yourname\Projects\HindiBabyNet` is `/mnt/c/Users/yourname/Projects/HindiBabyNet`.
 
@@ -58,16 +58,16 @@ Make your configuration file once. Copy the example file:
 cp config.example.yaml config.yaml
 ```
 
-Open `config.yaml` and change two paths: `data_dir` is the folder where the results should be saved, and `raw_audio` is the folder with your audio recordings. For example:
+Open `config.yaml`. Change `data_dir` to the folder where the results should be saved, and change `raw_audio` to the folder with your audio recordings:
 
 ```yaml
-data_dir: D:/HindiBabyNet-data
+data_dir: /path/to/your/data-folder
 
 paths:
-  raw_audio: D:/my_recordings
+  raw_audio: /path/to/your/audio-recordings
 ```
 
-You can write a Windows path (`D:/...`) or an Ubuntu path (`/home/yourname/...`). Both work. The prepared audio and the classification results are saved in `data_dir`. This folder is made if it does not exist. To save one folder in another place, see section 2 of the main [README](../README.md).
+You can write a Windows path (for example `D:/my_recordings`) or an Ubuntu path (for example `/home/yourname/my_recordings`). Both work. The prepared audio and the classification results are saved in `data_dir`. This folder is made if it does not exist. To save one folder in another place, see section 2 of the main [README](../README.md).
 
 Recordings in the Ubuntu home folder are read much faster than recordings on a Windows drive. If you copy the raw recordings to Ubuntu, for example to `/home/yourname/my_recordings`, write this path as `raw_audio`.
 

@@ -74,29 +74,35 @@ install.packages(c("tidyverse", "lme4", "lmerTest", "glmmTMB", "performance", "D
                    "knitr", "rmarkdown", "car", "readxl"))
 ```
 
-## 2. Set the folder of your recordings
+## 2. Set your folders
 
-1. Copy the file `config.example.yaml` and rename the copy to `config.yaml`. Keep it in the project folder. This file stays on your computer and is not uploaded to GitHub.
-2. Open `config.yaml` and change two paths: `data_dir` is the folder where the results should be saved, and `raw_audio` is the folder with your audio recordings. For example:
+1. Copy the file `config.example.yaml` and rename the copy to `config.yaml`. Keep it in the project folder.
+2. Open `config.yaml` and change `data_dir` to the folder where the results should be saved.
+3. Change `raw_audio` to the folder with your audio recordings.
 
 ```yaml
-data_dir: D:/HindiBabyNet-data
+data_dir: /path/to/your/data-folder
 
 paths:
-  raw_audio: D:/my_recordings
+  raw_audio: /path/to/your/audio-recordings
 ```
+
+| Path | Windows example | Ubuntu example |
+| --- | --- | --- |
+| `data_dir` | `D:/HindiBabyNet-data` | `/home/yourname/HindiBabyNet-data` |
+| `raw_audio` | `D:/my_recordings` | `/home/yourname/my_recordings` |
 
 This is all you need for audio preparation and speaker classification. The prepared audio and the classification results are saved in `data_dir`. This folder is made if it does not exist.
 
 **Another place for one folder.** All results are saved inside `data_dir`. To save only one folder in another place, remove the `#` in front of its line in `config.yaml` and write your path. For example:
 
 ```yaml
-data_dir: D:/HindiBabyNet-data
+data_dir: /path/to/your/data-folder
 
 paths:
-  raw_audio: D:/my_recordings
-  prepared_audio: E:/my_data/prepared-audio
-  vtc: E:/my_data/vtc-classification
+  raw_audio: /path/to/your/audio-recordings
+  prepared_audio: D:/my_data/prepared-audio
+  vtc: D:/my_data/vtc-classification
 ```
 
 **Reproducing the HindiBabyNet results.** The CDI, prosody and statistical workflows also need the questionnaire files in `raw/cdi/` and the participant files in `raw/metadata/` of the data folder. Their paths are in the last part of `config.yaml`. You do not need them for audio preparation and speaker classification.
