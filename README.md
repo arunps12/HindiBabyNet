@@ -1,6 +1,8 @@
 # HindiBabyNet
 
-HindiBabyNet is a research project on the language environment and early language development of Hindi-learning children. This repository has the code for five workflows.
+A computational toolkit for automatic speaker classification, language input analysis, acoustic feature extraction, and early language development in Hindi-learning infants. Developed under the Hindi-BabyNet project, funded by the EU Horizon Europe Marie Skłodowska-Curie Postdoctoral Fellowship (MSCA-PF), Grant No. 101107938.
+
+This repository has the code for five workflows.
 
 | Workflow | What it does |
 | --- | --- |
