@@ -62,7 +62,7 @@ You need:
   - Windows PowerShell: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
   - Ubuntu: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **R and RStudio** for `audio-stats` and `prosody-stats`.
-- **Ubuntu (WSL)** on a Windows computer for the `audio` workflow. See [audio/README.md](audio/README.md).
+- **Ubuntu (WSL)** on a Windows computer, only for speaker classification with VTC. See section 2 of [audio/README.md](audio/README.md#2-set-up).
 
 You do not need to install Python packages yourself. The first time you run a command, uv installs the packages of that workflow.
 
@@ -118,21 +118,19 @@ You never need to change a Python or R file to change a data location.
 
 ## 3. Run a workflow
 
-Run all commands from the project folder. Existing output files are never replaced. If an output file already exists, the command stops and tells you which file it is.
+Run all commands from the project folder. Each workflow below says where its commands are run: in Windows PowerShell, in Ubuntu or in RStudio. Existing output files are never replaced. If an output file already exists, the command stops and tells you which file it is.
 
 ### audio
 
-This workflow runs in Ubuntu. All steps are explained in [audio/README.md](audio/README.md).
+- Where: Windows PowerShell or Ubuntu, in the project folder. VTC runs only in Ubuntu. If you use VTC, run all three steps in Ubuntu.
+- Input: your audio recordings (`raw_audio`).
+- Details: [audio/README.md](audio/README.md) explains the set-up of Windows and Ubuntu, the folder structures of the recordings, the settings, VTC and XGBoost.
 
-| Step | Command (Ubuntu terminal) | Output |
-| --- | --- | --- |
-| Prepare the audio | `uv run --project audio hbn-audio prepare` | `derived/prepared-audio/` |
-| Classify speakers with VTC | `uv run --project audio hbn-audio classify-vtc` | `derived/vtc-classification/` |
-| Classify speakers with XGBoost | `uv run --project audio --extra xgb hbn-audio classify-xgb` | `derived/xgb-classification/` |
-
-If the prepared audio files are already available, you do not need to prepare them again. If VTC results are already available, you do not need to run VTC again. Set `prepared_audio` and `vtc` in `config.yaml` to these folders and go to the next workflow.
-
-The raw recordings can be organised in different ways: participant folders with date folders (as in HindiBabyNet), participant folders without dates, WAV files in one folder, or one WAV file. You do not need to change your folders. Joining of the files and the selection of the first recording day are settings in `audio/params.yaml`. See section 4 of [audio/README.md](audio/README.md).
+| Step | Command | Where | Output |
+| --- | --- | --- | --- |
+| Prepare the audio | `uv run --project audio hbn-audio prepare` | Windows PowerShell or Ubuntu | `derived/prepared-audio/` |
+| Classify speakers with VTC | `uv run --project audio hbn-audio classify-vtc` | Ubuntu only | `derived/vtc-classification/` |
+| Classify speakers with XGBoost | `uv run --project audio --extra xgb hbn-audio classify-xgb` | Windows PowerShell or Ubuntu | `derived/xgb-classification/` |
 
 ### cdi
 
@@ -190,6 +188,7 @@ uv run --project audio-stats hbn-audio-stats
 
 **Step 2: run the analysis.**
 
+- Where: RStudio.
 - Open the file `audio-stats/audio-stats.Rmd` in RStudio and click **Knit**.
 - It loads the dataset, makes the descriptive tables and figures, fits the models and makes the report.
 - Output: `results/audio-stats/audio-stats.html`, with the folders `tables`, `figures`, `models`, `predictions` and `diagnostics`.
@@ -198,6 +197,7 @@ The settings of the models are in the `params` block at the top of the Rmd file.
 
 ### prosody-stats
 
+- Where: RStudio.
 - Input: the features file from `prosody` and the dataset of `audio-stats` (Step 1).
 - Open the file `prosody-stats/prosody-stats.Rmd` in RStudio and click **Knit**. It takes about 10 minutes.
 - Output: `results/prosody-stats/prosody-stats.html`, with the folders `tables`, `figures`, `models`, `predictions` and `diagnostics`.
@@ -210,6 +210,7 @@ The settings of the models are in the `params` block at the top of the Rmd file.
 | `Not found: ...` with the name of a path | The folder or file is not at this place. Check `data_dir` and the line under `paths` that the message names. |
 | `... already exists and is not replaced` | The output is already there. Use it, or move the old file to another folder and run the command again. |
 | `uv` is not found | Close and open the terminal again after you installed uv. |
+| Error about a folder `.venv`, for example `Access is denied` | The workflow was run before in the other place (Windows PowerShell or Ubuntu). Use one place for one workflow. Delete the folder `.venv` of this workflow and run the command again. See section 1 of [audio/README.md](audio/README.md#1-where-to-run-the-commands). |
 | Knit stops with `there is no package called ...` | Install the R packages with the command in section 1. |
 | The Knit button makes no HTML file in the Rmd folder | This is correct. The report is saved in the `results` folder of your data folder. |
 | A network folder does not work in Ubuntu | Mount the folder in Ubuntu, or copy the files to a local folder, and write this path in `config.yaml`. |

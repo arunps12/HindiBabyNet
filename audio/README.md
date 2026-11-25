@@ -2,36 +2,69 @@
 
 This workflow has two parts:
 
-1. **Audio preparation.** The raw recordings are changed to one channel (mono) and 16 kHz, and the volume is normalised. For the HindiBabyNet data, the recordings of the first recording day of each child are joined into one audio file. Other folder structures are also possible, see section 4.
+1. **Audio preparation.** The raw recordings are changed to one channel (mono) and 16 kHz, and the volume is normalised. For the HindiBabyNet data, the recordings of the first recording day of each child are joined into one audio file. Other folder structures are also possible, see section 3.
 2. **Speaker classification.** The prepared audio is divided into speech segments of different speakers. There are two methods. Choose one of them, they are not mixed:
    - **VTC** (Voice Type Classifier 2.0). It gives four classes: adult female (FEM), adult male (MAL), key child (KCHI) and other child (OCH). The statistical analyses and the prosody extraction of HindiBabyNet use the VTC results.
    - **XGBoost**. Our own model, trained on eGeMAPS features. It gives the classes adult male, adult female, child and background.
 
-All commands of this workflow are run in **Ubuntu**. On a Windows computer, Ubuntu runs inside Windows (WSL). VTC does not run on Windows directly.
-
 If you already have prepared audio and VTC results, you do not need this workflow. Write their folders in `config.yaml` (`prepared_audio` and `vtc`) and use the other workflows.
 
-## 1. Install Ubuntu on Windows
+## 1. Where to run the commands
 
-Do this once.
+There are two places to type the commands:
 
-1. Open **Windows PowerShell** as administrator.
-2. Run:
+- **Windows PowerShell**: the terminal of Windows. Open it from the Start menu (type "PowerShell").
+- **Ubuntu**: a Linux terminal. On a Windows computer, Ubuntu runs inside Windows (WSL).
+
+| Step | Windows PowerShell | Ubuntu |
+| --- | --- | --- |
+| Prepare the audio (`hbn-audio prepare`) | yes | yes |
+| Speaker classification with VTC (`hbn-audio classify-vtc`) | no | yes |
+| Speaker classification with XGBoost (`hbn-audio classify-xgb`) | yes | yes |
+| Optional tools (`hbn-audio textgrid`, `annotate`, `evaluate`) | yes | yes |
+
+Choose one place and use it for all commands of this workflow:
+
+- **You want to use VTC:** use Ubuntu. VTC does not run on Windows directly.
+- **You want only the audio preparation and XGBoost:** use Windows PowerShell or Ubuntu. With Windows PowerShell you do not need to install Ubuntu.
+
+Do not change between the two places. Each place makes its own Python environment in the folder `audio/.venv`, and the other place cannot use it. If a command stops with an error about `audio/.venv`, delete this folder and run the command again. The folder has only the Python packages, no data.
+
+| Where | Command to delete the folder |
+| --- | --- |
+| Windows PowerShell | `cmd /c "rmdir /s /q audio\.venv"` |
+| Ubuntu | `rm -rf audio/.venv` |
+
+The `hbn-audio` commands are the same in both places. Where something is different, this guide shows it for **Windows PowerShell** and for **Ubuntu**.
+
+## 2. Set up
+
+Do this once, for the place that you have chosen.
+
+### Windows PowerShell
+
+1. Install uv with the Windows command in section 1 of the main [README](../README.md#1-install-the-software).
+2. Open Windows PowerShell and go to the project folder:
+
+```
+cd C:\Users\yourname\Projects\HindiBabyNet
+```
+
+### Ubuntu
+
+1. Install Ubuntu. Open **Windows PowerShell** as administrator and run:
 
 ```
 wsl --install -d Ubuntu
 ```
 
-3. Restart the computer. Ubuntu opens and asks for a user name and a password. Choose them and remember the password.
+Restart the computer. Ubuntu opens and asks for a user name and a password. Choose them and remember the password. Later, open Ubuntu from the Windows Start menu (type "Ubuntu"). All commands of the next steps are typed in this Ubuntu window.
 
-Later, open Ubuntu from the Windows Start menu (type "Ubuntu"). All commands below are typed in this Ubuntu window.
-
-## 2. Install the required programs in Ubuntu
+2. Install uv with the Ubuntu command in section 1 of the main [README](../README.md#1-install-the-software). Then install the programs that VTC needs:
 
 ```bash
 sudo apt update
 sudo apt install ffmpeg git git-lfs
-curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 Close Ubuntu and open it again. Check that the programs are found:
@@ -42,36 +75,22 @@ ffmpeg -version
 git lfs version
 ```
 
-## 3. Open the project folder and set your folders
-
-The Windows drives are under `/mnt` in Ubuntu. The folder `C:\Users\yourname\Projects\HindiBabyNet` is `/mnt/c/Users/yourname/Projects/HindiBabyNet`.
+3. Go to the project folder. The Windows drives are under `/mnt` in Ubuntu. The folder `C:\Users\yourname\Projects\HindiBabyNet` is `/mnt/c/Users/yourname/Projects/HindiBabyNet`.
 
 ```bash
 cd /mnt/c/Users/yourname/Projects/HindiBabyNet
 ```
 
-Run all `hbn-audio` commands from this folder.
+### Both places
 
-Make your configuration file once. Copy the example file:
+- Run all `hbn-audio` commands from the project folder.
+- Set your folders in `config.yaml` as described in section 2 of the main [README](../README.md#2-set-your-folders). The same `config.yaml` works in Windows PowerShell and in Ubuntu.
+- The first run of a command installs the Python packages of this workflow. In Ubuntu this takes some minutes when the project folder is on a Windows drive.
+- In Ubuntu, recordings in the Ubuntu home folder are read much faster than recordings on a Windows drive. If you copy the raw recordings to Ubuntu, for example to `/home/yourname/my_recordings`, write this path as `raw_audio`.
 
-```bash
-cp config.example.yaml config.yaml
-```
+## 3. Prepare the audio
 
-Open `config.yaml`. Change `data_dir` to the folder where the results should be saved, and change `raw_audio` to the folder with your audio recordings:
-
-```yaml
-data_dir: /path/to/your/data-folder
-
-paths:
-  raw_audio: /path/to/your/audio-recordings
-```
-
-You can write a Windows path (for example `D:/my_recordings`) or an Ubuntu path (for example `/home/yourname/my_recordings`). Both work. The prepared audio and the classification results are saved in `data_dir`. This folder is made if it does not exist. To save one folder in another place, see section 2 of the main [README](../README.md).
-
-Recordings in the Ubuntu home folder are read much faster than recordings on a Windows drive. If you copy the raw recordings to Ubuntu, for example to `/home/yourname/my_recordings`, write this path as `raw_audio`.
-
-## 4. Prepare the audio
+The preparation runs in Windows PowerShell or in Ubuntu.
 
 The preparation reads the raw WAV files and writes prepared audio: one channel (mono), 16 kHz, volume normalised to a peak of -1 dBFS. The original recordings are only read. They are not changed.
 
@@ -171,7 +190,7 @@ Output:  derived/prepared-audio/P001/20250323/REC_0001.WAV
 
 First look at what is there. This command only reads and does not write anything:
 
-```bash
+```
 uv run --project audio hbn-audio prepare --check
 ```
 
@@ -179,7 +198,7 @@ For each prepared file that is planned it shows the structure that was found, th
 
 Then prepare the audio:
 
-```bash
+```
 uv run --project audio hbn-audio prepare
 ```
 
@@ -209,9 +228,11 @@ If your audio is already prepared, you can skip this step. Put the WAV files (mo
 
 The classification (VTC, XGBoost) and the optional tools work with every prepared file. The statistics (`audio-stats`) and the prosody extraction (`prosody`) need one prepared recording per participant, and its name must be the participant ID in the metadata files. This is the case when the audio is joined, and also for single files that are named after the participant.
 
-If your raw recordings do not have date folders, set `recording_duration_source: audio_file` in `audio-stats/params.yaml`. The recording duration is then read from the prepared audio.
+If your raw recordings do not have date folders, change one setting of `audio-stats`. It is explained in the audio-stats part of the main [README](../README.md#audio-stats).
 
-## 5. Speaker classification with VTC
+## 4. Speaker classification with VTC
+
+VTC runs only in Ubuntu. Type all commands of this section in the Ubuntu window.
 
 ### What VTC is
 
@@ -253,8 +274,9 @@ audio:
 
 ### Run VTC
 
+In the Ubuntu window, in the project folder:
+
 ```bash
-cd /mnt/c/Users/yourname/Projects/HindiBabyNet
 uv run --project audio hbn-audio classify-vtc
 ```
 
@@ -284,7 +306,9 @@ VTC always classifies all WAV files of one folder. For this reason the command g
 | `incomplete results` for a recording | An earlier run stopped in the middle. Move the folder of this recording out of `derived/vtc-classification/` and run again. |
 | `Two prepared files have the same name` | The prepared audio folder has for example `P001.wav` and `P001/P001.wav`. Keep only one of them. |
 
-## 6. Speaker classification with XGBoost
+## 5. Speaker classification with XGBoost
+
+XGBoost runs in Windows PowerShell or in Ubuntu.
 
 The trained model is in this repository: `audio/models/xgb_egemaps.pkl`. It is not trained again.
 
@@ -292,28 +316,36 @@ The method has these steps: voice activity detection (WebRTC VAD), speaker diari
 
 Before the first run:
 
-1. The diarization uses the model `pyannote/speaker-diarization-3.1` from Hugging Face. Make a free account on <https://huggingface.co>, accept the conditions on the page of this model, and create an access token.
-2. Give the token to the program in the Ubuntu window:
+1. **Access to the diarization model.** The diarization uses the model `pyannote/speaker-diarization-3.1` from Hugging Face. Make a free account on <https://huggingface.co>. Accept the conditions on the pages of the two models <https://huggingface.co/pyannote/segmentation-3.0> and <https://huggingface.co/pyannote/speaker-diarization-3.1>. Then create an access token on <https://huggingface.co/settings/tokens>. The token is needed only to download these models. The XGBoost model does not need it.
+2. **Give the token to the program.** The token is kept until you close the terminal window.
 
-```bash
-export HF_TOKEN=your_token
+| Where | Command |
+| --- | --- |
+| Windows PowerShell | `$env:HF_TOKEN = "your_token"` |
+| Ubuntu | `export HF_TOKEN=your_token` |
+
+3. **Install a C compiler.** The package `webrtcvad` is built on your computer when the XGBoost packages are installed.
+
+| Where | What to install |
+| --- | --- |
+| Windows | "Microsoft C++ Build Tools" from <https://visualstudio.microsoft.com/visual-cpp-build-tools/>. Select "Desktop development with C++". |
+| Ubuntu | `sudo apt install build-essential` |
+
+Run. The command is the same in Windows PowerShell and in Ubuntu:
+
 ```
-
-Run:
-
-```bash
 uv run --project audio --extra xgb hbn-audio classify-xgb
 ```
 
-The first run installs the XGBoost packages. This is a large download. If the installation stops at the package `webrtcvad`, a C compiler is missing. Install it with `sudo apt install build-essential` and run the command again.
+The first run installs the XGBoost packages. This is a large download. If the installation stops at the package `webrtcvad`, the C compiler is missing (step 3).
 
 Output for each prepared recording, in `derived/xgb-classification/<recording>/`: the segments table (`<file name>_segments.parquet`), a Praat TextGrid, a summary (`<file name>_summary.json`), `run_info.json`, and audio files with the speech of the main female speaker, the main male speaker, the child and the background.
 
 The XGBoost results and the VTC results are saved in different folders. One method is never used in place of the other.
 
-## 7. Optional tools
+## 6. Optional tools
 
-These tools are for checking the automatic classification. They are not needed for the main workflow. Use `--method vtc` or `--method xgb`.
+These tools are for checking the automatic classification. They are not needed for the main workflow. They run in Windows PowerShell or in Ubuntu. Use `--method vtc` or `--method xgb`.
 
 | Command | What it does | Output |
 | --- | --- | --- |
