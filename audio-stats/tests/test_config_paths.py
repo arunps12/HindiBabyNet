@@ -113,6 +113,60 @@ def test_existing_output_file_is_never_replaced(make_config) -> None:
     assert not config.lookup_path.exists()
 
 
+def test_only_the_missing_wide_table_is_added_to_an_existing_dataset(make_config, capsys) -> None:
+    config = make_config(params=CSV_METADATA)
+    _write_metadata(config)
+    prepare_dataset(config)
+    data_dir = config.derived_data_dir
+    first_wide = (data_dir / "input_output_wide.csv").read_bytes()
+
+    # A dataset of an earlier version: all files but the wide table. The metadata is gone.
+    (data_dir / "input_output_wide.csv").unlink()
+    config.metadata_path.unlink()
+    before = {path.name: path.read_bytes() for path in data_dir.iterdir()}
+    capsys.readouterr()
+
+    master, input_long, input_output_long = prepare_dataset(config)
+
+    assert "Only input_output_wide.csv was missing" in capsys.readouterr().out
+    after = {path.name: path.read_bytes() for path in data_dir.iterdir()}
+    assert sorted(set(after) - set(before)) == ["input_output_wide.csv"]
+    assert all(after[name] == content for name, content in before.items())
+    assert after["input_output_wide.csv"] == first_wide
+    assert (len(master), len(input_long), len(input_output_long)) == (2, 6, 6)
+
+    # Now the dataset is complete: the next run stops and replaces nothing.
+    with pytest.raises(FileExistsError, match="input_output_wide.csv"):
+        prepare_dataset(config)
+    assert {path.name: path.read_bytes() for path in data_dir.iterdir()} == after
+
+
+def test_wide_table_has_the_numbers_of_final_master_exactly(make_config) -> None:
+    config = make_config(params=CSV_METADATA)
+    _write_metadata(config)
+    prepare_dataset(config)
+    data_dir = config.derived_data_dir
+
+    def same_text_as_final_master() -> pd.DataFrame:
+        master = pd.read_csv(data_dir / "final_master.csv", dtype=str)
+        wide = pd.read_csv(data_dir / "input_output_wide.csv", dtype=str)
+        for column in wide.columns:
+            pd.testing.assert_series_equal(wide[column], master[column])
+        return master
+
+    master = same_text_as_final_master()
+
+    # Numbers with 17 digits: a standard CSV reader can change their last digit.
+    master["age_z"] = ["-0.24836162209524854", "0.10970639932180819"]
+    master["adult_male_count_hour"] = ["1.6347830429585775", "0.27276877584472176"]
+    master.to_csv(data_dir / "final_master.csv", index=False)
+    (data_dir / "input_output_wide.csv").unlink()
+    prepare_dataset(config)
+
+    changed = same_text_as_final_master()
+    assert changed["age_z"].tolist() == ["-0.24836162209524854", "0.10970639932180819"]
+
+
 def test_identical_participant_lookup_is_reused(make_config, tmp_path: Path, capsys) -> None:
     first = make_config(params=CSV_METADATA)
     _write_metadata(first)

@@ -54,6 +54,7 @@ def test_original_participant_id_never_appears_in_public_outputs(make_config) ->
         config.derived_data_dir / "final_master.csv",
         config.derived_data_dir / "input_long.csv",
         config.derived_data_dir / "input_output_long.csv",
+        config.derived_data_dir / "input_output_wide.csv",
         config.results_dir / "validation_report.csv",
         config.results_dir / "dataset_build_report.txt",
     ]

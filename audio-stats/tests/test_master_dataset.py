@@ -72,13 +72,18 @@ def test_build_master_dataset_creates_public_outputs(make_config) -> None:
     private_lookup = pd.read_csv(config.lookup_path)
     assert list(private_lookup.columns) == ["original_par_id", "participant_id"]
 
-    # One run saves the participant table, both long tables and the build report.
+    # One run saves the participant table, both long tables, the wide table and the build report.
     saved_master = pd.read_csv(config.derived_data_dir / "final_master.csv")
     assert saved_master["participant_id"].tolist() == ["P001", "P002"]
     assert len(input_long) == 6
     assert len(input_output_long) == 6
     assert len(pd.read_csv(config.derived_data_dir / "input_long.csv")) == 6
     assert len(pd.read_csv(config.derived_data_dir / "input_output_long.csv")) == 6
+    saved_wide = pd.read_csv(config.derived_data_dir / "input_output_wide.csv")
+    assert saved_wide["participant_id"].tolist() == ["P001", "P002"]
+    assert saved_wide.loc[1, "adult_female_count_hour"] == 0.5
+    assert saved_wide.loc[1, "key_child_duration_hour"] == 1.0
+    assert "original_par_id" not in saved_wide.columns
     assert "original_par_id" not in input_long.columns
     report = (config.results_dir / "dataset_build_report.txt").read_text(encoding="utf-8")
     for line in [
@@ -90,6 +95,7 @@ def test_build_master_dataset_creates_public_outputs(make_config) -> None:
         "final_master_rows: 2",
         "input_long_rows: 6",
         "input_output_long_rows: 6",
+        "input_output_wide_rows: 2",
     ]:
         assert line in report
 

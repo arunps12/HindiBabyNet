@@ -1,4 +1,4 @@
-"""Create long-format vocal input datasets from the master dataset."""
+"""Create the long-format and wide-format datasets from the master dataset."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from hindibabynet_audio_stats.config import ProjectConfig
 
 
 INPUT_SPEAKERS = ["adult_female", "adult_male", "other_child"]
+RATE_SUFFIXES = ["count_hour", "count_min_hour", "duration_hour", "duration_min_hour"]
 COMMON_COLUMNS = [
     "participant_id",
     "age_days",
@@ -60,11 +61,27 @@ def _build_input_output_long(master: pd.DataFrame) -> pd.DataFrame:
     return output.sort_values(["participant_id", "speaker"], kind="stable").reset_index(drop=True)
 
 
+def _check_age_columns(master: pd.DataFrame) -> None:
+    missing_age_columns = [column for column in ("age_days", "age_days_sq", "age_days_sq_z", "age_z", "age_z2") if column not in master.columns]
+    if missing_age_columns:
+        raise ValueError(f"final_master.csv is missing required age columns: {', '.join(missing_age_columns)}")
+
+
+def build_wide_table(master: pd.DataFrame) -> pd.DataFrame:
+    """Build input_output_wide: one row per participant, with the rates of each input
+    speaker and of the key child in separate columns (same names as in final_master.csv)."""
+    _check_age_columns(master)
+    rate_columns = [f"{speaker}_{suffix}" for speaker in [*INPUT_SPEAKERS, "key_child"] for suffix in RATE_SUFFIXES]
+    output = master[COMMON_COLUMNS + rate_columns].copy()
+    return output.sort_values("participant_id", kind="stable").reset_index(drop=True)
+
+
 def dataset_report_lines(
     config: ProjectConfig,
     master: pd.DataFrame,
     input_long: pd.DataFrame,
     input_output_long: pd.DataFrame,
+    input_output_wide: pd.DataFrame,
     validation_records: list[dict[str, object]],
 ) -> list[str]:
     """Lines of dataset_build_report.txt: numbers of participants, matches and rows."""
@@ -85,13 +102,12 @@ def dataset_report_lines(
         f"final_master_rows: {total}",
         f"input_long_rows: {len(input_long)}",
         f"input_output_long_rows: {len(input_output_long)}",
+        f"input_output_wide_rows: {len(input_output_wide)}",
         f"denominator_note: Recording duration source was {config.recording_duration_source} with session_selection={config.session_selection}.",
     ]
 
 
 def build_long_tables(master: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Build input_long and input_output_long from the participant table."""
-    missing_age_columns = [column for column in ("age_days", "age_days_sq", "age_days_sq_z", "age_z", "age_z2") if column not in master.columns]
-    if missing_age_columns:
-        raise ValueError(f"final_master.csv is missing required age columns: {', '.join(missing_age_columns)}")
+    _check_age_columns(master)
     return _build_input_long(master), _build_input_output_long(master)

@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from hindibabynet_audio_stats.create_long_format import build_long_tables
+from hindibabynet_audio_stats.create_long_format import build_long_tables, build_wide_table
 
 
 def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) -> None:
@@ -78,3 +78,19 @@ def test_create_long_format_builds_three_rows_per_participant(tmp_path: Path) ->
     assert "age_z2" in input_long.columns
     assert (input_long["age_z2"] == 1.0).all()
     assert "original_par_id" not in input_long.columns
+
+    # The wide table has one row per participant and one column for each input speaker.
+    saved = pd.read_csv(tmp_path / "final_master.csv")
+    wide = build_wide_table(saved.iloc[::-1])
+    assert wide["participant_id"].tolist() == ["P001", "P002"]
+    assert "speaker" not in wide.columns and "original_par_id" not in wide.columns
+    rates = [
+        f"{speaker}_{rate}"
+        for speaker in ("adult_female", "adult_male", "other_child", "key_child")
+        for rate in ("count_hour", "count_min_hour", "duration_hour", "duration_min_hour")
+    ]
+    assert list(wide.columns) == list(input_long.columns[:1]) + list(input_long.columns[2:15]) + rates
+    for column in wide.columns:
+        pd.testing.assert_series_equal(wide[column], saved[column])
+    assert wide["adult_male_count_hour"].tolist() == [3.0, 4.0]
+    assert wide["key_child_duration_hour"].tolist() == [70.0, 80.0]
