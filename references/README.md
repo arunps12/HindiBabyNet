@@ -6,6 +6,8 @@ Some of these documents show commands and folder names of an earlier version of 
 
 `xgb_backend.md` and `pipeline_specification.md` describe the XGBoost method with speaker diarization. The present method does not use diarization. It is described in section 5 of [audio/README.md](../audio/README.md).
 
+`HindiBabyNet_R_Analysis_Implementation_Spec.md` describes the child output models (Model Family 2) with one row per participant and speaker. The present models have one row per participant and the input of each speaker as its own predictor. They are described in section 1 of the report `audio-stats/audio-stats.Rmd`.
+
 | Document | Content |
 | --- | --- |
 | `audio_preparation.md` | how the recordings are prepared |

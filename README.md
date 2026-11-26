@@ -177,7 +177,7 @@ If the features file is already available, you do not need to run this step. The
 
 There are two steps.
 
-**Step 1: prepare the dataset.** Skip this step if the files `final_master.csv`, `input_long.csv` and `input_output_long.csv` are already in `derived/statistical-data/`.
+**Step 1: prepare the dataset.** Skip this step if the files `final_master.csv`, `input_long.csv`, `input_output_long.csv` and `input_output_wide.csv` are already in `derived/statistical-data/`.
 
 - Where: Windows PowerShell, in the project folder.
 - Input: the VTC results, the metadata file, and the raw recordings (the command reads the duration of the first recording day). If your raw recordings have no date folders, set `recording_duration_source: audio_file` in `audio-stats/params.yaml`. The duration is then read from the prepared audio.
@@ -186,11 +186,17 @@ There are two steps.
 uv run --project audio-stats hbn-audio-stats
 ```
 
+- Output: `final_master.csv` (one row per participant), `input_long.csv` and `input_output_long.csv` (one row per participant and input speaker), and `input_output_wide.csv` (one row per participant, with the input of each speaker in its own column).
+- If only `input_output_wide.csv` is missing, the command makes this file from the saved `final_master.csv`. It does not read the recordings again and does not change the other files.
+- A participant whose recording is not found has no recording duration and no rates. This participant is not used in the models. The file `validation_report.csv` lists these participants.
+
 **Step 2: run the analysis.**
 
 - Where: RStudio.
 - Open the file `audio-stats/audio-stats.Rmd` in RStudio and click **Knit**.
 - It loads the dataset, makes the descriptive tables and figures, fits the models and makes the report.
+- The two models of vocal input use `input_long.csv`. The two models of child output use `input_output_wide.csv`, with the input of the adult female, the adult male and the other child as three predictors.
+- For each of the four models, the report compares a linear and a quadratic age model (AIC, BIC, likelihood ratio test).
 - Output: `results/audio-stats/audio-stats.html`, with the folders `tables`, `figures`, `models`, `predictions` and `diagnostics`.
 
 The settings of the models are in the `params` block at the top of the Rmd file. They are explained in the first section of the report.
