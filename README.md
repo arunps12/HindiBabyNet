@@ -12,9 +12,9 @@ This repository has the code for five workflows.
 | `prosody-stats` | Statistical analysis of the prosodic features |
 | `cdi` | Processes the Hindi CDI questionnaires |
 
-The repository has only code. The research data is not part of it. You can keep the data in any folder, also outside this project.
+The repository has only code. The research data is not part of it.
 
-Most users need only the `audio` workflow: it prepares audio recordings and classifies the speakers. It works with your own recordings. The other four workflows are mainly for reproducing the results of the HindiBabyNet study.
+`audio` workflow: it prepares audio recordings and classifies the speakers. It works with your own recordings. The other four workflows are mainly for reproducing the results of the HindiBabyNet study.
 
 ## Folders of the project
 
@@ -217,4 +217,4 @@ The settings of the models are in the `params` block at the top of the Rmd file.
 
 ## Data protection
 
-The recordings, the questionnaires, the participant information and all results are research data. Keep them on your computer or on the secured project storage. Do not add them to this repository. The file `.gitignore` is written so that only the code folders listed above can be uploaded.
+The recordings, questionnaires, participant information and all results are research data and are therefore not currently shared in this repository. Eligible research data will be made available later, subject to ethical approval, consent and data-sharing requirements. The file .gitignore file is configured to exclude research data and ensure that only the relevant code and supporting files are shared.
