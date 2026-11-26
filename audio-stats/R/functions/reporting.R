@@ -76,21 +76,12 @@ principal_terms_for_bundle <- function(bundle) {
   )
 
   if (identical(bundle$model_family, "family_1")) {
-    interaction_patterns <- unlist(lapply(age_terms, function(term) {
-      c(
-        sprintf("^speaker.*:%s$", term),
-        sprintf("^%s:speaker.*$", term)
-      )
-    }), use.names = FALSE)
-    return(c(sprintf("^%s$", age_terms), "^speaker", interaction_patterns))
+    # Speaker terms, age terms and the speaker-by-age interaction (speaker:age_z).
+    return(c(sprintf("^%s$", age_terms), "^speaker", "^age_z:speaker"))
   }
 
-  if (identical(bundle$model_family, "family_2_count")) {
-    return(c("^input_count_hour$", "^input_count_hour:speaker", "^speaker.*:input_count_hour$"))
-  }
-
-  if (identical(bundle$model_family, "family_2_duration")) {
-    return(c("^input_duration_min_hour$", "^input_duration_min_hour:speaker", "^speaker.*:input_duration_min_hour$"))
+  if (is_family_2(bundle$model_family)) {
+    return(sprintf("^%s$", family_2_input_terms(bundle$model_family)))
   }
 
   character(0)
@@ -191,6 +182,18 @@ build_reporting_bundle <- function(model_bundles, diagnostics, predictions, data
   diagnostics_table <- bind_rows_safe(lapply(diagnostics, function(item) item$summary))
   anova_table <- bind_rows_safe(lapply(model_bundles, tidy_anova_table))
   collinearity_table <- bind_rows_safe(lapply(model_bundles, vif_table))
+  family_1_bundles <- Filter(function(bundle) identical(bundle$model_family, "family_1"), model_bundles)
+  family_2_bundles <- Filter(function(bundle) is_family_2(bundle$model_family), model_bundles)
+  age_model_comparison <- bind_rows_safe(lapply(model_bundles, function(bundle) bundle$age_comparison))
+  speaker_pairwise <- bind_rows_safe(lapply(family_1_bundles, function(bundle) {
+    comparison_table_or_note(speaker_pairwise_table, bundle)
+  }))
+  coefficient_tests <- bind_rows_safe(lapply(family_2_bundles, function(bundle) {
+    comparison_table_or_note(input_coefficient_tests, bundle)
+  }))
+  effect_sizes <- bind_rows_safe(lapply(model_bundles, function(bundle) {
+    comparison_table_or_note(model_effect_sizes, bundle)
+  }))
   prediction_manifest <- bind_rows_safe(lapply(names(predictions), function(name) {
     item <- predictions[[name]]
     data.frame(
@@ -211,6 +214,10 @@ build_reporting_bundle <- function(model_bundles, diagnostics, predictions, data
     diagnostics_table = diagnostics_table,
     anova_table = anova_table,
     collinearity_table = collinearity_table,
+    age_model_comparison = age_model_comparison,
+    speaker_pairwise = speaker_pairwise,
+    input_coefficient_tests = coefficient_tests,
+    effect_sizes = effect_sizes,
     prediction_manifest = prediction_manifest
   )
 }
@@ -225,6 +232,10 @@ write_reporting_outputs <- function(reporting_bundle, output_dir = analysis_path
   utils::write.csv(reporting_bundle$diagnostics_table, file.path(output_dir, "diagnostics_summary.csv"), row.names = FALSE)
   utils::write.csv(reporting_bundle$anova_table, file.path(output_dir, "anova_summary.csv"), row.names = FALSE)
   utils::write.csv(reporting_bundle$collinearity_table, file.path(output_dir, "collinearity_summary.csv"), row.names = FALSE)
+  utils::write.csv(reporting_bundle$age_model_comparison, file.path(output_dir, "age_model_comparison.csv"), row.names = FALSE)
+  utils::write.csv(reporting_bundle$speaker_pairwise, file.path(output_dir, "speaker_pairwise_comparisons.csv"), row.names = FALSE)
+  utils::write.csv(reporting_bundle$input_coefficient_tests, file.path(output_dir, "input_coefficient_tests.csv"), row.names = FALSE)
+  utils::write.csv(reporting_bundle$effect_sizes, file.path(output_dir, "effect_sizes.csv"), row.names = FALSE)
   utils::write.csv(reporting_bundle$prediction_manifest, file.path(output_dir, "prediction_manifest.csv"), row.names = FALSE)
 
   bundle_path <- file.path(output_dir, "reporting_bundle.rds")

@@ -70,7 +70,7 @@ build_jitter_position <- function(observed_data, x_var, y_var) {
   )
 }
 
-plot_prediction_with_ci <- function(prediction_data, x_var, y_var, output_stub, color_var = NULL, x_label = NULL, y_label = NULL, title = NULL, facet_var = NULL, observed_data = NULL, observed_x_var = x_var, observed_y_var = y_var, width = 8, height = 5.5) {
+plot_prediction_with_ci <- function(prediction_data, x_var, y_var, output_stub, color_var = NULL, x_label = NULL, y_label = NULL, title = NULL, facet_var = NULL, facet_scales = "fixed", observed_data = NULL, observed_x_var = x_var, observed_y_var = y_var, width = 8, height = 5.5) {
   plot_object <- ggplot2::ggplot()
 
   if (!is.null(observed_data)) {
@@ -127,7 +127,7 @@ plot_prediction_with_ci <- function(prediction_data, x_var, y_var, output_stub, 
     ggplot2::theme_minimal(base_size = 12)
 
   if (!is.null(facet_var)) {
-    plot_object <- plot_object + ggplot2::facet_wrap(stats::as.formula(paste("~", facet_var)))
+    plot_object <- plot_object + ggplot2::facet_wrap(stats::as.formula(paste("~", facet_var)), scales = facet_scales)
   }
 
   plot_object <- apply_white_plot_theme(plot_object)
@@ -145,8 +145,8 @@ create_age_speaker_predictions <- function(bundle, data, nsim = analysis_options
   prediction_data
 }
 
-create_input_output_predictions <- function(bundle, data, predictor_name, nsim = analysis_options$nsim_default, n_points = 60) {
-  prediction_grid <- build_input_output_grid(bundle, data, predictor_name = predictor_name, n_points = n_points)
+create_input_output_predictions <- function(bundle, data, nsim = analysis_options$nsim_default, n_points = 60) {
+  prediction_grid <- build_input_output_grid(bundle, data, n_points = n_points)
   compute_monte_carlo_ci(bundle, prediction_grid, nsim = nsim)
 }
 
@@ -172,8 +172,11 @@ plot_age_speaker_predictions <- function(bundle, data, output_stub, y_label, nsi
   list(data = prediction_data, csv_path = csv_path, plot_path = plot_result$path)
 }
 
-plot_input_output_predictions <- function(bundle, data, predictor_name, x_label, y_label, output_stub, nsim = analysis_options$nsim_default) {
-  prediction_data <- create_input_output_predictions(bundle, data, predictor_name = predictor_name, nsim = nsim)
+# Family 2: one panel for each input speaker. In a panel the input of this speaker
+# changes and the inputs of the other speakers, age and SES are at their mean.
+plot_input_output_predictions <- function(bundle, data, x_label, y_label, output_stub, nsim = analysis_options$nsim_default) {
+  predictor_name <- family_2_input_axis(bundle$model_family)
+  prediction_data <- create_input_output_predictions(bundle, data, nsim = nsim)
   csv_path <- file.path(analysis_paths$results_predictions, sprintf("%s_predictions.csv", output_stub))
   utils::write.csv(prediction_data, csv_path, row.names = FALSE)
 
@@ -185,9 +188,10 @@ plot_input_output_predictions <- function(bundle, data, predictor_name, x_label,
     color_var = "speaker",
     x_label = x_label,
     y_label = y_label,
-    title = sprintf("%s vs %s", bundle$response_name, predictor_name),
+    title = sprintf("%s by the input of each speaker (other inputs and age at their mean)", bundle$response_name),
     facet_var = "speaker",
-    observed_data = data,
+    facet_scales = "free_x",
+    observed_data = stack_input_observations(bundle, data),
     observed_x_var = predictor_name,
     observed_y_var = bundle$response_name,
     width = 10,

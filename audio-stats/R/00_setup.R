@@ -86,11 +86,34 @@ analysis_options <- list(
   age_days_mean = NA_real_,
   age_days_sd = NA_real_,
   model_robustness_mode = "auto",
-  family_2_participant_intercept = "auto",
   model_spec_overrides = list(),
   speaker_order = c("adult_female", "adult_male", "other_child"),
   model_config = NULL
 )
+
+# Family 2 has one row per participant and one input predictor for each input speaker,
+# for example adult_female_count_hour, adult_male_count_hour and other_child_count_hour.
+is_family_2 <- function(model_family) {
+  model_family %in% c("family_2_count", "family_2_duration")
+}
+
+family_2_input_measure <- function(model_family) {
+  switch(
+    model_family,
+    family_2_count = "count_hour",
+    family_2_duration = "duration_min_hour",
+    stop(sprintf("Not a Family 2 model: %s", model_family), call. = FALSE)
+  )
+}
+
+family_2_input_terms <- function(model_family) {
+  paste(analysis_options$speaker_order, family_2_input_measure(model_family), sep = "_")
+}
+
+# Name of the x axis when the three input predictors are shown next to each other.
+family_2_input_axis <- function(model_family) {
+  paste0("input_", family_2_input_measure(model_family))
+}
 
 default_model_config <- list(
   age_specification = list(
@@ -226,6 +249,8 @@ normalize_model_config <- function(config) {
   )
 }
 
+# Key of one of the four models. The age specification and the model settings
+# (random effects, dropped and extra fixed terms) are stored under this key.
 model_age_spec_key <- function(model_family, response_name) {
   if (identical(model_family, "family_1") && identical(response_name, "input_count_hour")) {
     return("family1_count")
@@ -295,19 +320,6 @@ requires_age_predictors <- function(response_name = NULL, model_family = NULL, a
     age_specification = age_specification,
     config = config
   )) > 0
-}
-
-age_interaction_terms <- function(base_term, response_name = NULL, model_family = NULL, age_specification = NULL, config = analysis_options$model_config) {
-  terms <- active_age_terms(
-    response_name = response_name,
-    model_family = model_family,
-    age_specification = age_specification,
-    config = config
-  )
-  if (length(terms) == 0) {
-    return(character(0))
-  }
-  sprintf("%s:%s", base_term, terms)
 }
 
 format_age_specification_summary <- function(config = analysis_options$model_config) {
@@ -433,20 +445,26 @@ parse_env_toggle <- function(value, default = "with", allowed = c("with", "witho
   parsed
 }
 
-build_model_spec_override <- function(prefix, participant_default) {
-  list(
-    participant_intercept = parse_env_toggle(
-      Sys.getenv(sprintf("%s_PARTICIPANT_INTERCEPT", prefix), unset = ""),
-      default = participant_default
-    ),
-    location_intercept = parse_env_toggle(
-      Sys.getenv(sprintf("%s_LOCATION_INTERCEPT", prefix), unset = ""),
-      default = "with"
-    ),
-    drop_fixed_terms = parse_env_vector(Sys.getenv(sprintf("%s_DROP_FIXED_TERMS", prefix), unset = "")),
-    extra_fixed_terms = parse_env_vector(Sys.getenv(sprintf("%s_EXTRA_FIXED_TERMS", prefix), unset = "")),
-    random_slopes = parse_env_vector(Sys.getenv(sprintf("%s_RANDOM_SLOPES", prefix), unset = ""))
+# Settings of one model. The fixed terms are set for a model family (fixed_prefix).
+# The random effects are set for each Family 1 model (random_prefix). Family 2 has
+# one row per participant and no random effects.
+build_model_spec_override <- function(fixed_prefix, random_prefix = NULL) {
+  override <- list(
+    drop_fixed_terms = parse_env_vector(Sys.getenv(sprintf("%s_DROP_FIXED_TERMS", fixed_prefix), unset = "")),
+    extra_fixed_terms = parse_env_vector(Sys.getenv(sprintf("%s_EXTRA_FIXED_TERMS", fixed_prefix), unset = ""))
   )
+  if (!is.null(random_prefix)) {
+    override$participant_intercept <- parse_env_toggle(
+      Sys.getenv(sprintf("%s_PARTICIPANT_INTERCEPT", random_prefix), unset = ""),
+      default = "with"
+    )
+    override$location_intercept <- parse_env_toggle(
+      Sys.getenv(sprintf("%s_LOCATION_INTERCEPT", random_prefix), unset = ""),
+      default = "without"
+    )
+    override$random_slopes <- parse_env_vector(Sys.getenv(sprintf("%s_RANDOM_SLOPES", random_prefix), unset = ""))
+  }
+  override
 }
 
 runtime_model_robustness <- Sys.getenv("HBN_MODEL_ROBUSTNESS_MODE", unset = "")
@@ -467,28 +485,11 @@ if (nzchar(runtime_nsim)) {
   analysis_options$nsim_default <- parsed_nsim
 }
 
-runtime_family_2_intercept <- Sys.getenv("HBN_FAMILY2_PARTICIPANT_INTERCEPT", unset = "")
-if (nzchar(runtime_family_2_intercept)) {
-  allowed_modes <- c("auto", "with", "without")
-  parsed_mode <- trimws(tolower(runtime_family_2_intercept))
-  if (!(parsed_mode %in% allowed_modes)) {
-    stop(
-      sprintf(
-        "Environment variable HBN_FAMILY2_PARTICIPANT_INTERCEPT must be one of: %s.",
-        paste(allowed_modes, collapse = ", ")
-      ),
-      call. = FALSE
-    )
-  }
-  analysis_options$family_2_participant_intercept <- parsed_mode
-}
-
 analysis_options$model_spec_overrides <- list(
-  family_1 = build_model_spec_override("HBN_FAMILY1", participant_default = "with"),
-  family_2 = build_model_spec_override(
-    "HBN_FAMILY2",
-    participant_default = analysis_options$family_2_participant_intercept
-  )
+  family1_count = build_model_spec_override("HBN_FAMILY1", "HBN_FAMILY1_COUNT"),
+  family1_duration = build_model_spec_override("HBN_FAMILY1", "HBN_FAMILY1_DURATION"),
+  family2_count = build_model_spec_override("HBN_FAMILY2"),
+  family2_duration = build_model_spec_override("HBN_FAMILY2")
 )
 
 apply_model_config_overrides(default_model_config)
@@ -534,9 +535,6 @@ message("HindiBabyNet R analysis scaffold loaded.")
 message(sprintf("Repository root: %s", repo_root))
 if (Sys.getenv("HBN_NSIM", unset = "") != "") {
   message(sprintf("Runtime nsim override active: %s", analysis_options$nsim_default))
-}
-if (Sys.getenv("HBN_FAMILY2_PARTICIPANT_INTERCEPT", unset = "") != "") {
-  message(sprintf("Runtime Family 2 participant intercept mode active: %s", analysis_options$family_2_participant_intercept))
 }
 if (Sys.getenv("HBN_MODEL_ROBUSTNESS_MODE", unset = "") != "") {
   message(sprintf("Runtime model robustness mode active: %s", analysis_options$model_robustness_mode))

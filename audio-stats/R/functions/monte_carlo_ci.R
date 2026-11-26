@@ -1,6 +1,8 @@
 # Monte Carlo confidence interval helpers for the HindiBabyNet R workflow.
 
-mode_or_first_level <- function(values) {
+# Value of a column at which a prediction is made when the column is not varied:
+# the most frequent level of a factor, the mean of a number, else the first value.
+reference_value <- function(values) {
   if (is.factor(values)) {
     counts <- table(values)
     return(factor(names(counts)[which.max(counts)], levels = levels(values)))
@@ -9,6 +11,9 @@ mode_or_first_level <- function(values) {
   observed <- values[!is.na(values)]
   if (length(observed) == 0) {
     return(NA)
+  }
+  if (is.numeric(observed)) {
+    return(mean(observed))
   }
 
   unique_values <- unique(observed)
@@ -83,7 +88,7 @@ apply_bundle_age_terms <- function(dataframe, bundle, age_days = NULL, age_z = N
 }
 
 build_reference_values <- function(data) {
-  reference <- lapply(data, mode_or_first_level)
+  reference <- lapply(data, reference_value)
   as.data.frame(reference, stringsAsFactors = FALSE)
 }
 
@@ -110,23 +115,46 @@ build_age_speaker_grid <- function(bundle, data, n_points = 60) {
   apply_bundle_age_terms(reference, bundle = bundle, age_days = grid$age_days)
 }
 
-build_input_output_grid <- function(bundle, data, predictor_name, n_points = 60) {
-  predictor_values <- seq(min(data[[predictor_name]], na.rm = TRUE), max(data[[predictor_name]], na.rm = TRUE), length.out = n_points)
-  speakers <- levels(data$speaker)
-  if (is.null(speakers)) {
-    speakers <- sort(unique(data$speaker))
-  }
+# Grid for a Family 2 model. The data has one row per participant. For each input
+# speaker, the input of this speaker goes over its observed range; the inputs of the
+# other two speakers, age and SES stay at their mean. The columns `speaker` and the
+# common x column (input_count_hour or input_duration_min_hour) say which input is varied.
+build_input_output_grid <- function(bundle, data, n_points = 60) {
+  input_terms <- family_2_input_terms(bundle$model_family)
+  x_name <- family_2_input_axis(bundle$model_family)
+  reference <- build_reference_values(data)
 
-  grid <- expand.grid(
-    predictor_value = predictor_values,
-    speaker = speakers,
-    stringsAsFactors = FALSE
-  )
+  grid <- do.call(rbind, lapply(seq_along(input_terms), function(index) {
+    values <- data[[input_terms[[index]]]]
+    varied <- seq(min(values, na.rm = TRUE), max(values, na.rm = TRUE), length.out = n_points)
+    rows <- reference[rep(1, n_points), , drop = FALSE]
+    rows[[input_terms[[index]]]] <- varied
+    rows$speaker <- analysis_options$speaker_order[[index]]
+    rows[[x_name]] <- varied
+    rows
+  }))
+  rownames(grid) <- NULL
+  grid$speaker <- factor(grid$speaker, levels = analysis_options$speaker_order)
+  apply_bundle_age_terms(grid, bundle = bundle, age_z = rep(0, nrow(grid)))
+}
 
-  reference <- build_reference_values(data)[rep(1, nrow(grid)), , drop = FALSE]
-  reference[[predictor_name]] <- grid$predictor_value
-  reference$speaker <- factor(grid$speaker, levels = levels(data$speaker))
-  apply_bundle_age_terms(reference, bundle = bundle, age_z = rep(0, nrow(reference)))
+# The observed values of a Family 2 model in the layout of the grid: one row per
+# participant and input speaker.
+stack_input_observations <- function(bundle, data) {
+  input_terms <- family_2_input_terms(bundle$model_family)
+  stacked <- do.call(rbind, lapply(seq_along(input_terms), function(index) {
+    rows <- data.frame(
+      speaker = analysis_options$speaker_order[[index]],
+      input = data[[input_terms[[index]]]],
+      response = data[[bundle$response_name]],
+      stringsAsFactors = FALSE
+    )
+    names(rows) <- c("speaker", family_2_input_axis(bundle$model_family), bundle$response_name)
+    rows
+  }))
+  stacked$speaker <- factor(stacked$speaker, levels = analysis_options$speaker_order)
+  # A participant without rates has no point in the figure.
+  stacked[stats::complete.cases(stacked), , drop = FALSE]
 }
 
 compute_monte_carlo_ci <- function(bundle, grid, nsim = analysis_options$nsim_default) {
@@ -173,7 +201,8 @@ compute_monte_carlo_ci <- function(bundle, grid, nsim = analysis_options$nsim_de
     return(predictions)
   }
 
-  if (inherits(model, "lm")) {
+  # A glm object is also of class lm: the Gamma model is handled in the next block.
+  if (inherits(model, "lm") && !inherits(model, "glm")) {
     fitted_values <- stats::predict(model, newdata = grid, se.fit = TRUE)
 
     predictions <- data.frame(

@@ -17,25 +17,25 @@ output:
     toc: yes
 params:
   refit_models: yes
-  nsim: 100
-  model_robustness_mode: "strict" #"strict" or "auto"
-  family1_count_age_specification: "quadratic" # "none", "linear", or "quadratic"
-  family1_duration_age_specification: "quadratic" # "none", "linear", or "quadratic"
-  family2_count_age_specification: "quadratic" # "none", "linear", or "quadratic"
-  family2_duration_age_specification: "quadratic" # "none", "linear", or "quadratic"
+  nsim: 10
+  model_robustness_mode: "auto" #"strict" or "auto"
+  family1_count_age_specification: "linear" # "none", "linear", or "quadratic"
+  family1_duration_age_specification: "linear" # "none", "linear", or "quadratic"
+  family2_count_age_specification: "linear" # "none", "linear", or "quadratic"
+  family2_duration_age_specification: "linear" # "none", "linear", or "quadratic"
   anova_type: 2 # 2 or 3
   response_transform_global: "none"
   response_transform_map: ""
-  family1_participant_intercept: "with" # "with" or "without"
-  family1_location_intercept: "without"
-  family1_drop_fixed_terms:  ["speaker:age_z2"] #!r character(0) # ["fixed_effect1", fixed_effect2] #["speaker:age_z", "speaker:age_z2"] #
+  family1_count_participant_intercept: "with" # "with", "without", or "auto"
+  family1_count_location_intercept: "without" # "with", "without", or "auto"
+  family1_count_random_slope_terms: !r character(0) # for example ["speaker|Location"]
+  family1_duration_participant_intercept: "with" # "with", "without", or "auto"
+  family1_duration_location_intercept: "without" # "with", "without", or "auto"
+  family1_duration_random_slope_terms: !r character(0) # for example ["speaker|Location"]
+  family1_drop_fixed_terms: !r character(0) # for example ["SES_num", "child_sex"]
   family1_extra_fixed_terms: !r character(0)
-  family1_random_slope_terms: !r character(0)
-  family2_participant_intercept: "without"
-  family2_location_intercept: "without"
-  family2_drop_fixed_terms: !r character(0) # ["input_count_hour:speaker", "input_duration_min_hour:speaker"]#
+  family2_drop_fixed_terms: !r character(0) # for example ["SES_num", "child_sex"]
   family2_extra_fixed_terms: !r character(0)
-  family2_random_slope_terms: !r character(0) # ["speaker|participant_id"]
   show_code: yes
 ---
 
@@ -53,8 +53,9 @@ knitr::opts_chunk$set(
 options(width = 120, scipen = 999)
 
 # Folder of this document. The helper files in R/ are loaded from here.
+# When a chunk is run by hand in RStudio, the working directory is this folder.
 report_input <- knitr::current_input(dir = TRUE)
-report_code_root <- if (nzchar(report_input)) dirname(normalizePath(report_input, mustWork = TRUE)) else getwd()
+report_code_root <- if (length(report_input) && nzchar(report_input)) dirname(normalizePath(report_input, mustWork = TRUE)) else getwd()
 knitr::opts_knit$set(root.dir = report_code_root)
 
 collapse_param_values <- function(values) {
@@ -90,24 +91,25 @@ apply_report_environment_overrides <- function() {
     HBN_ANOVA_TYPE = as.character(params$anova_type),
     HBN_RESPONSE_TRANSFORM_GLOBAL = as.character(params$response_transform_global),
     HBN_RESPONSE_TRANSFORM_MAP = as.character(params$response_transform_map),
-    HBN_FAMILY1_PARTICIPANT_INTERCEPT = as.character(params$family1_participant_intercept),
-    HBN_FAMILY1_LOCATION_INTERCEPT = as.character(params$family1_location_intercept),
+    HBN_FAMILY1_COUNT_PARTICIPANT_INTERCEPT = as.character(params$family1_count_participant_intercept),
+    HBN_FAMILY1_COUNT_LOCATION_INTERCEPT = as.character(params$family1_count_location_intercept),
+    HBN_FAMILY1_COUNT_RANDOM_SLOPES = collapse_param_values(params$family1_count_random_slope_terms),
+    HBN_FAMILY1_DURATION_PARTICIPANT_INTERCEPT = as.character(params$family1_duration_participant_intercept),
+    HBN_FAMILY1_DURATION_LOCATION_INTERCEPT = as.character(params$family1_duration_location_intercept),
+    HBN_FAMILY1_DURATION_RANDOM_SLOPES = collapse_param_values(params$family1_duration_random_slope_terms),
     HBN_FAMILY1_DROP_FIXED_TERMS = collapse_param_values(params$family1_drop_fixed_terms),
     HBN_FAMILY1_EXTRA_FIXED_TERMS = collapse_param_values(params$family1_extra_fixed_terms),
-    HBN_FAMILY1_RANDOM_SLOPES = collapse_param_values(params$family1_random_slope_terms),
-    HBN_FAMILY2_PARTICIPANT_INTERCEPT = as.character(params$family2_participant_intercept),
-    HBN_FAMILY2_LOCATION_INTERCEPT = as.character(params$family2_location_intercept),
     HBN_FAMILY2_DROP_FIXED_TERMS = collapse_param_values(params$family2_drop_fixed_terms),
-    HBN_FAMILY2_EXTRA_FIXED_TERMS = collapse_param_values(params$family2_extra_fixed_terms),
-    HBN_FAMILY2_RANDOM_SLOPES = collapse_param_values(params$family2_random_slope_terms)
+    HBN_FAMILY2_EXTRA_FIXED_TERMS = collapse_param_values(params$family2_extra_fixed_terms)
   )
 }
 
+# The settings are given to R/00_setup.R, which reads them when it is loaded.
 apply_report_environment_overrides()
 
 source(file.path(report_code_root, "R", "00_setup.R"), local = knitr::knit_global())
 for (helper in c("data_prep.R", "descriptives.R", "model_selection.R", "model_diagnostics.R",
-                 "monte_carlo_ci.R", "prediction_plots.R", "reporting.R",
+                 "model_contrasts.R", "monte_carlo_ci.R", "prediction_plots.R", "reporting.R",
                  "question_sections.R")) {
   source(file.path(analysis_paths$functions_dir, helper), local = knitr::knit_global())
 }
@@ -115,36 +117,12 @@ for (helper in c("data_prep.R", "descriptives.R", "model_selection.R", "model_di
 load_required_packages(attach = FALSE)
 ensure_analysis_directories()
 
-apply_report_analysis_overrides <- function() {
-  analysis_options$nsim_default <- params$nsim
-  analysis_options$model_robustness_mode <- params$model_robustness_mode
-  analysis_options$family_2_participant_intercept <- params$family2_participant_intercept
-  analysis_options$model_spec_overrides <- list(
-    family_1 = list(
-      participant_intercept = params$family1_participant_intercept,
-      location_intercept = params$family1_location_intercept,
-      drop_fixed_terms = as.character(unlist(params$family1_drop_fixed_terms, use.names = FALSE)),
-      extra_fixed_terms = as.character(unlist(params$family1_extra_fixed_terms, use.names = FALSE)),
-      random_slopes = as.character(unlist(params$family1_random_slope_terms, use.names = FALSE))
-    ),
-    family_2 = list(
-      participant_intercept = params$family2_participant_intercept,
-      location_intercept = params$family2_location_intercept,
-      drop_fixed_terms = as.character(unlist(params$family2_drop_fixed_terms, use.names = FALSE)),
-      extra_fixed_terms = as.character(unlist(params$family2_extra_fixed_terms, use.names = FALSE)),
-      random_slopes = as.character(unlist(params$family2_random_slope_terms, use.names = FALSE))
-    )
-  )
-}
-
 apply_dataset_runtime_state <- function(datasets_bundle) {
   analysis_options$age_days_mean <- datasets_bundle$age_days_mean
   analysis_options$age_days_sd <- datasets_bundle$age_days_sd
   analysis_runtime$age_days_mean <- datasets_bundle$age_days_mean
   analysis_runtime$age_days_sd <- datasets_bundle$age_days_sd
 }
-
-apply_report_analysis_overrides()
 
 # Packages used only for rendering readable report tables.
 if (!requireNamespace("knitr", quietly = TRUE)) {
@@ -239,6 +217,30 @@ print_model_summary <- function(bundle) {
   print(summary(bundle$model))
 }
 
+# Comparisons and effect sizes of one model: pairwise comparisons of the speakers
+# (Family 1) or tests that compare the three input coefficients (Family 2), then R2
+# and standardized coefficients.
+show_comparisons_and_effect_sizes <- function(bundle, label) {
+  if (is_family_2(bundle$model_family)) {
+    show_table(
+      comparison_table_or_note(input_coefficient_tests, bundle),
+      digits = 4,
+      caption = sprintf("Tests that compare the coefficients of the three input predictors: %s.", label)
+    )
+  } else {
+    show_table(
+      comparison_table_or_note(speaker_pairwise_table, bundle),
+      digits = 4,
+      caption = sprintf("Pairwise comparisons of the speakers: %s.", label)
+    )
+  }
+  show_table(
+    comparison_table_or_note(model_effect_sizes, bundle),
+    digits = 4,
+    caption = sprintf("Effect sizes: %s.", label)
+  )
+}
+
 show_saved_image <- function(path, caption = NULL) {
   if (!is.null(path) && length(path) == 1 && !is.na(path) && file.exists(path)) {
     cat(sprintf("\n\n![](<%s>)\n\n", normalizePath(path, winslash = "/", mustWork = TRUE)))
@@ -257,45 +259,59 @@ Knitting does these steps in this order:
 1.  It loads the prepared dataset and checks it.
 2.  It shows descriptive statistics of the sample.
 3.  It fits the four models. When `refit_models` is `no`, it loads the saved models instead.
-4.  It shows how each model was selected, the model summaries, and the tables of fixed and random effects.
-5.  It creates the prediction figures and the model diagnostics.
-6.  It saves the models, tables, figures, predictions and the summaries for the research questions.
+4.  It compares the linear and the quadratic age model of each of the four models.
+5.  It shows how each model was selected, the model summaries, and the tables of fixed and random effects, with pairwise comparisons and effect sizes.
+6.  It creates the prediction figures and the model diagnostics.
+7.  It saves the models, tables, figures, predictions and the summaries for the research questions.
 
-The prepared dataset has three files: `final_master.csv`, `input_long.csv` and `input_output_long.csv`. The dataset must exist before you knit. It is created with the command `hbn-audio-stats`.
+The prepared dataset has four files: `final_master.csv`, `input_long.csv`, `input_output_long.csv` and `input_output_wide.csv`. The dataset must exist before you knit. It is created with the command `hbn-audio-stats`. This report uses `final_master.csv` for the descriptive statistics, `input_long.csv` for Family 1 and `input_output_wide.csv` for Family 2.
 
 The folder of the prepared dataset and the results folder are set in the file `config.yaml` in the project root. The report, the tables, the figures and the models are saved in `results/audio-stats` inside the data folder. These files contain research data. Keep them private.
 
 The settings of the analysis are in the `params` block at the top of this file. Section 1.1 explains each setting.
 
-There are four models. Family 1 has the two models of vocal input (count and duration). Family 2 has the two models of child output (count and duration).
+There are four models.
+
+- **Family 1** has the two models of vocal input (count and duration). The data is `input_long.csv`, with three rows per participant: one row for each input speaker (adult female, adult male, other child). The models can have random effects.
+- **Family 2** has the two models of child output (count and duration). The data is `input_output_wide.csv`, with one row per participant. The input of the adult female, the adult male and the other child are three separate predictors in the same model. A participant has only one row, so these models have no random intercepts and no random slopes.
 
 In the models, SES is an ordered number named `SES_num`. It is made from the `SES` labels with this fixed mapping: `primary_school = 1`, `high_school = 2`, `Intermediate = 3`, `bachelor = 4`, and `master = 5`.
 
-The age terms are set for each model separately. `"none"` uses no age term. `"linear"` uses `age_z`. `"quadratic"` uses `age_z` and `age_z2`. The z-scores are calculated from age in days. A transform of the response can be set for all responses (`response_transform_global`) or for single responses (`response_transform_map`). When `response_transform_global` is not empty, it is used and the map is ignored.
+The age terms are set for each model separately. `"none"` uses no age term. `"linear"` uses `age_z`. `"quadratic"` uses `age_z` and `age_z2`. The z-scores are calculated from age in days. In Family 1 the interaction of speaker and age is always `speaker:age_z`. The interaction `speaker:age_z2` is not used, also not in the quadratic model.
+
+For each of the four models, the linear and the quadratic age model are both fitted and compared in section 4.1. The model that is shown in detail in sections 5 and 6 is the one that you set in the `params` block. The comparison does not change this choice.
+
+A transform of the response can be set for all responses (`response_transform_global`) or for single responses (`response_transform_map`). When `response_transform_global` is not empty, it is used and the map is ignored.
 
 # 1.1 What to change in this .Rmd file
 
 Change the values in the `params:` block at the top of this file. Then knit the document again.
 
-- `refit_models`: `yes` fits the four models again. `no` loads the saved models and only rebuilds the report. Use `no` only when the saved model files exist.
+- `refit_models`: `yes` fits the four models again. `no` loads the saved models and only rebuilds the report. Use `no` only when the saved model files exist and were saved by this version of the report.
 - `nsim`: the number of simulations (parametric bootstrap) for the prediction intervals of the mixed models. A larger number gives more stable intervals but takes more time.
-- `model_robustness_mode`: `"strict"` or `"auto"`. With `"strict"`, only the model that you ask for is fitted, and knitting stops when this model cannot be fitted. With `"auto"`, the model that you ask for is tried first. It is made simpler when needed, so that the report can still be finished.
-- `family1_count_age_specification`, `family1_duration_age_specification`, `family2_count_age_specification`, and `family2_duration_age_specification`: the age terms of each model. Use `"none"`, `"linear"`, or `"quadratic"`.
+- `model_robustness_mode`: `"strict"` or `"auto"`. With `"strict"`, only the model that you ask for is fitted, and knitting stops when this model cannot be fitted. With `"auto"`, the model that you ask for is tried first. It is made simpler when needed, so that the report can still be finished. Family 2 never gets random effects, also not with `"auto"`.
+- `family1_count_age_specification`, `family1_duration_age_specification`, `family2_count_age_specification`, and `family2_duration_age_specification`: the age terms of the model that is shown in detail. Use `"none"`, `"linear"`, or `"quadratic"`.
 - `anova_type`: `2` or `3`, for the `car::Anova()` tables in this report.
 - `response_transform_global`: one transform for all responses. Use `"none"`, `"log"`, or `"log1p"`. When this is not empty, it is used and `response_transform_map` is ignored.
 - `response_transform_map`: transforms for single responses, written as assignments with commas, such as `input_count_hour=log1p,key_child_count_hour=log1p`. Leave this empty when you want one global setting.
-- `family1_participant_intercept` and `family2_participant_intercept`: the random intercept for participants. Set to `"with"`, `"without"`, or `"auto"`.
-- `family1_location_intercept` and `family2_location_intercept`: the random intercept for locations. Set to `"with"`, `"without"`, or `"auto"`.
+
+The random effects of the two Family 1 models are set separately. The parameters that start with `family1_count_` are for the input count model. The parameters that start with `family1_duration_` are for the input duration model.
+
+- `family1_count_participant_intercept` and `family1_duration_participant_intercept`: the random intercept for participants, `(1 | participant_id)`. Set to `"with"`, `"without"`, or `"auto"`. The default is `"with"`.
+- `family1_count_location_intercept` and `family1_duration_location_intercept`: the random intercept for locations, `(1 | Location)`. Set to `"with"`, `"without"`, or `"auto"`. The default is `"without"`.
+- `family1_count_random_slope_terms` and `family1_duration_random_slope_terms`: random slope terms, written as `term|group`, `term||group`, or in full lme4 form such as `(1 + speaker | Location)`. The default is no random slope. A random slope of `speaker` or of age for `participant_id` cannot be estimated, because a participant has only one row per speaker and only one age.
+
+The fixed terms are set for each family:
+
 - `family1_drop_fixed_terms` and `family2_drop_fixed_terms`: the fixed-effect terms that you want to remove. Use `SES_num` to remove the continuous SES term.
 - `family1_extra_fixed_terms` and `family2_extra_fixed_terms`: extra fixed-effect terms that you want to add.
-- `family1_random_slope_terms` and `family2_random_slope_terms`: random slope terms, written as `term|group`, `term||group`, or in full lme4 form such as `(1 + speaker | participant_id)`.
 - `show_code`: `yes` shows the R code in the report. `no` hides it.
 
 Example of a changed `params` block:
 
 ```yaml
 params:
-  model_robustness_mode: "auto"
+  model_robustness_mode: "strict"
   family1_count_age_specification: "quadratic"
   family1_duration_age_specification: "linear"
   family2_count_age_specification: "quadratic"
@@ -303,22 +319,23 @@ params:
   anova_type: 2
   response_transform_global: "none"
   response_transform_map: ""
-  family1_participant_intercept: "without"
-  family1_location_intercept: "without"
-  family1_drop_fixed_terms: ["SES_num", "child_sex"]
-  family1_random_slope_terms: []
-  family2_participant_intercept: "with"
-  family2_location_intercept: "with"
+  family1_count_participant_intercept: "with"
+  family1_count_location_intercept: "with"
+  family1_count_random_slope_terms: []
+  family1_duration_participant_intercept: "with"
+  family1_duration_location_intercept: "without"
+  family1_duration_random_slope_terms: ["speaker|Location"]
+  family1_drop_fixed_terms: ["child_sex"]
+  family1_extra_fixed_terms: []
   family2_drop_fixed_terms: []
   family2_extra_fixed_terms: []
-  family2_random_slope_terms: ["speaker|participant_id"]
 ```
 
-The most common terms:
+The fixed terms of the models before any change:
 
-- Family 1 fixed terms usually include `speaker`, the active age terms (`age_z` or `age_z + age_z2`), the corresponding speaker-by-age interactions, `SES_num`, and `child_sex`.
-- Family 2 count usually starts from `input_count_hour`, `speaker`, `input_count_hour:speaker`, the active age terms, `SES_num`, and `child_sex`.
-- Family 2 duration usually starts from `input_duration_min_hour`, `speaker`, `input_duration_min_hour:speaker`, the active age terms, `SES_num`, and `child_sex`.
+- Family 1 (count and duration): `speaker`, the active age terms (`age_z`, or `age_z + age_z2`), `SES_num`, `child_sex`, and `speaker:age_z`.
+- Family 2 count: `adult_female_count_hour`, `adult_male_count_hour`, `other_child_count_hour`, the active age terms, `SES_num`, and `child_sex`.
+- Family 2 duration: `adult_female_duration_min_hour`, `adult_male_duration_min_hour`, `other_child_duration_min_hour`, the active age terms, `SES_num`, and `child_sex`.
 
 After a change, knit the document again. With `refit_models: yes`, the saved models, the prediction files, the diagnostics and the summary tables are created again with the new settings.
 
@@ -330,7 +347,7 @@ apply_dataset_runtime_state(datasets_bundle)
 
 final_master <- datasets_bundle$datasets$final_master
 input_data <- datasets_bundle$datasets$input_long
-input_output_data <- datasets_bundle$datasets$input_output_long
+input_output_data <- datasets_bundle$datasets$input_output_wide
 
 show_table(
   datasets_bundle$dataset_summary,
@@ -413,7 +430,7 @@ show_table(
 
 ```{r sample-overview}
 sample_overview <- data.frame(
-  dataset = c("final_master", "input_long", "input_output_long"),
+  dataset = c("final_master", "input_long", "input_output_wide"),
   participants = c(
     length(unique(final_master$participant_id)),
     length(unique(input_data$participant_id)),
@@ -495,7 +512,6 @@ for (figure_path in descriptive_figures) {
 
 ```{r fit-or-load-models}
 apply_report_environment_overrides()
-apply_report_analysis_overrides()
 apply_dataset_runtime_state(datasets_bundle)
 
 model_paths <- c(
@@ -506,20 +522,21 @@ model_paths <- c(
 )
 
 if (isTRUE(params$refit_models)) {
+  # Each call fits the model of the report and compares the linear and the quadratic age model.
   input_model_bundles <- list(
-    input_count_hour = fit_preregistered_model(
+    input_count_hour = fit_model_with_age_comparison(
       input_data, "input_count_hour", "family_1", allow_gamma = TRUE
     ),
-    input_duration_min_hour = fit_preregistered_model(
+    input_duration_min_hour = fit_model_with_age_comparison(
       input_data, "input_duration_min_hour", "family_1", allow_gamma = TRUE
     )
   )
 
   input_output_model_bundles <- list(
-    key_child_count_hour = fit_preregistered_model(
+    key_child_count_hour = fit_model_with_age_comparison(
       input_output_data, "key_child_count_hour", "family_2_count", allow_gamma = TRUE
     ),
-    key_child_duration_min_hour = fit_preregistered_model(
+    key_child_duration_min_hour = fit_model_with_age_comparison(
       input_output_data, "key_child_duration_min_hour", "family_2_duration", allow_gamma = TRUE
     )
   )
@@ -542,6 +559,9 @@ if (isTRUE(params$refit_models)) {
     )
   }
   model_bundles <- lapply(model_paths, load_model_bundle)
+  if (!all(vapply(model_bundles, function(bundle) !is.null(bundle$age_comparison), logical(1)))) {
+    stop("The saved models were made by an earlier version of this report. Knit once with refit_models: yes.")
+  }
 }
 
 selection_table <- selection_table_from_bundles(model_bundles)
@@ -558,7 +578,51 @@ utils::write.csv(
 show_table(selection_table, digits = 3, caption = "Model-selection decisions")
 ```
 
+## 4.1 Linear and quadratic age models
+
+For each of the four models, the model with linear age (`age_z`) and the model with quadratic age (`age_z + age_z2`) are compared. The two models of a comparison use the same participants and rows, the same distribution, the same random effects and the same other fixed terms. All models are fitted with maximum likelihood (ML), not REML, because models with different fixed effects can only be compared with ML.
+
+How to read the table:
+
+- `reported`: `TRUE` marks the model that is shown in detail in sections 5 and 6. It is set in the `params` block.
+- `AIC` and `BIC`: a lower value is better. `delta_AIC` and `delta_BIC` are the value of the quadratic model minus the value of the linear model. A negative value is in favour of the quadratic model.
+- `lrt_chisq`, `lrt_df`, `lrt_p`: the likelihood ratio test of the quadratic model against the linear model. A small p-value means that `age_z2` improves the fit.
+- `preferred_by_AIC`, `preferred_by_BIC`, `preferred_by_LRT`: the model that each criterion prefers. The likelihood ratio test prefers the quadratic model when p is below 0.05.
+- `converged` and `singular_fit`: problems of the fit. `singular_fit` is given only for mixed models.
+- `heteroscedasticity_p`: test of constant residual variance. It is given only for Gaussian models. `residual_test_p`: test of the residual distribution (Shapiro-Wilk for Gaussian models, DHARMa uniformity test for Gamma models). A small p-value points to a problem.
+
+The comparison is for information. It does not change the model that is reported. If a criterion prefers the other model, you can change the age specification in the `params` block and knit again.
+
+```{r age-model-comparison}
+age_model_comparison <- bind_rows_safe(lapply(model_bundles, function(bundle) bundle$age_comparison))
+rownames(age_model_comparison) <- NULL
+comparison_columns <- function(columns) {
+  age_model_comparison[, intersect(columns, names(age_model_comparison)), drop = FALSE]
+}
+
+show_table(
+  comparison_columns(c("response", "age_specification", "reported", "n_obs", "n_parameters", "logLik",
+                       "AIC", "BIC", "delta_AIC", "delta_BIC", "lrt_chisq", "lrt_df", "lrt_p")),
+  digits = 3,
+  caption = "Linear and quadratic age models: AIC, BIC and likelihood ratio test"
+)
+show_table(
+  comparison_columns(c("response", "age_specification", "preferred_by_AIC", "preferred_by_BIC",
+                       "preferred_by_LRT", "converged", "singular_fit", "heteroscedasticity_p",
+                       "residual_test", "residual_test_p", "status", "comparison_note")),
+  digits = 3,
+  caption = "Linear and quadratic age models: preferred model, convergence, singularity and residual tests"
+)
+show_table(
+  comparison_columns(c("response", "age_specification", "model_type", "fit_engine", "estimation",
+                       "random_terms", "fitted_formula")),
+  caption = "Linear and quadratic age models: distribution, random effects and formula"
+)
+```
+
 # 5. Model Family 1: Vocal input by age and speaker
+
+The pairwise comparisons in this section compare the three speakers with each other. The first set compares the input of two speakers at the mean age, at the mean SES and averaged over child sex. The second set compares the age slopes of two speakers; it is given when `speaker:age_z` is in the model. `p_value` is not adjusted. `p_holm` is adjusted with the Holm method for the three comparisons of a set. The effect size is the estimate divided by the residual standard deviation for Gaussian models, and the ratio of the two speakers for Gamma models. The estimates are on the scale of the model (see the column `scale`).
 
 ## 5.1 Input count per hour
 
@@ -611,6 +675,12 @@ show_table(input_count_fixed, digits = 4, caption = "Fixed effects: input count 
 
 ```{r input-count-random}
 show_table(random_effects_table(input_count_bundle), digits = 4)
+```
+
+### Pairwise comparisons and effect sizes
+
+```{r input-count-comparisons}
+show_comparisons_and_effect_sizes(input_count_bundle, "input count per hour")
 ```
 
 ### Fixed-effects forest plot
@@ -710,6 +780,12 @@ show_table(input_duration_fixed, digits = 4, caption = "Fixed effects: input dur
 show_table(random_effects_table(input_duration_bundle), digits = 4)
 ```
 
+### Pairwise comparisons and effect sizes
+
+```{r input-duration-comparisons}
+show_comparisons_and_effect_sizes(input_duration_bundle, "input duration in minutes per hour")
+```
+
 ### Fixed-effects forest plot
 
 ```{r input-duration-forest, results='asis'}
@@ -756,13 +832,17 @@ if (!is.na(input_duration_diagnostics$paths$dharma_plot)) {
 
 # 6. Model Family 2: Child output predicted by vocal input
 
-Family 2 repeats the same child-output outcome across the speaker-specific rows
-for each participant. Both participant and location intercepts are controlled by
-the corresponding parameters; neither is mandatory. In strict mode, `"with"`
-requests an intercept and `"without"` excludes it. `"auto"` allows alternatives;
-auto robustness mode can also simplify requested effects after failed or
-problematic fits. Inspect the requested/fitted formulas and diagnostic flags
-rather than assuming a particular random-effects structure.
+The Family 2 models use `input_output_wide.csv`, with one row per participant. The input of the adult female, the adult male and the other child are three separate predictors in the same model, so each coefficient is the relation of the child output with the input of one speaker when the input of the other two speakers is held constant. A participant has only one row. For this reason the models have no random intercepts and no random slopes; they are linear models (or Gamma models, when the response is strongly skewed).
+
+The coefficients of the three input predictors are compared with tests:
+
+- **Raw coefficients** (`coefficient_scale` is `raw`): the effect of one more unit of input (one more vocalization per hour, or one more minute per hour). The unit is the same for the three speakers.
+- **Standardized coefficients** (`coefficient_scale` is `standardized`): each coefficient is multiplied by the standard deviation of its predictor. This is the effect of one standard deviation more input of this speaker. The speakers differ much in the amount of input, so the two scales can give different answers.
+- For each scale there are three pairwise differences (t tests; `p_holm` is adjusted with the Holm method) and one joint F test that all three coefficients are equal.
+
+The three input predictors can be correlated. Look at the collinearity table of each model. The models have one row per participant, so with a small sample the confidence intervals are wide.
+
+In the prediction figures, each panel shows the input of one speaker. In a panel, the input of this speaker changes and the inputs of the other two speakers, age and SES are at their mean. The points are the observed values. They are not adjusted for the other predictors.
 
 ## 6.1 Key-child count per hour predicted by input count
 
@@ -817,6 +897,12 @@ show_table(child_count_fixed, digits = 4, caption = "Fixed effects: key-child co
 show_table(random_effects_table(child_count_bundle), digits = 4)
 ```
 
+### Comparison of the input coefficients and effect sizes
+
+```{r child-count-comparisons}
+show_comparisons_and_effect_sizes(child_count_bundle, "key-child count per hour")
+```
+
 ### Fixed-effects forest plot
 
 ```{r child-count-forest, results='asis'}
@@ -824,14 +910,13 @@ child_count_forest <- plot_fixed_effects_forest(child_count_bundle, "key_child_c
 show_saved_image(child_count_forest$path)
 ```
 
-### Predicted child count across input count and speaker
+### Predicted child count by the input count of each speaker
 
 ```{r child-count-prediction, results='asis'}
 child_count_prediction <- plot_input_output_predictions(
   child_count_bundle,
   input_output_data,
-  predictor_name = "input_count_hour",
-  x_label = "Input count per hour",
+  x_label = "Input count per hour of the speaker",
   y_label = "Predicted key-child count per hour",
   output_stub = "key_child_count_by_input",
   nsim = params$nsim
@@ -916,6 +1001,12 @@ show_table(child_duration_fixed, digits = 4, caption = "Fixed effects: key-child
 show_table(random_effects_table(child_duration_bundle), digits = 4)
 ```
 
+### Comparison of the input coefficients and effect sizes
+
+```{r child-duration-comparisons}
+show_comparisons_and_effect_sizes(child_duration_bundle, "key-child duration in minutes per hour")
+```
+
 ### Fixed-effects forest plot
 
 ```{r child-duration-forest, results='asis'}
@@ -923,14 +1014,13 @@ child_duration_forest <- plot_fixed_effects_forest(child_duration_bundle, "key_c
 show_saved_image(child_duration_forest$path)
 ```
 
-### Predicted child duration across input duration and speaker
+### Predicted child duration by the input duration of each speaker
 
 ```{r child-duration-prediction, results='asis'}
 child_duration_prediction <- plot_input_output_predictions(
   child_duration_bundle,
   input_output_data,
-  predictor_name = "input_duration_min_hour",
-  x_label = "Input duration (min/hour)",
+  x_label = "Input duration (min/hour) of the speaker",
   y_label = "Predicted key-child duration (min/hour)",
   output_stub = "key_child_duration_by_input",
   nsim = params$nsim
@@ -1024,7 +1114,9 @@ effect direction, intervals, diagnostics, and uncertainty. Avoid causal language
 No formal a priori power analysis is required by the feasibility-based
 preregistration. Question-specific focal-term lists are retained from the former
 report, so treatment-coded labels may not match sum contrasts; consult the full
-fixed-effects and ANOVA tables above for the active specification.
+fixed-effects and ANOVA tables above for the active specification. The pairwise
+comparisons of the speakers are shown again under RQ1, and the tests that compare
+the three input coefficients under RQ3.
 
 ```{r reporting-outputs}
 predictions <- list(

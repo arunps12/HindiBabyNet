@@ -34,9 +34,9 @@ required_columns <- list(
     "input_count_hour",
     "input_duration_hour"
   ),
-  input_output_long = c(
+  # One row per participant: the input of each speaker is in its own column.
+  input_output_wide = c(
     "participant_id",
-    "speaker",
     "age_days",
     "age_months",
     "age_z",
@@ -47,8 +47,12 @@ required_columns <- list(
     "father_education",
     "Location",
     "recording_duration_hours",
-    "input_count_hour",
-    "input_duration_hour",
+    "adult_female_count_hour",
+    "adult_male_count_hour",
+    "other_child_count_hour",
+    "adult_female_duration_hour",
+    "adult_male_duration_hour",
+    "other_child_duration_hour",
     "key_child_count_hour",
     "key_child_duration_hour"
   )
@@ -56,7 +60,16 @@ required_columns <- list(
 
 read_public_dataset <- function(path, label) {
   if (!file.exists(path)) {
-    stop(sprintf("Required dataset not found: %s", path), call. = FALSE)
+    stop(
+      sprintf(
+        paste(
+          "Required dataset not found: %s. Run the command hbn-audio-stats.",
+          "If the other dataset files exist, it adds only the missing input_output_wide.csv."
+        ),
+        path
+      ),
+      call. = FALSE
+    )
   }
 
   utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
@@ -108,12 +121,13 @@ coerce_common_factors <- function(dataframe) {
   dataframe
 }
 
+# Every duration per hour (seconds per hour) also gets a column in minutes per hour.
 add_duration_minutes_per_hour <- function(dataframe) {
-  if ("input_duration_hour" %in% names(dataframe) && !"input_duration_min_hour" %in% names(dataframe)) {
-    dataframe[["input_duration_min_hour"]] <- dataframe[["input_duration_hour"]] / 60.0
-  }
-  if ("key_child_duration_hour" %in% names(dataframe) && !"key_child_duration_min_hour" %in% names(dataframe)) {
-    dataframe[["key_child_duration_min_hour"]] <- dataframe[["key_child_duration_hour"]] / 60.0
+  for (column in grep("_duration_hour$", names(dataframe), value = TRUE)) {
+    minutes_column <- sub("_duration_hour$", "_duration_min_hour", column)
+    if (!minutes_column %in% names(dataframe)) {
+      dataframe[[minutes_column]] <- dataframe[[column]] / 60.0
+    }
   }
   dataframe
 }
@@ -140,7 +154,7 @@ load_analysis_datasets <- function(paths = analysis_paths, write_summary = FALSE
   dataset_paths <- list(
     final_master = file.path(paths$data_dir, "final_master.csv"),
     input_long = file.path(paths$data_dir, "input_long.csv"),
-    input_output_long = file.path(paths$data_dir, "input_output_long.csv")
+    input_output_wide = file.path(paths$data_dir, "input_output_wide.csv")
   )
 
   datasets <- lapply(names(dataset_paths), function(label) {

@@ -86,17 +86,6 @@ select_model_family <- function(response_name, data, allow_gamma = TRUE) {
   cbind(metrics, model_type = decision$model_type, rationale = decision$rationale, stringsAsFactors = FALSE)
 }
 
-family_override_key <- function(model_family) {
-  if (identical(model_family, "family_1")) {
-    return("family_1")
-  }
-  if (model_family %in% c("family_2_count", "family_2_duration")) {
-    return("family_2")
-  }
-
-  stop(sprintf("Unknown model family: %s", model_family), call. = FALSE)
-}
-
 expand_fixed_term_shorthand <- function(term) {
   term <- trimws(term)
   if (!nzchar(term)) {
@@ -155,78 +144,40 @@ normalize_random_slope_terms <- function(terms) {
   unique(normalized[!is.na(normalized) & nzchar(normalized)])
 }
 
-default_model_family_spec <- function(model_family, response_name) {
-  age_specification <- get_age_specification_name(response_name = response_name, model_family = model_family)
-  age_terms <- active_age_terms(
-    response_name = response_name,
-    model_family = model_family,
-    age_specification = age_specification
-  )
+default_model_family_spec <- function(model_family, response_name, age_specification = NULL) {
+  age_specification <- age_specification %||%
+    get_age_specification_name(response_name = response_name, model_family = model_family)
+  age_terms <- active_age_terms(age_specification = age_specification)
 
   if (identical(model_family, "family_1")) {
-    fixed_terms <- c("speaker", age_terms, "SES_num", "child_sex")
-    if (length(age_terms) > 0) {
-      fixed_terms <- c(
-        fixed_terms,
-        age_interaction_terms(
-          "speaker",
-          response_name = response_name,
-          model_family = model_family,
-          age_specification = age_specification
-        )
-      )
-    }
-    preserve_terms <- unique(c("speaker", age_terms))
-    drop_order <- c(
-      age_interaction_terms(
-        "speaker",
-        response_name = response_name,
-        model_family = model_family,
-        age_specification = age_specification
-      ),
-      "child_sex",
-      "SES_num"
-    )
+    # The speaker-by-age interaction is linear in every model: speaker:age_z2 is not used.
+    age_interaction <- if ("age_z" %in% age_terms) "speaker:age_z" else character(0)
     return(list(
       model_family = model_family,
       response_name = response_name,
-      fixed_terms = fixed_terms,
-      preserve_fixed_terms = preserve_terms,
-      simplification_drop_order = drop_order,
+      fixed_terms = c("speaker", age_terms, "SES_num", "child_sex", age_interaction),
+      preserve_fixed_terms = unique(c("speaker", age_terms)),
+      simplification_drop_order = c(age_interaction, "child_sex", "SES_num"),
+      random_effects = TRUE,
       participant_intercept_mode = "with",
-      location_intercept_mode = "with",
+      location_intercept_mode = "without",
       random_slopes = character(0)
     ))
   }
 
-  if (identical(model_family, "family_2_count")) {
-    fixed_terms <- c("input_count_hour", "speaker", "input_count_hour:speaker", age_terms, "SES_num", "child_sex")
-    preserve_terms <- unique(c("input_count_hour", "speaker"))
-    drop_order <- c("input_count_hour:speaker", "child_sex", "SES_num", rev(age_terms))
+  if (is_family_2(model_family)) {
+    # One row per participant: the input of each speaker is its own predictor and the
+    # model has no random effects.
+    input_terms <- family_2_input_terms(model_family)
     return(list(
       model_family = model_family,
       response_name = response_name,
-      fixed_terms = fixed_terms,
-      preserve_fixed_terms = preserve_terms,
-      simplification_drop_order = drop_order,
-      participant_intercept_mode = analysis_options$family_2_participant_intercept,
-      location_intercept_mode = "with",
-      random_slopes = character(0)
-    ))
-  }
-
-  if (identical(model_family, "family_2_duration")) {
-    fixed_terms <- c("input_duration_min_hour", "speaker", "input_duration_min_hour:speaker", age_terms, "SES_num", "child_sex")
-    preserve_terms <- unique(c("input_duration_min_hour", "speaker"))
-    drop_order <- c("input_duration_min_hour:speaker", "child_sex", "SES_num", rev(age_terms))
-    return(list(
-      model_family = model_family,
-      response_name = response_name,
-      fixed_terms = fixed_terms,
-      preserve_fixed_terms = preserve_terms,
-      simplification_drop_order = drop_order,
-      participant_intercept_mode = analysis_options$family_2_participant_intercept,
-      location_intercept_mode = "with",
+      fixed_terms = c(input_terms, age_terms, "SES_num", "child_sex"),
+      preserve_fixed_terms = unique(c(input_terms, age_terms)),
+      simplification_drop_order = c("child_sex", "SES_num"),
+      random_effects = FALSE,
+      participant_intercept_mode = "without",
+      location_intercept_mode = "without",
       random_slopes = character(0)
     ))
   }
@@ -234,18 +185,17 @@ default_model_family_spec <- function(model_family, response_name) {
   stop(sprintf("Unknown preregistered model family: %s", model_family), call. = FALSE)
 }
 
-get_model_family_overrides <- function(model_family) {
-  override_key <- family_override_key(model_family)
-  overrides <- analysis_options$model_spec_overrides[[override_key]]
+get_model_family_overrides <- function(model_family, response_name) {
+  overrides <- analysis_options$model_spec_overrides[[model_age_spec_key(model_family, response_name)]]
   if (is.null(overrides)) {
     return(list())
   }
   overrides
 }
 
-build_requested_model_spec <- function(model_family, response_name) {
-  spec <- default_model_family_spec(model_family, response_name)
-  overrides <- get_model_family_overrides(model_family)
+build_requested_model_spec <- function(model_family, response_name, age_specification = NULL) {
+  spec <- default_model_family_spec(model_family, response_name, age_specification)
+  overrides <- get_model_family_overrides(model_family, response_name)
 
   spec$fixed_terms <- normalize_fixed_terms(c(
     spec$fixed_terms,
@@ -255,12 +205,14 @@ build_requested_model_spec <- function(model_family, response_name) {
     spec$fixed_terms,
     normalize_fixed_terms(overrides$drop_fixed_terms %||% character(0))
   )
-  spec$participant_intercept_mode <- overrides$participant_intercept %||% spec$participant_intercept_mode
-  spec$location_intercept_mode <- overrides$location_intercept %||% spec$location_intercept_mode
-  spec$random_slopes <- normalize_random_slope_terms(c(
-    spec$random_slopes,
-    overrides$random_slopes %||% character(0)
-  ))
+  if (isTRUE(spec$random_effects)) {
+    spec$participant_intercept_mode <- overrides$participant_intercept %||% spec$participant_intercept_mode
+    spec$location_intercept_mode <- overrides$location_intercept %||% spec$location_intercept_mode
+    spec$random_slopes <- normalize_random_slope_terms(c(
+      spec$random_slopes,
+      overrides$random_slopes %||% character(0)
+    ))
+  }
 
   spec
 }
@@ -357,21 +309,31 @@ build_formula_from_spec <- function(spec) {
   stats::as.formula(sprintf("%s ~ %s", spec$response_name, rhs))
 }
 
-build_candidate_specs <- function(model_family, response_name) {
+build_candidate_specs <- function(model_family, response_name, age_specification = NULL) {
   strict <- identical(analysis_options$model_robustness_mode, "strict")
-  requested_spec <- build_requested_model_spec(model_family, response_name)
+  requested_spec <- build_requested_model_spec(model_family, response_name, age_specification)
   fixed_term_sets <- candidate_fixed_term_sets(requested_spec, strict = strict)
-  random_slope_sets <- candidate_random_slope_sets(requested_spec$random_slopes, strict = strict)
-  participant_candidates <- logical_mode_candidates(
-    requested_spec$participant_intercept_mode,
-    default_value = TRUE,
-    allow_fallback = !strict
-  )
-  location_candidates <- logical_mode_candidates(
-    requested_spec$location_intercept_mode,
-    default_value = TRUE,
-    allow_fallback = !strict
-  )
+  if (isTRUE(requested_spec$random_effects)) {
+    random_slope_sets <- candidate_random_slope_sets(requested_spec$random_slopes, strict = strict)
+    participant_candidates <- logical_mode_candidates(
+      requested_spec$participant_intercept_mode,
+      default_value = TRUE,
+      allow_fallback = !strict
+    )
+    location_candidates <- logical_mode_candidates(
+      requested_spec$location_intercept_mode,
+      default_value = TRUE,
+      allow_fallback = !strict
+    )
+  } else {
+    # A model without random effects never gets them, also not as a fallback.
+    random_slope_sets <- list(character(0))
+    participant_candidates <- FALSE
+    location_candidates <- FALSE
+  }
+  requested_spec$participant_intercept <- participant_candidates[[1]]
+  requested_spec$location_intercept <- location_candidates[[1]]
+  requested_formula <- build_formula_from_spec(requested_spec)
 
   candidates <- list()
   seen <- character(0)
@@ -388,7 +350,7 @@ build_candidate_specs <- function(model_family, response_name) {
           key <- paste(deparse(formula), collapse = " ")
           if (!(key %in% seen)) {
             spec$formula <- formula
-            spec$requested_formula <- build_formula_from_spec(requested_spec)
+            spec$requested_formula <- requested_formula
             candidates[[length(candidates) + 1]] <- spec
             seen <- c(seen, key)
           }
@@ -398,13 +360,6 @@ build_candidate_specs <- function(model_family, response_name) {
   }
 
   candidates
-}
-
-build_preregistered_formula <- function(model_family, response_name, include_participant_intercept = TRUE) {
-  spec <- build_requested_model_spec(model_family, response_name)
-  spec$participant_intercept <- include_participant_intercept
-  spec$location_intercept <- identical(spec$location_intercept_mode, "with") || identical(spec$location_intercept_mode, "auto")
-  build_formula_from_spec(spec)
 }
 
 prepare_model_data <- function(data, formula) {
@@ -602,7 +557,36 @@ fit_selected_model <- function(data, response_name, formula, selection_row) {
   stop(sprintf("Unsupported model type: %s", model_type), call. = FALSE)
 }
 
-fit_preregistered_model <- function(data, response_name, model_family, allow_gamma = TRUE) {
+# One fitted model with everything that the report needs.
+build_model_bundle <- function(response_name, model_family, selection_row, spec, fit_attempt, age_specification) {
+  fit_assessment <- assess_model_fit(fit_attempt$model)
+  list(
+    response_name = response_name,
+    model_family = model_family,
+    selection = selection_row,
+    model = fit_attempt$model,
+    model_data = fit_attempt$model_data,
+    fitted_formula = fit_attempt$fitted_formula,
+    response_transform = fit_attempt$response_transform,
+    transformed_response_name = fit_attempt$transformed_response_name,
+    age_specification = age_specification,
+    n_complete_cases = nrow(fit_attempt$model_data),
+    participant_intercept_mode = if (isTRUE(spec$participant_intercept)) "with" else "without",
+    location_intercept_mode = if (isTRUE(spec$location_intercept)) "with" else "without",
+    random_slope_terms = paste(spec$random_slopes, collapse = "; "),
+    fixed_effect_terms = paste(spec$fixed_terms, collapse = "; "),
+    spec = spec[c("model_family", "response_name", "fixed_terms", "participant_intercept",
+                  "location_intercept", "random_slopes")],
+    requested_formula = spec$requested_formula,
+    fit_engine = fit_attempt$fit_engine,
+    fit_status = if (isTRUE(fit_assessment$problematic)) "fallback_problematic" else "accepted",
+    fit_issue = fit_assessment$issue
+  )
+}
+
+fit_preregistered_model <- function(data, response_name, model_family, allow_gamma = TRUE, age_specification = NULL) {
+  age_specification <- age_specification %||%
+    get_age_specification_name(response_name = response_name, model_family = model_family)
   selection_row <- select_model_family(response_name, data, allow_gamma = allow_gamma)
   requested_response_transform <- get_response_transform_name(response_name)
   if (identical(selection_row$model_type[[1]], "log_lmm") && identical(requested_response_transform, "none")) {
@@ -614,7 +598,7 @@ fit_preregistered_model <- function(data, response_name, model_family, allow_gam
       call. = FALSE
     )
   }
-  candidate_specs <- build_candidate_specs(model_family, response_name)
+  candidate_specs <- build_candidate_specs(model_family, response_name, age_specification)
   last_error <- NULL
   fallback_result <- NULL
 
@@ -629,28 +613,9 @@ fit_preregistered_model <- function(data, response_name, model_family, allow_gam
     )
 
     if (!is.null(fit_attempt)) {
-      fit_assessment <- assess_model_fit(fit_attempt$model)
-      bundle <- list(
-        response_name = response_name,
-        model_family = model_family,
-        selection = selection_row,
-        model = fit_attempt$model,
-        fitted_formula = fit_attempt$fitted_formula,
-        response_transform = fit_attempt$response_transform,
-        transformed_response_name = fit_attempt$transformed_response_name,
-        age_specification = get_age_specification_name(response_name = response_name, model_family = model_family),
-        n_complete_cases = nrow(fit_attempt$model_data),
-        participant_intercept_mode = if (isTRUE(spec$participant_intercept)) "with" else "without",
-        location_intercept_mode = if (isTRUE(spec$location_intercept)) "with" else "without",
-        random_slope_terms = paste(spec$random_slopes, collapse = "; "),
-        fixed_effect_terms = paste(spec$fixed_terms, collapse = "; "),
-        requested_formula = spec$requested_formula,
-        fit_engine = fit_attempt$fit_engine,
-        fit_status = if (isTRUE(fit_assessment$problematic)) "fallback_problematic" else "accepted",
-        fit_issue = fit_assessment$issue
-      )
+      bundle <- build_model_bundle(response_name, model_family, selection_row, spec, fit_attempt, age_specification)
 
-      if (isTRUE(fit_assessment$problematic) && candidate_index < length(candidate_specs)) {
+      if (!identical(bundle$fit_status, "accepted") && candidate_index < length(candidate_specs)) {
         if (is.null(fallback_result)) {
           fallback_result <- bundle
         }
@@ -676,6 +641,142 @@ fit_preregistered_model <- function(data, response_name, model_family, allow_gam
   }
 
   stop(last_error)
+}
+
+# ---------------------------------------------------------------------------
+# Linear and quadratic age model of the same response
+# ---------------------------------------------------------------------------
+
+# Rows that every age model of one response can use: no missing value in a variable
+# of the quadratic model.
+complete_rows_for_age_models <- function(data, response_name, model_family) {
+  spec <- build_requested_model_spec(model_family, response_name, age_specification = "quadratic")
+  right_side <- paste(c("1", spec$fixed_terms, spec$random_slopes), collapse = " + ")
+  variables <- all.vars(stats::as.formula(sprintf("%s ~ %s", response_name, right_side)))
+  if (isTRUE(spec$random_effects)) {
+    variables <- c(variables, "participant_id", "Location")
+  }
+  variables <- intersect(unique(variables), names(data))
+  data[stats::complete.cases(data[, variables, drop = FALSE]), , drop = FALSE]
+}
+
+# Fit the same model with another age specification. The distribution, the random
+# effects and the other fixed terms are those of the given bundle; nothing is simplified.
+refit_with_age_specification <- function(bundle, data, age_specification) {
+  requested_now <- build_requested_model_spec(bundle$model_family, bundle$response_name, bundle$age_specification)
+  requested_new <- build_requested_model_spec(bundle$model_family, bundle$response_name, age_specification)
+  spec <- bundle$spec
+  # Terms that were removed from the reported model stay removed.
+  spec$fixed_terms <- setdiff(requested_new$fixed_terms, setdiff(requested_now$fixed_terms, bundle$spec$fixed_terms))
+  spec$formula <- build_formula_from_spec(spec)
+  spec$requested_formula <- spec$formula
+  fit_attempt <- fit_selected_model(data, bundle$response_name, spec$formula, bundle$selection)
+  build_model_bundle(bundle$response_name, bundle$model_family, bundle$selection, spec, fit_attempt, age_specification)
+}
+
+random_terms_label <- function(bundle) {
+  terms <- c(
+    if (isTRUE(bundle$spec$participant_intercept)) "(1 | participant_id)",
+    if (isTRUE(bundle$spec$location_intercept)) "(1 | Location)",
+    bundle$spec$random_slopes
+  )
+  if (length(terms)) paste(terms, collapse = " + ") else "none"
+}
+
+# One row of the comparison table. `fit` is a bundle, or the error message of a fit that failed.
+age_comparison_row <- function(fit, age_specification, reported_bundle) {
+  row <- data.frame(
+    response = reported_bundle$response_name,
+    model_family = reported_bundle$model_family,
+    age_specification = age_specification,
+    reported = identical(age_specification, reported_bundle$age_specification),
+    status = if (is.character(fit)) paste("failed:", fit) else "ok",
+    stringsAsFactors = FALSE
+  )
+  if (is.character(fit)) {
+    return(row)
+  }
+
+  log_likelihood <- stats::logLik(fit$model)
+  diagnostics <- build_diagnostic_summary(fit)
+  cbind(row, data.frame(
+    model_type = fit$selection$model_type[[1]],
+    fit_engine = fit$fit_engine,
+    estimation = "ML",
+    random_terms = random_terms_label(fit),
+    n_obs = as.integer(stats::nobs(fit$model)),
+    n_parameters = as.integer(attr(log_likelihood, "df")),
+    logLik = as.numeric(log_likelihood),
+    AIC = stats::AIC(fit$model),
+    BIC = stats::BIC(fit$model),
+    converged = diagnostics$converged,
+    singular_fit = diagnostics$singular_fit,
+    heteroscedasticity_p = diagnostics$heteroscedasticity_p,
+    residual_test = diagnostics$residual_test,
+    residual_test_p = diagnostics$residual_test_p,
+    fitted_formula = paste(deparse(fit$fitted_formula, width.cutoff = 500L), collapse = " "),
+    stringsAsFactors = FALSE
+  ))
+}
+
+# Comparison of the linear and the quadratic age model: one row for each model.
+# The likelihood ratio test is calculated from the two log-likelihoods (maximum
+# likelihood). It is given only when both models use the same rows, the same
+# distribution and the same random effects.
+age_comparison_table <- function(fits, reported_bundle, alpha = 0.05) {
+  table <- bind_rows_safe(lapply(names(fits), function(age_specification) {
+    age_comparison_row(fits[[age_specification]], age_specification, reported_bundle)
+  }))
+  rownames(table) <- NULL
+  table[c("delta_AIC", "delta_BIC", "lrt_chisq", "lrt_df", "lrt_p")] <- NA_real_
+  table[c("preferred_by_AIC", "preferred_by_BIC", "preferred_by_LRT")] <- NA_character_
+  table$comparison_note <- ""
+
+  if (!all(table$status == "ok")) {
+    table$comparison_note <- "no comparison: a model could not be fitted"
+    return(table)
+  }
+  linear <- table[table$age_specification == "linear", , drop = FALSE]
+  quadratic <- table[table$age_specification == "quadratic", , drop = FALSE]
+  same_basis <- identical(linear$n_obs, quadratic$n_obs) &&
+    identical(linear$fit_engine, quadratic$fit_engine) &&
+    identical(linear$random_terms, quadratic$random_terms)
+  if (!same_basis) {
+    table$comparison_note <- "no comparison: the models differ in rows, distribution or random effects"
+    return(table)
+  }
+
+  is_quadratic <- table$age_specification == "quadratic"
+  table$delta_AIC[is_quadratic] <- quadratic$AIC - linear$AIC
+  table$delta_BIC[is_quadratic] <- quadratic$BIC - linear$BIC
+  table$lrt_chisq[is_quadratic] <- max(0, 2 * (quadratic$logLik - linear$logLik))
+  table$lrt_df[is_quadratic] <- quadratic$n_parameters - linear$n_parameters
+  table$lrt_p[is_quadratic] <- stats::pchisq(
+    table$lrt_chisq[is_quadratic], df = table$lrt_df[is_quadratic], lower.tail = FALSE
+  )
+  table$preferred_by_AIC <- if (quadratic$AIC < linear$AIC) "quadratic" else "linear"
+  table$preferred_by_BIC <- if (quadratic$BIC < linear$BIC) "quadratic" else "linear"
+  table$preferred_by_LRT <- if (table$lrt_p[is_quadratic] < alpha) "quadratic" else "linear"
+  table
+}
+
+# Fit the model of the report (age specification of the settings) and compare the
+# linear and the quadratic age model of the same response. The comparison table is
+# saved in the bundle as `age_comparison`.
+fit_model_with_age_comparison <- function(data, response_name, model_family, allow_gamma = TRUE) {
+  data <- complete_rows_for_age_models(data, response_name, model_family)
+  bundle <- fit_preregistered_model(data, response_name, model_family, allow_gamma = allow_gamma)
+  fits <- lapply(c(linear = "linear", quadratic = "quadratic"), function(age_specification) {
+    if (identical(age_specification, bundle$age_specification)) {
+      return(bundle)
+    }
+    tryCatch(
+      refit_with_age_specification(bundle, data, age_specification),
+      error = function(error_condition) conditionMessage(error_condition)
+    )
+  })
+  bundle$age_comparison <- age_comparison_table(fits, bundle)
+  bundle
 }
 
 selection_table_from_bundles <- function(model_bundles) {

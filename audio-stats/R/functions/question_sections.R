@@ -20,34 +20,35 @@ label_term <- function(term) {
   switch(term,
     speakeradult_male = "Speaker: adult male vs adult female",
     speakerother_child = "Speaker: other child vs adult female",
-    age_z = "Child age (z-scored)", SES_num = "SES (ordered numeric score)",
+    age_z = "Child age (z-scored)", age_z2 = "Child age squared (z-scored)",
+    SES_num = "SES (ordered numeric score)",
     child_sexmale = "Child sex: male vs female",
     "speakeradult_male:age_z" = "Adult male by age interaction",
     "speakerother_child:age_z" = "Other child by age interaction",
-    input_count_hour = "Input count per hour",
-    "input_count_hour:speakeradult_male" = "Input count by adult male interaction",
-    "input_count_hour:speakerother_child" = "Input count by other child interaction",
-    input_duration_min_hour = "Input duration (minutes per hour)",
-    "input_duration_min_hour:speakeradult_male" = "Input duration by adult male interaction",
-    "input_duration_min_hour:speakerother_child" = "Input duration by other child interaction", term)
+    adult_female_count_hour = "Adult female input count per hour",
+    adult_male_count_hour = "Adult male input count per hour",
+    other_child_count_hour = "Other child input count per hour",
+    adult_female_duration_min_hour = "Adult female input duration (minutes per hour)",
+    adult_male_duration_min_hour = "Adult male input duration (minutes per hour)",
+    other_child_duration_min_hour = "Other child input duration (minutes per hour)", term)
 }
 
 focal_terms_for_question <- function(question_id, response) {
   if (identical(question_id, "rq1")) return(c("speakeradult_male", "speakerother_child"))
-  if (identical(question_id, "rq2")) return(c("age_z", "SES_num", "child_sexmale", "speakeradult_male:age_z", "speakerother_child:age_z"))
+  if (identical(question_id, "rq2")) return(c("age_z", "age_z2", "SES_num", "child_sexmale", "speakeradult_male:age_z", "speakerother_child:age_z"))
   if (identical(question_id, "rq3")) {
-    predictor <- if (identical(response, "key_child_count_hour")) "input_count_hour" else "input_duration_min_hour"
-    return(c(predictor, "speakeradult_male", "speakerother_child",
-             paste0(predictor, ":speakeradult_male"), paste0(predictor, ":speakerother_child")))
+    return(family_2_input_terms(if (identical(response, "key_child_count_hour")) "family_2_count" else "family_2_duration"))
   }
-  if (identical(question_id, "rq4")) return(c("age_z", "SES_num", "child_sexmale"))
+  if (identical(question_id, "rq4")) return(c("age_z", "age_z2", "SES_num", "child_sexmale"))
   character(0)
 }
 
 prediction_summary_table <- function(prediction_data) {
-  predictor <- if ("input_count_hour" %in% names(prediction_data)) "input_count_hour" else if (
-    "input_duration_min_hour" %in% names(prediction_data)) "input_duration_min_hour" else "age_days"
-  # Retain the former report's predictor-priority and endpoint summary rules.
+  # The predictor of the table is the column that changes along the prediction line:
+  # the input of a speaker (Family 2) or age (Family 1).
+  candidates <- intersect(c("input_count_hour", "input_duration_min_hour", "age_days"), names(prediction_data))
+  varies <- vapply(candidates, function(column) length(unique(prediction_data[[column]])) > 1, logical(1))
+  predictor <- c(candidates[varies], "age_days")[[1]]
   do.call(rbind, lapply(unique(prediction_data$speaker), function(speaker) {
     rows <- prediction_data[prediction_data$speaker == speaker, , drop = FALSE]
     rows <- rows[order(rows[[predictor]]), , drop = FALSE]
@@ -105,8 +106,13 @@ render_question_section <- function(question, reporting_bundle, predictions) {
   row <- summary[summary$research_question_id == question$id, , drop = FALSE]
   if (nrow(row)) cat(sprintf("**Overall evidence category.** %s\n\n", row$evidence_category[[1]]))
   if (question$id %in% c("rq3", "rq4")) {
-    cat("### Modeling note for Family 2\n\nChild output is repeated across speaker rows. Random effects follow the active parameters and fitted formulas above, not a mandatory location-only specification.\n\n")
+    cat("### Modeling note for Family 2\n\nThe data has one row per participant. The input of the adult female, the adult male and the other child are three separate predictors in the same model. The model has no random effects. In the prediction summary, the input of one speaker changes and the other inputs, age and SES are at their mean.\n\n")
   }
+  # Comparisons that belong to a question: speakers (RQ1) or input coefficients (RQ3).
+  comparisons <- switch(question$id,
+    rq1 = list(table = reporting_bundle$speaker_pairwise, caption = "Pairwise comparisons of the speakers for"),
+    rq3 = list(table = reporting_bundle$input_coefficient_tests, caption = "Tests that compare the input coefficients for"),
+    NULL)
   for (response in as.character(question$response_key)) {
     cat(sprintf("### %s\n\n", label_response(response)))
     selection <- reporting_bundle$selection_table
@@ -122,5 +128,12 @@ render_question_section <- function(question, reporting_bundle, predictions) {
     effects <- effects[effects$response == response & effects$term %in% focal_terms_for_question(question$id, response), , drop = FALSE]
     render_table(effect_display_table(effects), paste("Focal fixed effects for", label_response(response), "under", question$hypothesis_id))
     render_effect_bullets(effects)
+    if (!is.null(comparisons) && !is.null(comparisons$table) && nrow(comparisons$table)) {
+      rows <- comparisons$table[comparisons$table$response == response, , drop = FALSE]
+      rows <- rows[, setdiff(names(rows), c("response", "model_family")), drop = FALSE]
+      rownames(rows) <- NULL
+      print(knitr::kable(rows, digits = 4, caption = paste(comparisons$caption, label_response(response))))
+      cat("\n\n")
+    }
   }
 }

@@ -62,8 +62,28 @@ build_residual_dataframe <- function(model) {
   )
 }
 
+# Test of the residual distribution. Gaussian models: Shapiro-Wilk test of the
+# residuals. Gamma models: uniformity test of the simulated residuals (DHARMa).
+residual_distribution_test <- function(model) {
+  is_gamma <- inherits(model, c("glmmTMB", "glm")) && !identical(stats::family(model)$family, "gaussian")
+  test_name <- if (is_gamma) "DHARMa uniformity (KS)" else "Shapiro-Wilk"
+  p_value <- tryCatch(
+    {
+      if (is_gamma) {
+        simulation <- DHARMa::simulateResiduals(model, plot = FALSE, seed = analysis_options$seed)
+        DHARMa::testUniformity(simulation, plot = FALSE)$p.value
+      } else {
+        stats::shapiro.test(as.numeric(stats::residuals(model)))$p.value
+      }
+    },
+    error = function(e) NA_real_
+  )
+  list(test = test_name, p_value = as.numeric(p_value))
+}
+
 build_diagnostic_summary <- function(bundle) {
   flags <- collect_model_flags(bundle$model)
+  residual_test <- residual_distribution_test(bundle$model)
   heteroscedasticity_p <- tryCatch(
     {
       result <- performance::check_heteroscedasticity(bundle$model)
@@ -87,6 +107,8 @@ build_diagnostic_summary <- function(bundle) {
     converged = flags$converged,
     convergence_messages = flags$convergence_messages,
     heteroscedasticity_p = heteroscedasticity_p,
+    residual_test = residual_test$test,
+    residual_test_p = residual_test$p_value,
     stringsAsFactors = FALSE
   )
 }

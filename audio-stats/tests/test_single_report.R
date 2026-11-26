@@ -12,7 +12,8 @@ local({
             !any(file.exists(file.path(root, "R", c("01_input_models.R", "02_input_output_models.R",
                                                      "03_model_tables_and_plots.R", "04_final_report.R", "report.qmd")))),
             !file.exists(file.path(root, "R", "functions", "final_report.R")),
-            length(gregexpr("fit_preregistered_model\\(", text)[[1]]) == 4L,
+            length(gregexpr("fit_model_with_age_comparison\\(", text)[[1]]) == 4L,
+            !grepl("fit_preregistered_model(", text, fixed = TRUE),
             !grepl("cache=TRUE", text, fixed = TRUE),
             match("  html_document:", lines) < match("  pdf_document:", lines))
   starts <- grep("^```\\{r", lines)
@@ -82,12 +83,24 @@ local({
   }
   utils::write.csv(master, file.path(derived, "final_master.csv"), row.names = FALSE)
   utils::write.csv(long, file.path(derived, "input_long.csv"), row.names = FALSE)
-  utils::write.csv(long, file.path(derived, "input_output_long.csv"), row.names = FALSE)
+  # Family 2 uses the wide table: one row per participant with the rates of each speaker.
+  utils::write.csv(master, file.path(derived, "input_output_wide.csv"), row.names = FALSE)
   utils::write.csv(data.frame(check = "synthetic_audit_marker", value = TRUE),
                    file.path(derived, "age_validation.csv"), row.names = FALSE)
+  # All model settings are given here, so the test does not depend on the values in the Rmd file.
+  settings <- list(nsim = 2L, show_code = FALSE, model_robustness_mode = "strict", anova_type = 2,
+                   response_transform_global = "none", response_transform_map = "",
+                   family1_count_age_specification = "quadratic", family1_duration_age_specification = "linear",
+                   family2_count_age_specification = "quadratic", family2_duration_age_specification = "linear",
+                   family1_count_participant_intercept = "with", family1_count_location_intercept = "without",
+                   family1_count_random_slope_terms = character(0),
+                   family1_duration_participant_intercept = "with", family1_duration_location_intercept = "with",
+                   family1_duration_random_slope_terms = character(0),
+                   family1_drop_fixed_terms = character(0), family1_extra_fixed_terms = character(0),
+                   family2_drop_fixed_terms = character(0), family2_extra_fixed_terms = character(0))
   render <- function(refit, filename) {
     rmarkdown::render(report, output_format = "html_document", output_file = filename, output_dir = results,
-                      params = list(refit_models = refit, nsim = 2L, show_code = FALSE),
+                      params = c(list(refit_models = refit), settings),
                       envir = new.env(parent = globalenv()), quiet = TRUE)
   }
   html <- render(TRUE, "synthetic-refit.html")
@@ -95,19 +108,56 @@ local({
   models <- list.files(file.path(results, "models"), full.names = TRUE)
   stopifnot(length(models) == 4L)
   bundles <- lapply(models, readRDS)
+  names(bundles) <- vapply(bundles, function(x) x$response_name, character(1))
+  # Family 1: mixed models with the random effects of each model. Family 2: linear models.
+  random_part <- function(name) sub("^[^(]*", "", paste(deparse(bundles[[name]]$fitted_formula, width.cutoff = 500L), collapse = " "))
   stopifnot(all(vapply(bundles, function(x) x$selection$model_type[[1]] == "lmm", logical(1))),
-            sum(vapply(bundles, function(x) inherits(x$model, "merMod"), logical(1))) == 2L)
+            inherits(bundles$input_count_hour$model, "merMod"), inherits(bundles$input_duration_min_hour$model, "merMod"),
+            identical(class(bundles$key_child_count_hour$model), "lm"),
+            identical(class(bundles$key_child_duration_min_hour$model), "lm"),
+            identical(random_part("input_count_hour"), "(1 | participant_id)"),
+            identical(random_part("input_duration_min_hour"), "(1 | participant_id) + (1 | Location)"),
+            nobs(bundles$key_child_count_hour$model) == n,
+            all(vapply(bundles, function(x) nrow(x$age_comparison) == 2L, logical(1))))
   required <- c("input_model_selection.csv", "input_output_model_selection.csv", "all_model_selection.csv",
                 "dataset_summary.csv", "model_selection_summary.csv", "fixed_effects_summary.csv",
                 "evidence_summary.csv", "research_question_summary.csv", "diagnostics_summary.csv",
                 "anova_summary.csv", "collinearity_summary.csv", "prediction_manifest.csv", "reporting_bundle.rds",
-                "combined_model_fit_statistics.csv", "combined_fixed_effects.csv", "combined_diagnostics_summary.csv")
+                "combined_model_fit_statistics.csv", "combined_fixed_effects.csv", "combined_diagnostics_summary.csv",
+                "age_model_comparison.csv", "speaker_pairwise_comparisons.csv", "input_coefficient_tests.csv",
+                "effect_sizes.csv")
   stopifnot(all(file.exists(file.path(results, "tables", required))),
             length(list.files(file.path(results, "predictions"), pattern = "csv$")) == 4L,
             length(list.files(file.path(results, "figures"), pattern = "png$")) == 8L,
             length(list.files(file.path(results, "diagnostics"), pattern = "png$")) == 8L)
-  anova <- read.csv(file.path(results, "tables", "anova_summary.csv"))
-  stopifnot("age_specification" %in% names(anova), all(anova$age_specification == "quadratic"))
+  read_table <- function(name) read.csv(file.path(results, "tables", name), stringsAsFactors = FALSE)
+  anova <- read_table("anova_summary.csv")
+  reported_age <- c(input_count_hour = "quadratic", input_duration_min_hour = "linear",
+                    key_child_count_hour = "quadratic", key_child_duration_min_hour = "linear")
+  stopifnot("age_specification" %in% names(anova), all(anova$age_specification == reported_age[anova$response]),
+            !any(grepl("age_z2:|:age_z2", anova$term)), "speaker:age_z" %in% anova$term,
+            all(c("adult_female_count_hour", "adult_male_count_hour", "other_child_count_hour",
+                  "adult_female_duration_min_hour", "other_child_duration_min_hour") %in% anova$term))
+
+  # Comparison of the linear and the quadratic age model: two rows for each of the four models.
+  comparison <- read_table("age_model_comparison.csv")
+  stopifnot(nrow(comparison) == 8L, all(comparison$status == "ok"), all(comparison$estimation == "ML"),
+            identical(comparison$age_specification, rep(c("linear", "quadratic"), 4)),
+            all(comparison$reported == (comparison$age_specification == reported_age[comparison$response])),
+            all(tapply(comparison$n_obs, comparison$response, function(x) length(unique(x))) == 1L),
+            all(tapply(comparison$random_terms, comparison$response, function(x) length(unique(x))) == 1L),
+            all(comparison$lrt_df[comparison$age_specification == "quadratic"] == 1),
+            all(is.finite(comparison$lrt_p[comparison$age_specification == "quadratic"])),
+            all(comparison$preferred_by_AIC %in% c("linear", "quadratic")))
+  pairwise <- read_table("speaker_pairwise_comparisons.csv")
+  coefficient_tests <- read_table("input_coefficient_tests.csv")
+  effect_sizes <- read_table("effect_sizes.csv")
+  stopifnot(nrow(pairwise) == 12L, !"note" %in% names(pairwise),
+            setequal(pairwise$response, c("input_count_hour", "input_duration_min_hour")),
+            nrow(coefficient_tests) == 16L, !"note" %in% names(coefficient_tests),
+            setequal(coefficient_tests$coefficient_scale, c("raw", "standardized")),
+            setequal(coefficient_tests$response, c("key_child_count_hour", "key_child_duration_min_hour")),
+            setequal(effect_sizes$response, names(reported_age)), sum(!is.na(effect_sizes$term)) == 6L)
 
   # Descriptive statistics: 9 tables and 19 figures in the results folder.
   source(file.path(root, "R", "functions", "descriptives.R"), local = TRUE)
@@ -127,18 +177,26 @@ local({
   markup <- gsub("\\s+", " ", paste(readLines(html, warn = FALSE), collapse = " "))
   stopifnot(grepl("synthetic_audit_marker", markup, fixed = TRUE),
             grepl("Descriptive statistics", markup, fixed = TRUE),
+            grepl("Linear and quadratic age models", markup, fixed = TRUE),
+            grepl("preferred_by_LRT", markup, fixed = TRUE),
+            grepl("Pairwise comparisons of the speakers: input count per hour", markup, fixed = TRUE),
+            grepl("Tests that compare the coefficients of the three input predictors: key-child count per hour", markup, fixed = TRUE),
+            grepl("joint test: all three coefficients equal", markup, fixed = TRUE),
             grepl("RQ4. Role of Individual Factors", markup, fixed = TRUE),
             length(gregexpr("<img ", markup, fixed = TRUE)[[1]]) >= 35L)
   before <- tools::md5sum(models)
   unlink(file.path(results, "figures"), recursive = TRUE)
   unlink(file.path(results, "predictions"), recursive = TRUE)
-  render(FALSE, "synthetic-reload.html")
+  unlink(file.path(results, "tables", "age_model_comparison.csv"))
+  reload <- render(FALSE, "synthetic-reload.html")
   stopifnot(identical(before, tools::md5sum(models)),
             length(list.files(file.path(results, "figures"), pattern = "png$")) == 8L,
             length(list.files(file.path(results, "predictions"), pattern = "csv$")) == 4L,
+            identical(read_table("age_model_comparison.csv"), comparison),
+            grepl("Linear and quadratic age models", paste(readLines(reload, warn = FALSE), collapse = " "), fixed = TRUE),
             descriptive_outputs_exist())
 
   # Knitting writes only into the results folder, never into the source folder.
   stopifnot(identical(source_files(), source_files_before))
-  message("Synthetic HTML refit AND reload renders passed; four models, all output contracts, descriptive outputs, embedded images and routed audits verified.")
+  message("Synthetic HTML refit AND reload renders passed; four models with the age comparison, all output contracts, descriptive outputs, embedded images and routed audits verified.")
 })
